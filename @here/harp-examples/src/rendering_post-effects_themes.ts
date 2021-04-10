@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,8 +7,13 @@
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
 import { GUI } from "dat.gui";
+
 import { apikey, copyrightInfo } from "../config";
 
 /**
@@ -20,8 +25,7 @@ export namespace EffectsExample {
         const canvas = document.getElementById(id) as HTMLCanvasElement;
 
         const mapView = new MapView({
-            canvas,
-            theme: "resources/berlin_tilezen_base.json"
+            canvas
         });
 
         CopyrightElementHandler.install("copyrightNotice", mapView);
@@ -46,7 +50,7 @@ export namespace EffectsExample {
 
     const map = initializeMapView("mapCanvas");
 
-    const omvDataSource = new OmvDataSource({
+    const omvDataSource = new VectorTileDataSource({
         baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
         apiFormat: APIFormat.XYZOMV,
         styleSetName: "tilezen",
@@ -72,16 +76,9 @@ export namespace EffectsExample {
     };
     const selector = gui.add(options, "theme", options.theme);
     selector
-        .onChange((value: string) => {
-            fetch(value)
-                .then(response => {
-                    return response.json();
-                })
-                .then((theme: any) => {
-                    map.clearTileCache();
-                    map.theme = theme;
-                    map.loadPostEffects((options.postEffects as { [key: string]: string })[value]);
-                });
+        .onChange(async (value: string) => {
+            await map.setTheme(value);
+            map.loadPostEffects((options.postEffects as { [key: string]: string })[value]);
         })
         .setValue(options.theme.streets);
 }

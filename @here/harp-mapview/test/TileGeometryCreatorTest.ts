@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,13 +24,18 @@ import { MapMeshBasicMaterial } from "@here/harp-materials";
 import { assert, expect } from "chai";
 import * as sinon from "sinon";
 import * as THREE from "three";
+import { RawShaderMaterial } from "three";
+
 import { DataSource } from "../lib/DataSource";
+import { isDepthPrePassMesh } from "../lib/DepthPrePass";
 import { DisplacementMap } from "../lib/DisplacementMap";
 import { TileGeometryCreator } from "../lib/geometry/TileGeometryCreator";
+import { MapObjectAdapter } from "../lib/MapObjectAdapter";
 import { Tile } from "../lib/Tile";
 
 class FakeMapView {
-    private m_scene = new THREE.Scene();
+    private readonly m_scene = new THREE.Scene();
+    private readonly m_renderer = { capabilities: { isWebGL2: false } };
 
     get zoomLevel(): number {
         return 0;
@@ -55,6 +60,10 @@ class FakeMapView {
     get projection() {
         return mercatorProjection;
     }
+
+    get renderer() {
+        return this.m_renderer;
+    }
 }
 
 class MockDataSource extends DataSource {
@@ -62,31 +71,136 @@ class MockDataSource extends DataSource {
     getTilingScheme(): TilingScheme {
         throw new Error("Method not implemented.");
     }
+
     /** @override */
     getTile(tileKey: TileKey): Tile | undefined {
         throw new Error("Method not implemented.");
     }
 }
 
-// tslint:disable:only-arrow-functions
+function getExtrudedPolygonTile(): DecodedTile {
+    return {
+        geometries: [
+            {
+                type: GeometryType.Polygon,
+                vertexAttributes: [
+                    {
+                        name: "position",
+                        buffer: new Float32Array([1.0, 2.0, 3.0]),
+                        type: "float",
+                        itemCount: 3
+                    }
+                ],
+                groups: [{ start: 0, count: 1, technique: 0, createdOffsets: [] }],
+                edgeIndex: {
+                    name: "index",
+                    buffer: new Uint16Array([0]),
+                    type: "float",
+                    itemCount: 1
+                }
+            }
+        ],
+        techniques: [
+            {
+                name: "extruded-polygon",
+                lineWidth: 0,
+                opacity: 0.1,
+                renderOrder: 0,
+                _index: 0,
+                _styleSetIndex: 0
+            }
+        ]
+    };
+}
+
+function getFillTile(): DecodedTile {
+    return {
+        geometries: [
+            {
+                type: GeometryType.Polygon,
+                vertexAttributes: [
+                    {
+                        name: "position",
+                        buffer: new Float32Array([1.0, 2.0, 3.0]),
+                        type: "float",
+                        itemCount: 3
+                    }
+                ],
+                groups: [{ start: 0, count: 1, technique: 0, createdOffsets: [] }],
+                edgeIndex: {
+                    name: "index",
+                    buffer: new Uint16Array([0]),
+                    type: "float",
+                    itemCount: 1
+                }
+            }
+        ],
+        techniques: [
+            {
+                name: "fill",
+                renderOrder: 0,
+                _index: 0,
+                _styleSetIndex: 0
+            }
+        ]
+    };
+}
+
+function getSolidLineTile(): DecodedTile {
+    return {
+        geometries: [
+            {
+                type: GeometryType.Polygon,
+                vertexAttributes: [],
+                groups: [{ start: 0, count: 1, technique: 0, createdOffsets: [] }]
+            }
+        ],
+        techniques: [
+            {
+                name: "solid-line",
+                color: "red",
+                lineWidth: 1,
+                renderOrder: 0,
+                _index: 0,
+                _styleSetIndex: 0
+            }
+        ]
+    };
+}
+
+function checkGlslVersion(objects: THREE.Object3D[], isWebGL2: boolean) {
+    const expectedVersion = isWebGL2 ? THREE.GLSL3 : THREE.GLSL1;
+    objects.forEach(object => {
+        const material = (object as any).material;
+        if (material instanceof RawShaderMaterial) {
+            assert.equal(material.glslVersion, expectedVersion);
+        }
+    });
+}
+
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 describe("TileGeometryCreator", () => {
     let mockDatasource: sinon.SinonStubbedInstance<MockDataSource>;
     let newTile: Tile;
     const tgc = TileGeometryCreator.instance;
-    const mapView = new FakeMapView();
+    let mapView: FakeMapView;
+    const sandbox = sinon.createSandbox();
 
-    before(function() {
-        mockDatasource = sinon.createStubInstance(MockDataSource);
-
+    beforeEach(function () {
+        mapView = new FakeMapView();
+        mockDatasource = sandbox.createStubInstance(MockDataSource);
         mockDatasource.getTilingScheme.callsFake(() => webMercatorTilingScheme);
-        sinon.stub(mockDatasource, "projection").get(() => mercatorProjection);
-        sinon.stub(mockDatasource, "mapView").get(() => mapView);
+        sandbox.stub(mockDatasource, "projection").get(() => mercatorProjection);
+        sandbox.stub(mockDatasource, "mapView").get(() => mapView);
         newTile = new Tile(
             (mockDatasource as unknown) as DataSource,
             TileKey.fromRowColumnLevel(0, 0, 0)
         );
+    });
+
+    afterEach(function () {
+        sandbox.restore();
     });
 
     it("add label blocking elements", () => {
@@ -133,68 +247,106 @@ describe("TileGeometryCreator", () => {
         assert.equal(imageData.height, decodedDisplacementMap.yCountVertices);
     });
 
-    it("categories", () => {
-        type IndexedDecodedTile = Omit<DecodedTile, "techniques"> & {
-            techniques?: IndexedTechnique[];
-        };
+    for (const isWebGL2 of [false, true]) {
+        const webGLVersion = isWebGL2 ? "WebGL2" : "WebGL1";
 
-        const decodedTile: IndexedDecodedTile = {
-            geometries: [
-                {
-                    type: GeometryType.Polygon,
-                    vertexAttributes: [],
-                    groups: [{ start: 0, count: 1, technique: 0, createdOffsets: [] }]
-                },
-                {
-                    type: GeometryType.Polygon,
-                    vertexAttributes: [],
-                    groups: [{ start: 0, count: 1, technique: 1, createdOffsets: [] }]
-                }
-            ],
-            techniques: [
-                {
-                    _styleSet: "tilezen",
-                    _category: "hi-priority",
-                    _index: 0,
-                    _styleSetIndex: 0,
-                    renderOrder: -1,
-                    name: "line",
-                    color: "rgb(255,0,0)",
-                    lineWidth: 1
-                },
-                {
-                    _styleSet: "tilezen",
-                    _category: "low-priority",
-                    _index: 1,
-                    _styleSetIndex: 0,
-                    renderOrder: -1,
-                    name: "circles"
-                }
-            ]
-        };
+        describe(`${webGLVersion} support`, () => {
+            beforeEach(() => {
+                mapView.renderer.capabilities.isWebGL2 = isWebGL2;
+            });
+            it("extruded polygon materials have expected glslVersion", () => {
+                const decodedTile: DecodedTile = getExtrudedPolygonTile();
+                tgc.createObjects(newTile, decodedTile);
 
-        const savedTheme = newTile.mapView.theme;
+                checkGlslVersion(newTile.objects, isWebGL2);
+            });
 
-        newTile.mapView.theme = {
-            priorities: [
-                { group: "tilezen", category: "low-priority" },
-                { group: "tilezen", category: "hi-priority" }
-            ]
-        };
+            it("fill polygon materials have expected glslVersion", () => {
+                const decodedTile: DecodedTile = getFillTile();
+                tgc.createObjects(newTile, decodedTile);
 
-        newTile.decodedTile = decodedTile as DecodedTile;
+                checkGlslVersion(newTile.objects, isWebGL2);
+            });
 
-        tgc.processTechniques(newTile, undefined, undefined);
-        tgc.createObjects(newTile, decodedTile as DecodedTile);
+            it("solid line materials have expected glslVersion", () => {
+                const decodedTile: DecodedTile = getSolidLineTile();
+                tgc.createObjects(newTile, decodedTile);
 
-        assert.strictEqual(newTile.objects.length, 3);
-        assert.strictEqual(newTile.objects[1].renderOrder, 20);
-        assert.strictEqual(newTile.objects[2].renderOrder, 10);
+                checkGlslVersion(newTile.objects, isWebGL2);
+            });
+        });
+    }
+    describe("pickable geometry", () => {
+        it("extruded polygon depth prepass and edges geometries are registered as non-pickable", () => {
+            const decodedTile: DecodedTile = getExtrudedPolygonTile();
+            tgc.createObjects(newTile, decodedTile);
+            assert.equal(newTile.objects.length, 3);
 
-        newTile.mapView.theme = savedTheme;
+            newTile.objects.forEach(object => {
+                const adapter = MapObjectAdapter.get(object);
+                expect(adapter).not.equals(undefined);
+                expect(adapter!.isPickable()).to.equal(
+                    !isDepthPrePassMesh(object) && !(object as any).isLine
+                );
+            });
+        });
+
+        it("fill outline geometry is registered as pickable", () => {
+            const decodedTile: DecodedTile = getFillTile();
+            tgc.createObjects(newTile, decodedTile);
+            assert.equal(newTile.objects.length, 2);
+            const adapter0 = MapObjectAdapter.get(newTile.objects[0]);
+            expect(adapter0).not.equals(undefined);
+            expect(adapter0!.isPickable()).to.equal(true);
+
+            const adapter1 = MapObjectAdapter.get(newTile.objects[1]);
+            expect(adapter1).not.equals(undefined);
+            expect(adapter1!.isPickable()).to.equal(true);
+        });
+
+        it("solid line without outline is registered as pickable", () => {
+            const decodedTile: DecodedTile = getSolidLineTile();
+            tgc.createObjects(newTile, decodedTile);
+            assert.equal(newTile.objects.length, 1);
+            const adapter = MapObjectAdapter.get(newTile.objects[0]);
+            expect(adapter).not.equals(undefined);
+            expect(adapter!.isPickable()).to.equal(true);
+        });
+
+        it("only outline geometry from solid line with outline is registered as pickable", () => {
+            const decodedTile: DecodedTile = {
+                geometries: [
+                    {
+                        type: GeometryType.Polygon,
+                        vertexAttributes: [],
+                        groups: [{ start: 0, count: 1, technique: 0, createdOffsets: [] }]
+                    }
+                ],
+                techniques: [
+                    {
+                        name: "solid-line",
+                        color: "red",
+                        lineWidth: 1,
+                        secondaryWidth: 2,
+                        renderOrder: 0,
+                        _index: 0,
+                        _styleSetIndex: 0
+                    }
+                ]
+            };
+            tgc.createObjects(newTile, decodedTile);
+            assert.equal(newTile.objects.length, 2);
+            const adapter0 = MapObjectAdapter.get(newTile.objects[0]);
+            expect(adapter0).not.equals(undefined);
+            expect(adapter0!.isPickable()).to.equal(false);
+
+            const adapter1 = MapObjectAdapter.get(newTile.objects[1]);
+            expect(adapter1).not.equals(undefined);
+            expect(adapter1!.isPickable()).to.equal(true);
+        });
     });
 
-    it("attachments", () => {
+    it("attachments", async () => {
         // create a simple style set defining rules and techniques
         // to style polygons.
         const rules: StyleSet = [
@@ -216,13 +368,9 @@ describe("TileGeometryCreator", () => {
             }
         ];
 
-        newTile.mapView.theme = {
-            styles: { rules }
-        };
-
         // create `StyleSetEvaluator` to instantiate techniques
         // for the test polygons.
-        const styleSetEvaluator = new StyleSetEvaluator(rules);
+        const styleSetEvaluator = new StyleSetEvaluator({ styleSet: rules });
 
         // get the instantiated `TechniqueIndex` associated with red-polygon.
         const redPolygonTechnique = styleSetEvaluator.getMatchingTechniques(
@@ -316,5 +464,47 @@ describe("TileGeometryCreator", () => {
         // test that the technique used to create the attachment is yellow-polygon
         assert.strictEqual(attachmentObjectMaterial.color.getHexString(), "00ff00");
         assert.strictEqual(attachmentObject.renderOrder, yellowPolygonTechnique.renderOrder);
+    });
+
+    describe("test side of the geometry", () => {
+        const techniques: Array<IndexedTechnique["name"]> = [
+            "solid-line",
+            "fill",
+            "standard",
+            "extruded-polygon"
+        ];
+
+        techniques.forEach(technique => {
+            it(`side of the geometry - technique ${technique}`, () => {
+                const decodedTile: DecodedTile = {
+                    geometries: [
+                        {
+                            type: GeometryType.Polygon,
+                            vertexAttributes: [],
+                            groups: [{ start: 0, count: 1, technique: 0, createdOffsets: [] }]
+                        }
+                    ],
+                    techniques: [
+                        {
+                            name: technique,
+                            color: "red",
+                            lineWidth: 1,
+                            renderOrder: 0,
+                            _index: 0,
+                            _styleSetIndex: 0,
+                            side: THREE.DoubleSide
+                        } as any
+                    ]
+                };
+                tgc.createObjects(newTile, decodedTile);
+                assert.equal(newTile.objects.length, 1);
+                const object = newTile.objects[0] as THREE.Mesh;
+                assert.isTrue(object.isMesh);
+                const material = object.material as THREE.Material;
+                assert.isObject(material);
+                assert.isTrue(material.isMaterial);
+                assert.strictEqual(material.side, THREE.DoubleSide);
+            });
+        });
     });
 });

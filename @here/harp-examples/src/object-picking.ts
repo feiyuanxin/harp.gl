@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,8 +7,9 @@
 import { Theme } from "@here/harp-datasource-protocol";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView, PickResult } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
-import { apikey, copyrightInfo } from "../config";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
+
+import { apikey } from "../config";
 
 /**
  * This example showcases how picking works.
@@ -137,32 +138,30 @@ export namespace PickingExample {
             styles: {
                 tilezen: [
                     {
+                        transient: true,
                         layer: "roads",
                         when: ["==", ["geometry-type"], "LineString"],
                         technique: "solid-line",
                         renderOrder: Number.MAX_SAFE_INTEGER,
-                        attr: {
-                            enabled: [
-                                "in",
-                                ["get", "name"],
-                                ["get", "selection", ["dynamic-properties"]]
-                            ],
-                            lineWidth: "2px"
-                        }
+                        enabled: [
+                            "in",
+                            ["get", "name"],
+                            ["get", "selection", ["dynamic-properties"]]
+                        ],
+                        lineWidth: "2px"
                     },
                     {
+                        transient: true,
                         layer: "landuse",
                         when: ["==", ["geometry-type"], "Polygon"],
                         technique: "solid-line",
                         renderOrder: Number.MAX_SAFE_INTEGER,
-                        attr: {
-                            enabled: [
-                                "in",
-                                ["get", "name"],
-                                ["get", "selection", ["dynamic-properties"]]
-                            ],
-                            lineWidth: "2px"
-                        }
+                        enabled: [
+                            "in",
+                            ["get", "name"],
+                            ["get", "selection", ["dynamic-properties"]]
+                        ],
+                        lineWidth: "2px"
                     }
                 ]
             }
@@ -219,17 +218,10 @@ export namespace PickingExample {
 
         // end:datasource_object_picking_1.ts
 
-        const omvDataSource = new OmvDataSource({
+        const omvDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-            apiFormat: APIFormat.XYZOMV,
-            styleSetName: "tilezen",
             authenticationCode: apikey,
-            authenticationMethod: {
-                method: AuthenticationMethod.QueryString,
-                name: "apikey"
-            },
-            gatherFeatureAttributes: true,
-            copyrightInfo
+            gatherFeatureAttributes: true
         });
 
         mapView.setDynamicProperty("selection", []);

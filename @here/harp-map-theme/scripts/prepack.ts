@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/* eslint-disable no-console */
+
 import { ncp } from "ncp";
 import * as path from "path";
-
-// tslint:disable:no-console
 
 function onCopyError(err: Error[] | null) {
     if (err === null) {

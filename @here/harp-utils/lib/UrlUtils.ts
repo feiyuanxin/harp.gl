@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -30,8 +30,8 @@
  *     // origin-absolute URL, takes only origin from parent
  *     https://foo.com/themes/day.json + /fonts/foo.json -> https://foo.com/fonts/foo.json
  *
- * @param parentUri URI of parent resource
- * @param childUri URI of child as referenced from parent resource
+ * @param parentUri - URI of parent resource
+ * @param childUri - URI of child as referenced from parent resource
  * @return `childUrl` as if anchored in location of `parentUrl`
  */
 export function resolveReferenceUri(parentUri: string | undefined, childUri: string): string {
@@ -96,7 +96,7 @@ export function baseUrl(url: string | undefined) {
  *    //example.com:8080/ -> //example.com:8080
  *    file:///etc/hosts ->
  *
- * @param url input URL
+ * @param url - input URL
  * @return origin of given URL
  */
 export function getUrlOrigin(url: string | undefined): string {

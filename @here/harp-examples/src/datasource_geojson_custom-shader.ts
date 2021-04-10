@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,14 +7,9 @@
 import { GeoBox, GeoCoordinates, GeoPointLike } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
-import {
-    APIFormat,
-    AuthenticationMethod,
-    GeoJsonDataProvider,
-    OmvDataSource
-} from "@here/harp-omv-datasource";
-import { apikey, copyrightInfo } from "../config";
+import { GeoJsonDataProvider, VectorTileDataSource } from "@here/harp-vectortile-datasource";
 
+import { apikey } from "../config";
 import * as geojson from "../resources/polygon.json";
 
 export namespace GeoJsonCustomShaderExample {
@@ -119,27 +114,19 @@ export namespace GeoJsonCustomShaderExample {
             window.addEventListener("resize", adjustSize);
         }
 
-        // tslint:disable-next-line: no-empty
         start() {}
 
         private addBaseMap() {
-            const dataSource = new OmvDataSource({
+            const dataSource = new VectorTileDataSource({
                 baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-                apiFormat: APIFormat.XYZOMV,
-                styleSetName: "tilezen",
-                authenticationCode: apikey,
-                authenticationMethod: {
-                    method: AuthenticationMethod.QueryString,
-                    name: "apikey"
-                },
-                copyrightInfo
+                authenticationCode: apikey
             });
 
             this.mapView.addDataSource(dataSource);
         }
 
         private addEvRange() {
-            const datasource = new OmvDataSource({
+            const datasource = new VectorTileDataSource({
                 dataProvider: new GeoJsonDataProvider("geojson", geojson as any),
                 styleSetName: "geojson"
             });

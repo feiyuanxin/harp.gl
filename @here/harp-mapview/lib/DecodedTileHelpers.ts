@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2018-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,12 +19,15 @@ import {
     parseStringEncodedColor,
     ShaderTechnique,
     Technique,
-    techniqueDescriptors,
-    TextureProperties,
     TEXTURE_PROPERTY_KEYS,
+    TextureProperties,
     TRANSPARENCY_PROPERTY_KEYS,
     Value
 } from "@here/harp-datasource-protocol";
+import {
+    getTechniqueAutomaticAttrs,
+    getTechniqueDescriptor
+} from "@here/harp-datasource-protocol/lib/TechniqueDescriptors";
 import {
     CirclePointsMaterial,
     disableBlending,
@@ -32,10 +35,12 @@ import {
     HighPrecisionLineMaterial,
     MapMeshBasicMaterial,
     MapMeshStandardMaterial,
+    RawShaderMaterial,
     SolidLineMaterial
 } from "@here/harp-materials";
 import { assert, LoggerManager, pick } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { DisplacedMesh } from "./geometry/DisplacedMesh";
 import { SolidLineMesh } from "./geometry/SolidLineMesh";
 import { MapAdapterUpdateEnv, MapMaterialAdapter, StyledProperties } from "./MapMaterialAdapter";
@@ -57,7 +62,7 @@ export interface MaterialOptions {
     /**
      * Environment used to evaluate dynamic technique attributes.
      *
-     * Usually [[MapView.mapEnv]].
+     * Usually {@link MapView.env}.
      */
     env: Env;
 
@@ -83,13 +88,17 @@ export interface MaterialOptions {
 /**
  * Create a material, depending on the rendering technique provided in the options.
  *
- * @param options The material options the subsequent functions need.
- * @param materialUpdateCallback Optional callback when the material gets updated,
+ * @param rendererCapabilities - The capabilities of the renderer that will use the material.
+ * @param options - The material options the subsequent functions need.
+ * @param materialUpdateCallback - Optional callback when the material gets updated,
  *                               e.g. after texture loading.
  *
  * @returns new material instance that matches `technique.name`
+ *
+ * @internal
  */
 export function createMaterial(
+    rendererCapabilities: THREE.WebGLCapabilities,
     options: MaterialOptions,
     textureReadyCallback?: (texture: THREE.Texture) => void
 ): THREE.Material | undefined {
@@ -102,11 +111,11 @@ export function createMaterial(
         return undefined;
     }
 
-    if (
-        Constructor.prototype instanceof THREE.RawShaderMaterial &&
-        Constructor !== HighPrecisionLineMaterial
-    ) {
-        settings.fog = options.fog;
+    if (Constructor.prototype instanceof RawShaderMaterial) {
+        settings.rendererCapabilities = rendererCapabilities;
+        if (Constructor !== HighPrecisionLineMaterial) {
+            settings.fog = options.fog;
+        }
     }
     if (options.shadowsEnabled === true && technique.name === "fill") {
         settings.removeDiffuseLight = true;
@@ -119,7 +128,7 @@ export function createMaterial(
     }
 
     if (isExtrudedPolygonTechnique(technique)) {
-        material.flatShading = true;
+        (material as MapMeshStandardMaterial).flatShading = true;
     }
 
     material.depthTest = isExtrudedPolygonTechnique(technique) && technique.depthTest !== false;
@@ -230,9 +239,11 @@ export function createMaterial(
 }
 
 /**
- * Returns a [[THREE.BufferAttribute]] created from a provided [[BufferAttribute]] object.
+ * Returns a [[THREE.BufferAttribute]] created from a provided
+ * {@link @here/harp-datasource-protocol#BufferAttribute} object.
  *
- * @param attribute BufferAttribute a WebGL compliant buffer
+ * @param attribute - BufferAttribute a WebGL compliant buffer
+ * @internal
  */
 export function getBufferAttribute(attribute: BufferAttribute): THREE.BufferAttribute {
     switch (attribute.type) {
@@ -284,8 +295,9 @@ export function getBufferAttribute(attribute: BufferAttribute): THREE.BufferAttr
 
 /**
  * Determines if a technique uses THREE.Object3D instances.
- * @param technique The technique to check.
+ * @param technique - The technique to check.
  * @returns true if technique uses THREE.Object3D, false otherwise.
+ * @internal
  */
 export function usesObject3D(technique: Technique): boolean {
     const name = technique.name;
@@ -301,11 +313,13 @@ export function usesObject3D(technique: Technique): boolean {
 /**
  * Builds the object associated with the given technique.
  *
- * @param technique The technique.
- * @param geometry The object's geometry.
- * @param material The object's material.
- * @param tile The tile where the object is located.
- * @param elevationEnabled True if elevation is enabled, false otherwise.
+ * @param technique - The technique.
+ * @param geometry - The object's geometry.
+ * @param material - The object's material.
+ * @param tile - The tile where the object is located.
+ * @param elevationEnabled - True if elevation is enabled, false otherwise.
+ *
+ * @internal
  */
 export function buildObject(
     technique: Technique,
@@ -375,21 +389,25 @@ export function buildObject(
 }
 
 /**
- * Non material properties of [[BaseTechnique]]
+ * Non material properties of `BaseTechnique`.
+ * @internal
  */
 export const BASE_TECHNIQUE_NON_MATERIAL_PROPS = ["name", "id", "renderOrder", "transient"];
 
 /**
  * Generic material type constructor.
+ * @internal
  */
-export type MaterialConstructor = new (params?: {}) => THREE.Material;
+export type MaterialConstructor = new (params: any) => THREE.Material;
 
 /**
- * Returns a [[MaterialConstructor]] basing on provided technique object.
+ * Returns a `MaterialConstructor` basing on provided technique object.
  *
- * @param technique [[Technique]] object which the material will be based on.
- * @param shadowsEnabled Whether the material can accept shadows, this is required for some
- * techniques to decide which material to create.
+ * @param technique - `Technique` object which the material will be based on.
+ * @param shadowsEnabled - Whether the material can accept shadows, this is required for some
+ *                         techniques to decide which material to create.
+ *
+ * @internal
  */
 export function getMaterialConstructor(
     technique: Technique,
@@ -446,80 +464,34 @@ export function getMaterialConstructor(
  * [[MapObjectAdapter]].
  */
 function getMainMaterialStyledProps(technique: Technique): StyledProperties {
+    const automaticAttributes: any[] = getTechniqueAutomaticAttrs(technique);
+
     switch (technique.name) {
         case "dashed-line":
         case "solid-line": {
-            const baseProps: StyledProperties = pick(technique, [
-                "color",
-                "outlineColor",
-                "transparent",
-                "opacity",
-                "caps",
-                "drawRangeStart",
-                "drawRangeEnd",
-                "dashes",
-                "dashColor",
-                "polygonOffset",
-                "polygonOffsetFactor",
-                "polygonOffsetUnits"
-            ]);
+            const baseProps = pick(technique, automaticAttributes);
             baseProps.lineWidth = buildMetricValueEvaluator(
                 technique.lineWidth ?? 0, // Compatibility: `undefined` lineWidth means hidden.
-                // tslint:disable-next-line: deprecation
                 technique.metricUnit
             );
             baseProps.outlineWidth = buildMetricValueEvaluator(
                 technique.outlineWidth,
-                // tslint:disable-next-line: deprecation
                 technique.metricUnit
             );
             baseProps.dashSize = buildMetricValueEvaluator(
                 technique.dashSize,
-                // tslint:disable-next-line: deprecation
                 technique.metricUnit
             );
-            baseProps.gapSize = buildMetricValueEvaluator(
-                technique.gapSize,
-                // tslint:disable-next-line: deprecation
-                technique.metricUnit
-            );
-            baseProps.offset = buildMetricValueEvaluator(
-                technique.offset,
-                // tslint:disable-next-line: deprecation
-                technique.metricUnit
-            );
+            baseProps.gapSize = buildMetricValueEvaluator(technique.gapSize, technique.metricUnit);
+            baseProps.offset = buildMetricValueEvaluator(technique.offset, technique.metricUnit);
             return baseProps;
         }
         case "fill":
-            return pick(technique, [
-                "color",
-                "transparent",
-                "opacity",
-                "polygonOffset",
-                "polygonOffsetFactor",
-                "polygonOffsetUnits"
-            ]);
+            return pick(technique, automaticAttributes);
         case "standard":
         case "terrain":
         case "extruded-polygon": {
-            const baseProps: StyledProperties = pick(technique, [
-                "vertexColors",
-                "wireframe",
-                "roughness",
-                "metalness",
-                "alphaTest",
-                "depthTest",
-                "transparent",
-                "opacity",
-                "emissive",
-                "emissiveIntensity",
-                "refractionRatio",
-                "normalMapType"
-                // All texture related properties are skipped as for now as they are handled by
-                // [[createMaterial]] directly without possibility for them to be dynamic.
-                // TODO: move handling of texture-like params to [[MapMaterialAdapter]] with proper
-                // support for dynamic params
-            ]);
+            const baseProps = pick(technique, automaticAttributes);
             if (technique.vertexColors !== true) {
                 baseProps.color = technique.color;
             }
@@ -527,7 +499,7 @@ function getMainMaterialStyledProps(technique: Technique): StyledProperties {
         }
         case "circles":
         case "squares":
-            return pick(technique, ["color", "size", "opacity", "transparent"]);
+            return pick(technique, automaticAttributes);
         case "extruded-line":
             return pick(technique, [
                 "color",
@@ -536,19 +508,21 @@ function getMainMaterialStyledProps(technique: Technique): StyledProperties {
                 "opacity",
                 "polygonOffset",
                 "polygonOffsetFactor",
-                "polygonOffsetUnits"
+                "polygonOffsetUnits",
+                ...automaticAttributes
             ]);
         case "line":
         case "segments":
-            return pick(technique, ["color", "transparent", "opacity"]);
+            return pick(technique, automaticAttributes);
         default:
             return {};
     }
 }
 
 /**
- * Convert metric style property to expression that accounts [[MapView.pixelToWorld]] if
+ * Convert metric style property to expression that accounts {@link MapView.pixelToWorld} if
  * `metricUnit === 'Pixel'`.
+ * @internal
  */
 export function buildMetricValueEvaluator(
     value: Expr | Value | undefined,
@@ -579,13 +553,18 @@ export function buildMetricValueEvaluator(
 /**
  * Allows to easy parse/encode technique's base color property value as number coded color.
  *
+ * @remarks
  * Function takes care about property parsing, interpolation and encoding if neccessary.
  *
  * @see ColorUtils
- * @param technique the technique where we search for base (transparency) color value
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
- * @returns [[number]] encoded color value (in custom #TTRRGGBB) format or `undefined` if
+ * @param technique - the technique where we search for base (transparency) color value
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance
+ *              used to evaluate {@link @here/harp-datasource-protocol#Expr}
+ *              based properties of `Technique`
+ * @returns `number` encoded color value (in custom #TTRRGGBB) format or `undefined` if
  * base color property is not defined in the technique passed.
+ *
+ * @internal
  */
 export function evaluateBaseColorProperty(technique: Technique, env: Env): number | undefined {
     const baseColorProp = getBaseColorProp(technique);
@@ -596,10 +575,12 @@ export function evaluateBaseColorProperty(technique: Technique, env: Env): numbe
 }
 
 /**
- * Apply [[ShaderTechnique]] parameters to material.
+ * Apply `ShaderTechnique` parameters to material.
  *
- * @param technique the [[ShaderTechnique]] which requires special handling
- * @param material material to which technique will be applied
+ * @param technique - the `ShaderTechnique` which requires special handling
+ * @param material - material to which technique will be applied
+ *
+ * @internal
  */
 function applyShaderTechniqueToMaterial(technique: ShaderTechnique, material: THREE.Material) {
     if (technique.transparent) {
@@ -617,7 +598,7 @@ function applyShaderTechniqueToMaterial(technique: ShaderTechnique, material: TH
         // Omit base color and related transparency attributes if its defined in technique
         if (
             baseColorPropName === propertyName ||
-            (hasBaseColor && TRANSPARENCY_PROPERTY_KEYS.indexOf(propertyName) !== -1)
+            (hasBaseColor && TRANSPARENCY_PROPERTY_KEYS.includes(propertyName))
         ) {
             return false;
         }
@@ -649,10 +630,12 @@ function applyShaderTechniqueToMaterial(technique: ShaderTechnique, material: TH
  * @note Special handling for material attributes of [[THREE.Color]] type is provided thus it
  * does not provide constructor that would take [[string]] or [[number]] values.
  *
- * @param material target material
- * @param propertyName material and technique parameter name (or index) that is to be transferred
- * @param techniqueAttrValue technique property value which will be applied to material attribute
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
+ * @param material - target material
+ * @param propertyName - material and technique parameter name (or index) that is to be transferred
+ * @param techniqueAttrValue - technique property value which will be applied to material attribute
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance used
+ *              to evaluate {@link @here/harp-datasource-protocol#Expr}
+ *              based properties of [[Technique]]
  */
 function applyTechniquePropertyToMaterial(
     material: THREE.Material,
@@ -678,15 +661,20 @@ function applyTechniquePropertyToMaterial(
 /**
  * Apply technique color to material taking special care with transparent (RGBA) colors.
  *
+ * @remarks
  * @note This function is intended to be used with secondary, triary etc. technique colors,
  * not the base ones that may contain transparency information. Such colors should be processed
  * with [[applyTechniqueBaseColorToMaterial]] function.
  *
- * @param technique an technique the applied color comes from
- * @param material the material to which color is applied
- * @param prop technique property (color) name
- * @param value color value
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
+ * @param technique - an technique the applied color comes from
+ * @param material - the material to which color is applied
+ * @param prop - technique property (color) name
+ * @param value - color value
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance used
+ *              to evaluate {@link @here/harp-datasource-protocol#Expr}
+ *              based properties of `Technique`.
+ *
+ * @internal
  */
 export function applySecondaryColorToMaterial(
     materialColor: THREE.Color,
@@ -710,6 +698,7 @@ export function applySecondaryColorToMaterial(
 /**
  * Apply technique base color (transparency support) to material with modifying material opacity.
  *
+ * @remarks
  * This method applies main (or base) technique color with transparency support to the corresponding
  * material color, with an effect on entire [[THREE.Material]] __opacity__ and __transparent__
  * attributes.
@@ -718,11 +707,14 @@ export function applySecondaryColorToMaterial(
  * since their effect on material properties like [[THREE.Material.opacity]] and
  * [[THREE.Material.transparent]] could be overridden by corresponding technique params.
  *
- * @param technique an technique the applied color comes from
- * @param material the material to which color is applied
- * @param prop technique property (color) name
- * @param value color value in custom number format
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
+ * @param technique - an technique the applied color comes from
+ * @param material - the material to which color is applied
+ * @param prop - technique property (color) name
+ * @param value - color value in custom number format
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance used to evaluate
+ *              {@link @here/harp-datasource-protocol#Expr} based properties of [[Technique]]
+ *
+ * @internal
  */
 export function applyBaseColorToMaterial(
     material: THREE.Material,
@@ -746,7 +738,12 @@ export function applyBaseColorToMaterial(
     }
 
     opacity = THREE.MathUtils.clamp(opacity, 0, 1);
-    material.opacity = opacity;
+    if (material instanceof RawShaderMaterial) {
+        material.setOpacity(opacity);
+    } else {
+        material.opacity = opacity;
+    }
+
     materialColor.setRGB(r, g, b);
 
     const opaque = opacity >= 1.0;
@@ -764,8 +761,9 @@ export function applyBaseColorToMaterial(
  * string encoded numbers.
  *
  * @note Use with care, because function does not recognize property type.
- * @param value the value of color property defined in technique
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
+ * @param value - the value of color property defined in technique
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance used to evaluate
+ *              {@link @here/harp-datasource-protocol#Expr} based properties of [[Technique]]
  */
 function evaluateProperty(value: any, env?: Env): any {
     if (env !== undefined && Expr.isExpr(value)) {
@@ -777,12 +775,15 @@ function evaluateProperty(value: any, env?: Env): any {
 /**
  * Calculates the numerical value of the technique defined color property.
  *
+ * @remarks
  * Function takes care about color interpolation (when @param `env is set) as also parsing
  * string encoded colors.
  *
  * @note Use with care, because function does not recognize property type.
- * @param value the value of color property defined in technique
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
+ * @param value - the value of color property defined in technique
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance used to evaluate
+ *              {@link @here/harp-datasource-protocol#Expr} based properties of [[Technique]]
+ * @internal
  */
 export function evaluateColorProperty(value: Value, env?: Env): number | undefined {
     value = evaluateProperty(value, env);
@@ -812,7 +813,7 @@ export function evaluateColorProperty(value: Value, env?: Env): number | undefin
  * The color value may be encoded in [[number]], [[string]] or even as
  * [[InterpolateProperty]].
  *
- * @param technique The techniqe where we seach for base color property.
+ * @param technique - The techniqe where we seach for base color property.
  * @returns The value of technique color used to apply transparency.
  */
 function getBaseColorProp(technique: Technique): any {
@@ -831,14 +832,13 @@ function getBaseColorProp(technique: Technique): any {
 }
 
 function getBaseColorPropName(technique: Technique): string | undefined {
-    const techDescriptor = techniqueDescriptors[technique.name];
-    return techDescriptor !== undefined ? techDescriptor.attrTransparencyColor : undefined;
+    return getTechniqueDescriptor(technique)?.attrTransparencyColor;
 }
 
 function getTextureBuffer(
     buffer: ArrayBuffer,
     textureDataType: THREE.TextureDataType | undefined
-): THREE.TypedArray {
+): BufferSource {
     if (textureDataType === undefined) {
         return new Uint8Array(buffer);
     }

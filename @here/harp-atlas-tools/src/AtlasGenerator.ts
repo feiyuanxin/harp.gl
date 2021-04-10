@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as path from "path";
+
 import {
     BlendAlpha,
     BlendAlphaPremultiplied,
@@ -204,7 +205,7 @@ async function prepareSprites(
     );
 
     // Store all post-processed images into output directory.
-    return storeImages(inputFiles, images, outputDir, outputFormat);
+    return await storeImages(inputFiles, images, outputDir, outputFormat);
 }
 
 function processImages(

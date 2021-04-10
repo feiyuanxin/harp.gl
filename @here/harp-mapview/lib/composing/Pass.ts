@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,11 +7,11 @@
 import * as THREE from "three";
 
 /**
- * The interface for the [[Pass]] class.
+ * The interface for the {@link Pass} class.
  */
 export interface IPass {
     /**
-     * Whether the [[Pass]] instance is active or not.
+     * Whether the {@link Pass} instance is active or not.
      * @default `true`.
      */
     enabled: boolean;
@@ -23,24 +23,29 @@ export interface IPass {
     renderToScreen: boolean;
 
     /**
-     * The resize method to extend in [[Pass]] implementations. It resizes the render targets. Call
-     * on resize events.
+     * The resize method to extend in {@link Pass} implementations.
      *
-     * @param width Width to resize to.
-     * @param height Height to resize to.
+     * @remarks
+     * It resizes the render targets. Call on resize events.
+     *
+     * @param width - Width to resize to.
+     * @param height - Height to resize to.
      */
     setSize(width: number, height: number): void;
 
     /**
-     * The render method to extend in [[Pass]] implementations. This is the place where the desired
+     * The render method to extend in {@link Pass} implementations.
+     *
+     * @remarks
+     * This is the place where the desired
      * effects or render operations are executed.
      *
-     * @param renderer The WebGLRenderer instance in use.
-     * @param scene The scene to render.
-     * @param camera The camera to render the scene through.
-     * @param writeBuffer The optional WebGLRenderTarget instance to write to.
-     * @param readBuffer The optional WebGLRenderTarget instance of a previous pass to write onto.
-     * @param delta The time argument from the requestAnimationFrame.
+     * @param renderer - The WebGLRenderer instance in use.
+     * @param scene - The scene to render.
+     * @param camera - The camera to render the scene through.
+     * @param writeBuffer - The optional WebGLRenderTarget instance to write to.
+     * @param readBuffer - The optional WebGLRenderTarget instance of a previous pass to write onto.
+     * @param delta - The time argument from the requestAnimationFrame.
      */
     render(
         renderer: THREE.WebGLRenderer,
@@ -53,8 +58,11 @@ export interface IPass {
 }
 
 /**
- * The base class to extend for further passes in [[MapView]], like the [[MSAARenderPass]], possibly
- * a text pass, an AO effect etc. `Pass` provides the core logic for both :
+ * The base class to extend for further passes in {@link MapView},
+ * like the {@link MSAARenderPass},
+ *
+ * @remarks
+ * `Pass` provides the core logic for both :
  * - render passes (proper scene renders),
  * - and shader passes (quad renders, i.e. effects added on top of the render output as a
  * postprocess).
@@ -67,11 +75,10 @@ export interface IPass {
 export class Pass implements IPass {
     enabled: boolean = false;
     renderToScreen: boolean = false;
-    // tslint:disable-next-line:no-unused-variable
     setSize(width: number, height: number) {
         // Implemented in sub-classes.
     }
-    // tslint:disable:no-unused-variable
+
     render(
         renderer: THREE.WebGLRenderer,
         scene: THREE.Scene,
@@ -82,7 +89,6 @@ export class Pass implements IPass {
     ) {
         // Implemented in sub-classes.
     }
-    // tslint:enable:no-unused-variable
 }
 
 /**
@@ -114,7 +120,7 @@ export class ShaderPass extends Pass {
     uniforms: { [uniform: string]: THREE.IUniform };
     material: THREE.Material;
     fsQuad: FullScreenQuad;
-    constructor(shader: THREE.Shader, private textureID: string = "tDiffuse") {
+    constructor(shader: THREE.Shader, private readonly textureID: string = "tDiffuse") {
         super();
         if (shader instanceof THREE.ShaderMaterial) {
             this.uniforms = shader.uniforms;
@@ -130,6 +136,7 @@ export class ShaderPass extends Pass {
         }
         this.fsQuad = new FullScreenQuad(this.material);
     }
+
     /** @override */
     render(
         renderer: THREE.WebGLRenderer,
@@ -150,18 +157,21 @@ export class ShaderPass extends Pass {
 
 class FullScreenQuad {
     private m_mesh: THREE.Mesh;
-    private m_camera: THREE.Camera;
+    private readonly m_camera: THREE.Camera;
     constructor(material: THREE.Material) {
         this.m_camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         const geometry = new THREE.PlaneBufferGeometry(2, 2);
         this.m_mesh = new THREE.Mesh(geometry, material);
     }
+
     get material(): THREE.Material {
         return this.m_mesh.material as THREE.Material;
     }
+
     set material(value: THREE.Material) {
         this.m_mesh.material = value;
     }
+
     render(renderer: THREE.WebGLRenderer) {
         renderer.render((this.m_mesh as any) as THREE.Scene, this.m_camera);
     }

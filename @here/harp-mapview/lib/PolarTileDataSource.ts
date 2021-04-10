@@ -1,13 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import * as THREE from "three";
-
 import {
-    Definitions,
+    FlatTheme,
     StandardGeometryKind,
     StyleSet,
     Technique,
@@ -22,10 +19,12 @@ import {
     TilingScheme,
     TransverseMercatorUtils
 } from "@here/harp-geoutils";
+import * as THREE from "three";
 
 import { DataSource, DataSourceOptions } from "./DataSource";
 import { createMaterial } from "./DecodedTileHelpers";
 import { MapObjectAdapter } from "./MapObjectAdapter";
+import { ThemeLoader } from "./ThemeLoader";
 import { Tile } from "./Tile";
 
 export interface PolarTileDataSourceOptions extends DataSourceOptions {
@@ -48,13 +47,13 @@ interface TechniqueEntry {
 }
 
 /**
- * [[DataSource]] providing geometry for poles
+ * {@link DataSource} providing geometry for poles
  */
 export class PolarTileDataSource extends DataSource {
-    private m_tilingScheme: TilingScheme = polarTilingScheme;
-    private m_maxLatitude = THREE.MathUtils.radToDeg(MercatorConstants.MAXIMUM_LATITUDE);
+    private readonly m_tilingScheme: TilingScheme = polarTilingScheme;
+    private readonly m_maxLatitude = THREE.MathUtils.radToDeg(MercatorConstants.MAXIMUM_LATITUDE);
     private m_geometryLevelOffset: number;
-    private m_debugTiles: boolean;
+    private readonly m_debugTiles: boolean;
 
     private m_styleSetEvaluator?: StyleSetEvaluator;
     private m_northPoleEntry?: TechniqueEntry;
@@ -62,7 +61,7 @@ export class PolarTileDataSource extends DataSource {
 
     constructor({
         name = "polar",
-        styleSetName,
+        styleSetName = "polar",
         minDataLevel,
         maxDataLevel,
         minDisplayLevel,
@@ -84,6 +83,7 @@ export class PolarTileDataSource extends DataSource {
         this.m_geometryLevelOffset = geometryLevelOffset;
         this.m_debugTiles = debugTiles;
         this.cacheable = false;
+        this.enablePicking = false;
     }
 
     /** @override */
@@ -116,7 +116,10 @@ export class PolarTileDataSource extends DataSource {
             return undefined;
         }
         const technique = techniques[0];
-        const material = createMaterial({ technique, env: this.mapView.env });
+        const material = createMaterial(this.mapView.renderer.capabilities, {
+            technique,
+            env: this.mapView.env
+        });
         if (!material) {
             return undefined;
         }
@@ -124,26 +127,26 @@ export class PolarTileDataSource extends DataSource {
     }
 
     /** @override */
-    setStyleSet(styleSet?: StyleSet, definitions?: Definitions, languages?: string[]): void {
-        this.dispose();
+    async setTheme(theme: Theme | FlatTheme): Promise<void> {
+        // Seems superfluent, but the call to  ThemeLoader.load will resolve extends etc.
+        theme = await ThemeLoader.load(theme);
+        let styleSet: StyleSet | undefined;
 
-        if (styleSet !== undefined) {
-            this.m_styleSetEvaluator = new StyleSetEvaluator(styleSet, definitions);
-
-            this.m_northPoleEntry = this.createTechiqueEntry("north_pole");
-            this.m_southPoleEntry = this.createTechiqueEntry("south_pole");
+        if (this.styleSetName !== undefined && theme.styles !== undefined) {
+            styleSet = theme.styles[this.styleSetName];
         }
 
+        this.m_styleSetEvaluator = new StyleSetEvaluator({
+            styleSet: styleSet ?? [],
+            definitions: theme.definitions,
+            priorities: theme.priorities,
+            labelPriorities: theme.labelPriorities
+        });
+
+        this.m_northPoleEntry = this.createTechiqueEntry("north_pole");
+        this.m_southPoleEntry = this.createTechiqueEntry("south_pole");
+
         this.mapView.markTilesDirty(this);
-    }
-
-    /** @override */
-    setTheme(theme: Theme, languages?: string[]): void {
-        const styleSet =
-            (this.styleSetName !== undefined && theme.styles && theme.styles[this.styleSetName]) ||
-            [];
-
-        this.setStyleSet(styleSet, theme.definitions, languages);
     }
 
     /** @override */
@@ -313,7 +316,6 @@ export class PolarTileDataSource extends DataSource {
             points.splice(inPointB ? 2 : 1, 4, cutStart);
 
             const level = tile.tileKey.level - this.storageLevelOffset + this.m_geometryLevelOffset;
-            // tslint:disable-next-line:no-bitwise
             const subdivisions = 1 << Math.max(0, level);
             const step = 360 / subdivisions;
 
@@ -330,20 +332,20 @@ export class PolarTileDataSource extends DataSource {
             }
         }
 
-        const g = new THREE.Geometry();
-
-        for (const point of points) {
-            const projected = dstProjection.projectPoint(point, new THREE.Vector3());
-            g.vertices.push(projected.sub(tile.center));
-        }
-
-        for (let i = 1; i < points.length - 1; i++) {
-            g.faces.push(isNorthPole ? new THREE.Face3(0, i, i + 1) : new THREE.Face3(0, i + 1, i));
-        }
-
         const geometry = new THREE.BufferGeometry();
-        geometry.fromGeometry(g);
-        g.dispose();
+
+        const vertices: THREE.Vector3[] = points.map(point => {
+            const projected = dstProjection.projectPoint(point, new THREE.Vector3());
+            projected.sub(tile.center);
+            return projected;
+        });
+        geometry.setFromPoints(vertices);
+
+        const indices: number[] = [];
+        for (let i = 1; i < vertices.length - 1; i++) {
+            isNorthPole ? indices.push(0, i, i + 1) : indices.push(0, i + 1, i);
+        }
+        geometry.setIndex(indices);
 
         const mesh = new THREE.Mesh(geometry, techniqueEntry.material);
         mesh.userData = {
@@ -361,6 +363,7 @@ export class PolarTileDataSource extends DataSource {
         }
 
         MapObjectAdapter.create(mesh, {
+            dataSource: this,
             technique: techniqueEntry.technique,
             kind: [isNorthPole ? StandardGeometryKind.Water : StandardGeometryKind.Background]
         });

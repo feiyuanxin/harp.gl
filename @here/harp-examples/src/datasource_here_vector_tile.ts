@@ -1,12 +1,16 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
-import { MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 /**
@@ -43,7 +47,7 @@ import { apikey, copyrightInfo } from "../config";
  * [[include:harp_gl_datasource_here_vector_tile_example_3.ts]]
  * ```
  * At the end of the initialization a [[MapView]] object is returned. To show vector tiles the HERE
- * Vector Tile datasource is used, [[OmvDataSource]]:
+ * Vector Tile datasource is used, [[VectorTileDataSource]]:
  *
  * ```typescript
  * [[include:harp_gl_datasource_here_vector_tile_example_4.ts]]
@@ -71,6 +75,9 @@ export namespace DatasourceHEREVectorTileExample {
         // end:harp_gl_datasource_here_vector_tile_example_1.ts
 
         // snippet:harp_gl_datasource_here_vector_tile_example_2.ts
+
+        CopyrightElementHandler.install("copyrightNotice", map);
+
         const mapControls = new MapControls(map);
         mapControls.maxTiltAngle = 50;
         const ui = new MapControlsUI(mapControls, { zoomLevel: "input", projectionSwitch: true });
@@ -90,23 +97,27 @@ export namespace DatasourceHEREVectorTileExample {
         return map;
     }
 
-    const mapView = initializeMapView("mapCanvas");
+    function main() {
+        const mapView = initializeMapView("mapCanvas");
 
-    // snippet:harp_gl_datasource_here_vector_tile_example_4.ts
-    const omvDataSource = new OmvDataSource({
-        baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-        apiFormat: APIFormat.XYZOMV,
-        styleSetName: "tilezen",
-        authenticationCode: apikey,
-        authenticationMethod: {
-            method: AuthenticationMethod.QueryString,
-            name: "apikey"
-        },
-        copyrightInfo
-    });
-    // end:harp_gl_datasource_here_vector_tile_example_4.ts
+        // snippet:harp_gl_datasource_here_vector_tile_example_4.ts
+        const omvDataSource = new VectorTileDataSource({
+            baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
+            apiFormat: APIFormat.XYZOMV,
+            styleSetName: "tilezen",
+            authenticationCode: apikey,
+            authenticationMethod: {
+                method: AuthenticationMethod.QueryString,
+                name: "apikey"
+            },
+            copyrightInfo
+        });
+        // end:harp_gl_datasource_here_vector_tile_example_4.ts
 
-    // snippet:harp_gl_datasource_here_vector_tile_example_5.ts
-    mapView.addDataSource(omvDataSource);
-    // end:harp_gl_datasource_here_vector_tile_example_5.ts
+        // snippet:harp_gl_datasource_here_vector_tile_example_5.ts
+        mapView.addDataSource(omvDataSource);
+        // end:harp_gl_datasource_here_vector_tile_example_5.ts
+    }
+
+    main();
 }

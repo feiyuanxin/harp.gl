@@ -1,17 +1,17 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { GeoBox } from "@here/harp-geoutils";
-import { getOptionValue, LoggerManager } from "@here/harp-utils";
+import { getOptionValue, ILogger, LoggerManager } from "@here/harp-utils";
+
 import { CopyrightInfo } from "./CopyrightInfo";
 import { CopyrightProvider } from "./CopyrightProvider";
 
 declare const require: any;
 
-// tslint:disable-next-line:no-var-requires
 const RBush = require("rbush");
 
 /**
@@ -64,12 +64,14 @@ export interface CopyrightCoverageResponse {
  */
 export abstract class CopyrightCoverageProvider implements CopyrightProvider {
     /** Logger instance. */
-    protected readonly logger = LoggerManager.instance.create("CopyrightCoverageProvider");
+    protected readonly logger: ILogger = LoggerManager.instance.create("CopyrightCoverageProvider");
 
     private m_cachedTreePromise: Promise<any> | undefined;
 
-    /** Asynchronously retrieves copyright coverage data. */
-    abstract async getCopyrightCoverageData(): Promise<AreaCopyrightInfo[]>;
+    /** Asynchronously retrieves copyright coverage data.
+     * @param abortSignal - Optional AbortSignal to cancel the request.
+     */
+    abstract getCopyrightCoverageData(abortSignal?: AbortSignal): Promise<AreaCopyrightInfo[]>;
 
     /** @inheritdoc */
     getTree(): Promise<any> {
@@ -117,7 +119,7 @@ export abstract class CopyrightCoverageProvider implements CopyrightProvider {
     /**
      * Initializes RBush.
      *
-     * @param entries Entries for tree.
+     * @param entries - Entries for tree.
      * @returns RBush instance.
      */
     initRBush(entries: AreaCopyrightInfo[]): any {

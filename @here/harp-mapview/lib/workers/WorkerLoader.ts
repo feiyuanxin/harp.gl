@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,14 +7,15 @@
 import "@here/harp-fetch";
 
 import { getUrlOrigin, LoggerManager } from "@here/harp-utils";
+
 import { isWorkerBootstrapRequest, WorkerBootstrapResponse } from "./WorkerBootstrapDefs";
 
 const logger = LoggerManager.instance.create("WorkerLoader");
 
 /**
  * Set of `Worker` loading and initialization helpers:
- *  - starting Worker from URL with fallback to XHR+blob [[WorkerLoader.startWorker]]
- *  - waiting for proper worker initialization, see [[WorkerLoader.waitWorkerInitialized]]
+ *  - starting Worker from URL with fallback to XHR+blob {@link WorkerLoader.startWorker}
+ *  - waiting for proper worker initialization, see {@link WorkerLoader.waitWorkerInitialized}
  */
 export class WorkerLoader {
     static directlyFallbackToBlobBasedLoading: boolean = false;
@@ -70,8 +71,8 @@ export class WorkerLoader {
      * * Chrome 67 doesn't obey CSP `worker-src URL` despite it's documented as supported
      *   (https://developer.mozilla.org/docs/Web/HTTP/Headers/Content-Security-Policy/worker-src)
      *
-     * @param scriptUrl web worker script URL
-     * @param timeout timeout in milliseconds, in which worker should set initial message
+     * @param scriptUrl - web worker script URL
+     * @param timeout - timeout in milliseconds, in which worker should set initial message
      *    (default 10 seconds)
      */
     static startWorker(scriptUrl: string, timeout: number = 10000): Promise<Worker> {
@@ -104,7 +105,7 @@ export class WorkerLoader {
      * Start worker, loading it immediately from `scriptUrl`. Waits (using
      * [[waitWorkerInitialized]]) for successful worker start.
      *
-     * @param scriptUrl web worker script URL
+     * @param scriptUrl - web worker script URL
      */
     static startWorkerImmediately(scriptUrl: string, timeout: number): Promise<Worker> {
         try {
@@ -120,7 +121,7 @@ export class WorkerLoader {
      * and attempting to start worker from blob url. Waits (using [[waitWorkerInitialized]]) for
      * successful worker start.
      *
-     * @param scriptUrl web worker script URL
+     * @param scriptUrl - web worker script URL
      */
     static startWorkerBlob(scriptUrl: string, timeout: number): Promise<Worker> {
         return this.fetchScriptSourceToBlobUrl(scriptUrl).then(blobUrl => {
@@ -133,7 +134,7 @@ export class WorkerLoader {
      *
      * Reuses results, if there are many simultaneous requests.
      *
-     * @param scriptUrl web worker script URL
+     * @param scriptUrl - web worker script URL
      * @return promise that resolves to url of a `Blob` with script source code
      */
     static fetchScriptSourceToBlobUrl(scriptUrl: string): Promise<string> {
@@ -175,8 +176,8 @@ export class WorkerLoader {
      * We must resolve/reject promise at some time, so it is expected that any sane application will
      * be able to load worker code in some amount of time.
      *
-     * @param worker [[Worker]] instance to be checked
-     * @param timeout timeout in milliseconds, in which worker should set initial message
+     * @param worker - [[Worker]] instance to be checked
+     * @param timeout - timeout in milliseconds, in which worker should set initial message
      * @returns `Promise` that resolves to `worker` on success
      */
     static waitWorkerInitialized(worker: Worker, timeout: number): Promise<Worker> {

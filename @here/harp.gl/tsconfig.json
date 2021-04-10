@@ -2,7 +2,8 @@
     "extends": "../../tsconfig.base.json",
     "compilerOptions": {
         "sourceMap": true,
-        "declaration": false
+        "declaration": true,
+        "declarationMap": true
     },
     "references": [
         {
@@ -40,6 +41,9 @@
         },
         {
             "path": "../harp-olp-utils"
+        },
+        {
+            "path": "../harp-vectortile-datasource"
         },
         {
             "path": "../harp-omv-datasource"

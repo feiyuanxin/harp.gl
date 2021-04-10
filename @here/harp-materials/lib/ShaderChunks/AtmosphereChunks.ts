@@ -1,24 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 export default {
-    atmosphere_common_utils: `
-
-    float conditionalBranchFree(bool condition, float primary, float secondary) {
-        // Interpolate between primary and secondary:
-        // result = secondary * (1 - factor) + primary * factor
-        // where:
-        // factor = float(condition)
-        return mix(secondary, primary, float(condition));
-    }
-
-    vec3 conditionalBranchFree(bool condition, vec3 primary, vec3 secondary) {
-        return mix(secondary, primary, float(condition));
-    }
-    `,
     atmosphere_vertex_utils: `
 
     const float RayleighScaleDepth = 0.25;

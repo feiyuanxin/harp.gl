@@ -1,14 +1,19 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { LongPressHandler, MapControls, MapControlsUI } from "@here/harp-map-controls";
-import { CopyrightElementHandler, MapView, MapViewEventNames } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import { CopyrightElementHandler, MapAnchor, MapView } from "@here/harp-mapview";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
 import * as THREE from "three";
+
 import { apikey, copyrightInfo } from "../config";
 
 /**
@@ -36,7 +41,7 @@ export namespace ThreejsRaycast {
         color: 0x00ff00fe
     });
     // Return a pink cube.
-    function createPinkCube(): THREE.Mesh {
+    function createPinkCube(): MapAnchor {
         const mesh = new THREE.Mesh(geometry, material);
         // Make sure the cube overlaps everything else, is completely arbitrary.
         mesh.renderOrder = Number.MAX_SAFE_INTEGER;
@@ -73,7 +78,6 @@ export namespace ThreejsRaycast {
             map.resize(window.innerWidth, window.innerHeight);
         });
 
-        // tslint:disable:no-unused-expression
         new LongPressHandler(canvas, event => {
             // snippet:harp_gl_threejs_raycast_0.ts
             const pickResults = map.intersectMapObjects(event.pageX, event.pageY);
@@ -97,15 +101,8 @@ export namespace ThreejsRaycast {
             // snippet:harp_gl_threejs_raycast_1.ts
 
             const cube = createPinkCube();
-            map.scene.add(cube);
-
-            // Add a callback to execute before the items are rendered.
-            map.addEventListener(MapViewEventNames.Render, () => {
-                // Set the cube position relative to the world center. Note, we don't subtract the
-                // [[worldCenter]] from the worldMousePosition, because we need to keep the cubes
-                // world position untouched.
-                cube.position.copy(worldPoint).sub(map.worldCenter);
-            });
+            cube.anchor = worldPoint;
+            map.mapAnchors.add(cube);
 
             // Force the scene to be rerendered once the cube is added to the scene.
             map.update();
@@ -139,7 +136,7 @@ export namespace ThreejsRaycast {
 
     const mapView = initializeMapView("mapCanvas");
 
-    const omvDataSource = new OmvDataSource({
+    const omvDataSource = new VectorTileDataSource({
         baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
         apiFormat: APIFormat.XYZOMV,
         styleSetName: "tilezen",

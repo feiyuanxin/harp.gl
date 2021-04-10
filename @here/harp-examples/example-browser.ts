@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -154,7 +154,7 @@ function exampleBrowser(exampleDefinitions: ExampleDefinitions) {
                 if (text === null) {
                     continue;
                 }
-                const matches = filterValue === "" || text.includes(filterValue);
+                const matches = filterValue === "" || text.includes(filterValue.toLowerCase());
                 if (matches) {
                     element.classList.remove("filtered");
                 } else {
@@ -168,7 +168,7 @@ function exampleBrowser(exampleDefinitions: ExampleDefinitions) {
     /**
      * Shows an example.
      *
-     * @param pageUrl example page url, must exist in `examples` map
+     * @param pageUrl - example page url, must exist in `examples` map
      */
     function showExample(pageUrl: string) {
         const expandButton = document.getElementById("hamburgerMenu") as HTMLAnchorElement;

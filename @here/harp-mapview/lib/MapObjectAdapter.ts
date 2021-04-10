@@ -1,22 +1,25 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
+import { GeometryKind, Pickability, Technique } from "@here/harp-datasource-protocol";
 import * as THREE from "three";
 
-import { GeometryKind, Technique } from "@here/harp-datasource-protocol";
+import { DataSource } from "./DataSource";
 import { MapAdapterUpdateEnv, MapMaterialAdapter } from "./MapMaterialAdapter";
 
 /**
  * @hidden
  *
- * Construction params of [[MapObjectAdapter]].
+ * Construction params of `MapObjectAdapter`.
  */
 export interface MapObjectAdapterParams {
+    dataSource?: DataSource;
     technique?: Technique;
     kind?: GeometryKind[];
+    level?: number;
+    pickability?: Pickability;
 
     // TODO: Move here in following refactor.
     //featureData?: TileFeatureData;
@@ -25,9 +28,9 @@ export interface MapObjectAdapterParams {
 /**
  * @hidden
  *
- * [[MapView]] specific data assigned to `THREE.Object3D` instance in installed in `userData`.
+ * {@link MapView} specific data assigned to `THREE.Object3D` instance in installed in `userData`.
  *
- * [[MapObjectAdapter]] is registered in `usedData.mapAdapter` property of `THREE.Object3D`.
+ * `MapObjectAdapter` is registered in `usedData.mapAdapter` property of `THREE.Object3D`.
  */
 export class MapObjectAdapter {
     /**
@@ -69,6 +72,14 @@ export class MapObjectAdapter {
      */
     readonly kind: GeometryKind[] | undefined;
 
+    readonly dataSource?: DataSource;
+
+    /**
+     * Which level this object exists on, must match the TileKey's level.
+     */
+    readonly level: number | undefined;
+
+    private readonly m_pickability: Pickability;
     private m_lastUpdateFrameNumber = -1;
     private m_notCompletlyTransparent = true;
 
@@ -76,9 +87,12 @@ export class MapObjectAdapter {
         this.object = object;
         this.technique = params.technique;
         this.kind = params.kind;
+        this.dataSource = params.dataSource;
+        this.m_pickability = params.pickability ?? Pickability.onlyVisible;
         this.m_notCompletlyTransparent = this.getObjectMaterials().some(
             material => material.opacity > 0
         );
+        this.level = params.level;
     }
 
     /**
@@ -92,7 +106,7 @@ export class MapObjectAdapter {
     }
 
     /**
-     * Ensure that underlying object is updated to current state of [[MapView]].
+     * Ensure that underlying object is updated to current state of {@link MapView}.
      *
      * Updates object and attachments like materials to current state by evaluating scene dependent
      * expressions.
@@ -117,6 +131,22 @@ export class MapObjectAdapter {
      */
     isVisible() {
         return this.object.visible && this.m_notCompletlyTransparent;
+    }
+
+    /**
+     * Whether underlying `THREE.Object3D` should be pickable by {@link PickHandler}.
+     */
+    isPickable() {
+        // An object is pickable only if it's visible and Pickabilty.onlyVisible or
+        //  Pickabililty.all set.
+        return (
+            (this.pickability === Pickability.onlyVisible && this.isVisible()) ||
+            this.m_pickability === Pickability.all
+        );
+    }
+
+    get pickability(): Pickability {
+        return this.m_pickability;
     }
 
     private updateMaterials(context: MapAdapterUpdateEnv) {

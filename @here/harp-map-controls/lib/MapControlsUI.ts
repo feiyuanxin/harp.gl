@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { mercatorProjection, ProjectionType, sphereProjection } from "@here/harp-geoutils";
-import { MapViewEventNames, MapViewUtils } from "@here/harp-mapview";
-import * as THREE from "three";
+import { MapViewEventNames } from "@here/harp-mapview";
+
 import { MapControls } from "./MapControls";
 
 /**
@@ -38,32 +38,32 @@ export class MapControlsUI {
      */
     readonly domElement = document.createElement("div");
 
-    private m_buttonsElement: HTMLDivElement = document.createElement("div");
+    private readonly m_buttonsElement: HTMLDivElement = document.createElement("div");
 
     /**
      * Displays zoom level if [[MapControlsUIOptions.zoomLevel]] is defined.
      */
-    private m_zoomLevelElement: HTMLDivElement | HTMLInputElement | null = null;
+    private readonly m_zoomLevelElement: HTMLDivElement | HTMLInputElement | null = null;
 
     /**
      * Displays zoom level if [[MapControlsUIOptions.projectionSwitch]] is defined.
      */
-    private m_projectionSwitchElement: HTMLButtonElement | null = null;
+    private readonly m_projectionSwitchElement: HTMLButtonElement | null = null;
 
     /**
      * Removes focus from input element.
      */
-    private m_onWindowClick: (event: MouseEvent) => void;
+    private readonly m_onWindowClick: (event: MouseEvent) => void;
 
     /**
      * Updates the display of the zoom level.
      */
-    private m_onMapViewRenderEvent: () => void;
+    private readonly m_onMapViewRenderEvent: () => void;
 
     /**
      * Constructor of the UI.
      *
-     * @param controls Controls referencing a [[MapView]].
+     * @param controls - Controls referencing a [[MapView]].
      */
     constructor(readonly controls: MapControls, options: MapControlsUIOptions = {}) {
         this.m_onMapViewRenderEvent = () => {
@@ -230,9 +230,7 @@ export class MapControlsUI {
             controls.pointToNorth();
         });
         controls.mapView.addEventListener(MapViewEventNames.AfterRender, () => {
-            compass.style.transform = `rotate(${THREE.MathUtils.radToDeg(
-                MapViewUtils.extractAttitude(controls.mapView, controls.mapView.camera).yaw
-            )}deg)`;
+            compass.style.transform = `rotate(${controls.mapView.heading}deg)`;
         });
 
         this.domElement.className = "harp-gl_controls";
@@ -253,6 +251,10 @@ export class MapControlsUI {
         }
 
         return this;
+    }
+
+    get projectionSwitchElement(): HTMLButtonElement | null {
+        return this.m_projectionSwitchElement;
     }
 
     /**
@@ -406,7 +408,6 @@ function getTextStyle() {
     `;
 }
 
-// tslint:disable:max-line-length
 function getFlatMapSVG() {
     return `
     <svg style="margin-top:5px;" class="harp-gl_controls_switch_svg" width="25" height="25" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg">

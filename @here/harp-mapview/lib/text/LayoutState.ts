@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,10 +29,11 @@ export class LayoutState {
     constructor(placement: TextPlacement) {
         this.textPlacement = placement;
     }
+
     /**
      * Set layout based on theme style defined and optional text placement.
      *
-     * @param placement The optional new anchor placement.
+     * @param placement - The optional new anchor placement.
      */
     set textPlacement(placement: TextPlacement) {
         this.m_hAlign = hAlignFromPlacement(placement.h);

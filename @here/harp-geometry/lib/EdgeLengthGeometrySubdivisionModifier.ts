@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,7 @@
 import { Box3Like, GeoBox, Projection, ProjectionType } from "@here/harp-geoutils";
 import { assert } from "@here/harp-utils";
 import { Vector3 } from "three";
+
 import { SubdivisionModifier } from "./SubdivisionModifier";
 
 const VERTEX_POSITION_CACHE = [new Vector3(), new Vector3()];
@@ -27,18 +28,18 @@ export enum SubdivisionMode {
  * length of edges.
  */
 export class EdgeLengthGeometrySubdivisionModifier extends SubdivisionModifier {
-    private m_projectedBox: Box3Like;
-    private m_maxLength: number;
-    private m_maxLengthX: number;
-    private m_maxLengthY: number;
+    private readonly m_projectedBox: Box3Like;
+    private readonly m_maxLength: number;
+    private readonly m_maxLengthX: number;
+    private readonly m_maxLengthY: number;
 
     /**
      * Constructs a new [[EdgeLengthGeometrySubdivisionModifier]].
      *
-     * @param subdivision The subdivision factor
-     * @param geoBox The geo bounding box of a tile
-     * @param subdivisionMode Configures what edges to divide
-     * @param projection The projection that defines the world space of this geometry.
+     * @param subdivision - The subdivision factor
+     * @param geoBox - The geo bounding box of a tile
+     * @param subdivisionMode - Configures what edges to divide
+     * @param projection - The projection that defines the world space of this geometry.
      */
     constructor(
         readonly subdivision: number,

@@ -11,12 +11,13 @@ import {
     TextTechnique
 } from "@here/harp-datasource-protocol";
 import { TextLayoutStyle, TextRenderStyle } from "@here/harp-text-canvas";
+
 import { Tile } from "../Tile";
 
 export class TileTextStyleCache {
     private textRenderStyles: TextRenderStyle[] = [];
     private textLayoutStyles: TextLayoutStyle[] = [];
-    private tile: Tile;
+    private readonly tile: Tile;
 
     constructor(tile: Tile) {
         this.tile = tile;

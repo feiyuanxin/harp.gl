@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +7,12 @@
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 export namespace DataDrivenThemeExample {
@@ -48,8 +53,29 @@ export namespace DataDrivenThemeExample {
                 },
                 styles: {
                     population: [
-                        ["ref", "countryBorderOutline"],
-                        ["ref", "waterPolygons"],
+                        {
+                            id: "countryBorderOutline",
+                            description: "country border - outline",
+                            when: [
+                                "all",
+                                ["==", ["get", "$layer"], "boundaries"],
+                                ["==", ["geometry-type"], "LineString"],
+                                ["==", ["get", "kind"], "country"]
+                            ],
+                            technique: "solid-line",
+                            renderOrder: 4,
+                            color: "#52676E",
+                            lineWidth: ["ref", "countryBorderOutlineWidth"]
+                        },
+                        {
+                            id: "waterPolygons",
+                            layer: "water",
+                            description: "water",
+                            when: ["==", ["geometry-type"], "Polygon"],
+                            technique: "fill",
+                            renderOrder: 5,
+                            color: ["ref", "waterColor"]
+                        },
                         {
                             when: [
                                 "all",
@@ -95,7 +121,7 @@ export namespace DataDrivenThemeExample {
     function main() {
         const map = initializeMapView("mapCanvas");
 
-        const omvDataSource = new OmvDataSource({
+        const omvDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
             apiFormat: APIFormat.XYZOMV,
             styleSetName: "population",

@@ -1,30 +1,30 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { hereTilingScheme, mercatorTilingScheme } from "@here/harp-geoutils";
 import { expect } from "chai";
 import * as sinon from "sinon";
+
 import { BackgroundDataSource } from "../lib/BackgroundDataSource";
 import { MapView } from "../lib/MapView";
 import { FakeOmvDataSource } from "./FakeOmvDataSource";
 
-describe("BackgroundDataSource", function() {
-    describe("#updateStorageLevelOffset()", function() {
+describe("BackgroundDataSource", function () {
+    describe("#updateStorageLevelOffset()", function () {
         let fakeDataSource1: FakeOmvDataSource;
         let fakeDataSource2: FakeOmvDataSource;
         let fakeDataSource3: FakeOmvDataSource;
         let backgroundDataSource: BackgroundDataSource;
         let mapViewStub: sinon.SinonStubbedInstance<MapView>;
-        beforeEach(function() {
-            fakeDataSource1 = new FakeOmvDataSource();
-            fakeDataSource2 = new FakeOmvDataSource();
-            fakeDataSource3 = new FakeOmvDataSource();
+        beforeEach(function () {
+            fakeDataSource1 = new FakeOmvDataSource({ name: "omv1" });
+            fakeDataSource2 = new FakeOmvDataSource({ name: "omv2" });
+            fakeDataSource3 = new FakeOmvDataSource({ name: "omv3" });
             sinon.replace(fakeDataSource1, "getTilingScheme", sinon.fake.returns(hereTilingScheme));
             sinon.replace(
                 fakeDataSource2,
@@ -48,8 +48,7 @@ describe("BackgroundDataSource", function() {
             backgroundDataSource.attach((mapViewStub as unknown) as MapView);
         });
 
-        // tslint:disable-next-line: max-line-length
-        it("Sets storageLevelOffset to maximum value of matching datasources", function() {
+        it("Sets storageLevelOffset to maximum value of matching datasources", function () {
             backgroundDataSource.setTilingScheme(fakeDataSource2.getTilingScheme());
             backgroundDataSource.updateStorageLevelOffset();
             expect(mapViewStub.clearTileCache.called);
@@ -58,7 +57,7 @@ describe("BackgroundDataSource", function() {
             );
         });
 
-        it("Resets to default value if no datasources of same tiling scheme found", function() {
+        it("Resets to default value if no datasources of same tiling scheme found", function () {
             backgroundDataSource.setTilingScheme(fakeDataSource1.getTilingScheme());
             backgroundDataSource.updateStorageLevelOffset();
             expect(mapViewStub.clearTileCache.called);

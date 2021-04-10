@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Definitions, StyleSet } from "./Theme";
+import { Definitions, StylePriority, StyleSet } from "./Theme";
 import { WorkerServiceProtocol } from "./WorkerServiceProtocol";
 
 /**
@@ -15,8 +15,10 @@ export interface OptionsMap {
 }
 
 /**
- * Allows to cancel and prioritize requests inside the requestQueue. Useful to optimize the order of
- * decoding tiles during animations and camera movements.
+ * Allows to cancel and prioritize requests inside the requestQueue.
+ *
+ * @remarks
+ * Useful to optimize the order of decoding tiles during animations and camera movements.
  *
  * `RequestController` is not extending [[AbortController]], because this is not supported in ES5.
  */
@@ -73,6 +75,8 @@ export namespace WorkerDecoderProtocol {
         type: DecoderMessageName.Configuration;
         styleSet?: StyleSet;
         definitions?: Definitions;
+        priorities?: StylePriority[];
+        labelPriorities?: string[];
         options?: OptionsMap;
         languages?: string[];
     }

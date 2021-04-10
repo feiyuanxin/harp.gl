@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,6 +8,7 @@ import { JsonExpr } from "./Expr";
 
 /**
  * Interpolation mode used when computing a [[InterpolatedProperty]] value for a given zoom level.
+ * @internal
  */
 export enum InterpolationMode {
     Discrete,
@@ -26,6 +27,7 @@ export enum InterpolationMode {
  *  "zoomLevels": [13, 14, 15],
  *  "values": [ 1.5, 1.2, 0.9]
  * }
+ * @internal
  */
 export interface InterpolatedPropertyDefinition<T> {
     interpolation?: "Discrete" | "Linear" | "Cubic" | "Exponential";
@@ -36,7 +38,8 @@ export interface InterpolatedPropertyDefinition<T> {
 
 /**
  * Checks if a property is interpolated.
- * @param p property to be checked
+ * @param p - property to be checked
+ * @internal
  */
 export function isInterpolatedPropertyDefinition<T>(
     p: any
@@ -60,7 +63,7 @@ export function isInterpolatedPropertyDefinition<T>(
 /**
  * Converts an [[InterpolatedPropertyDefinition]] to a [[JsonExpr]].
  *
- * @param property A valid [[InterpolatedPropertyDefinition]]
+ * @param property - A valid [[InterpolatedPropertyDefinition]]
  */
 export function interpolatedPropertyDefinitionToJsonExpr(
     property: InterpolatedPropertyDefinition<any>

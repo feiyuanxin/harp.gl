@@ -1,10 +1,9 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
@@ -13,7 +12,7 @@ import * as sinon from "sinon";
 import { ILogger, LogLevel } from "../lib/Logger/ILogger";
 import { Logger } from "../lib/Logger/Logger";
 
-describe("Logger", function() {
+describe("Logger", function () {
     const sandbox = sinon.createSandbox();
 
     function printAll(logger: ILogger, msg: string) {
@@ -25,16 +24,16 @@ describe("Logger", function() {
         logger.trace(msg);
     }
 
-    afterEach(function() {
+    afterEach(function () {
         sandbox.restore();
     });
 
-    describe("Apply log level", function() {
-        afterEach(function() {
+    describe("Apply log level", function () {
+        afterEach(function () {
             sandbox.restore();
         });
 
-        it("check defaults", function() {
+        it("check defaults", function () {
             // Arrange
             const logger = new Logger("foo", console);
 
@@ -43,7 +42,7 @@ describe("Logger", function() {
             assert.equal(logger.level, LogLevel.Trace);
         });
 
-        it("error should be written to output", function() {
+        it("error should be written to output", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -62,7 +61,7 @@ describe("Logger", function() {
             assert.isFalse(stubs.trace.called);
         });
 
-        it("warning and error should be written to output ", function() {
+        it("warning and error should be written to output ", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -81,7 +80,7 @@ describe("Logger", function() {
             assert.isFalse(stubs.trace.called);
         });
 
-        it("info, warning, error should be written to output", function() {
+        it("info, warning, error should be written to output", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -100,7 +99,7 @@ describe("Logger", function() {
             assert.isFalse(stubs.trace.called);
         });
 
-        it("log, info, warning and error should be written", function() {
+        it("log, info, warning and error should be written", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -119,7 +118,7 @@ describe("Logger", function() {
             assert.isFalse(stubs.trace.called);
         });
 
-        it("debug, log, info, warning and error should be written", function() {
+        it("debug, log, info, warning and error should be written", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -138,7 +137,7 @@ describe("Logger", function() {
             assert.isFalse(stubs.trace.called);
         });
 
-        it("trace, debug, log, info, warning and error should be written", function() {
+        it("trace, debug, log, info, warning and error should be written", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -158,12 +157,12 @@ describe("Logger", function() {
         });
     });
 
-    describe("Enable / disable", function() {
-        afterEach(function() {
+    describe("Enable / disable", function () {
+        afterEach(function () {
             sandbox.restore();
         });
 
-        it("Enable all outputs", function() {
+        it("Enable all outputs", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -182,7 +181,7 @@ describe("Logger", function() {
             assert.isTrue(stubs.trace.calledOnce);
         });
 
-        it("Disable all outputs", function() {
+        it("Disable all outputs", function () {
             // Arrange
             const stubs = sandbox.stub(console);
 
@@ -201,7 +200,7 @@ describe("Logger", function() {
             assert.isFalse(stubs.trace.called);
         });
     });
-    it("Name is written to output", function() {
+    it("Name is written to output", function () {
         // Arrange
         const stubs = sandbox.stub(console);
         const logger = new Logger("foo", console, { enabled: true, level: LogLevel.Trace });

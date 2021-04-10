@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { GeoBox } from "../coordinates/GeoBox";
 import { GeoCoordinates } from "../coordinates/GeoCoordinates";
@@ -13,8 +15,6 @@ import { isOrientedBox3Like, OrientedBox3Like } from "../math/OrientedBox3Like";
 import { Vector3Like } from "../math/Vector3Like";
 import { EarthConstants } from "./EarthConstants";
 import { Projection, ProjectionType } from "./Projection";
-
-import * as THREE from "three";
 
 /**
  *
@@ -68,8 +68,8 @@ class TransverseMercatorProjection extends Projection {
     /** @override */
     readonly type: ProjectionType = ProjectionType.Planar;
 
-    private m_phi0: number = 0;
-    private m_lambda0: number = 0;
+    private readonly m_phi0: number = 0;
+    private readonly m_lambda0: number = 0;
 
     constructor(readonly unitScale: number) {
         super(unitScale);
@@ -104,7 +104,6 @@ class TransverseMercatorProjection extends Projection {
         result?: WorldCoordinates
     ): WorldCoordinates {
         if (!result) {
-            // tslint:disable-next-line:no-object-literal-type-assertion
             result = { x: 0, y: 0, z: 0 } as WorldCoordinates;
         }
 
@@ -124,7 +123,7 @@ class TransverseMercatorProjection extends Projection {
             this.unitScale * (THREE.MathUtils.clamp(result.x * outScale + 0.5, 0, 1) + offset);
         result.y = this.unitScale * THREE.MathUtils.clamp(result.y * outScale + 0.5, 0, 1);
 
-        result.z = geoPoint.altitude || 0;
+        result.z = geoPoint.altitude ?? 0;
         return result;
     }
 
@@ -301,7 +300,7 @@ class TransverseMercatorProjection extends Projection {
 
         const latitudes = geoPoints.map(g => g.latitude);
         const longitudes = geoPoints.filter(g => Math.abs(g.latitude) < 90).map(g => g.longitude);
-        const altitudes = geoPoints.map(g => g.altitude || 0);
+        const altitudes = geoPoints.map(g => g.altitude ?? 0);
 
         const minGeo = new GeoCoordinates(
             Math.min(...latitudes),
@@ -390,7 +389,7 @@ export class TransverseMercatorUtils {
 }
 
 /**
- * Transverse Mercator [[Projection]] used to convert geo coordinates to world coordinates
+ * Transverse Mercator {@link Projection} used to convert geo coordinates to world coordinates
  * and vice versa.
  */
 export const transverseMercatorProjection: Projection = new TransverseMercatorProjection(

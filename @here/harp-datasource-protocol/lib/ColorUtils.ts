@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { assert } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { RGBA } from "./RGBA";
 
 const SHIFT_TRANSPARENCY: number = 24;
@@ -13,10 +14,8 @@ const SHIFT_RED: number = 16;
 const SHIFT_GREEN: number = 8;
 const SHIFT_BLUE: number = 0;
 
-// tslint:disable: no-bitwise
 //    Allow bitwise operations for colors decoding
 
-// tslint:disable-next-line: no-bitwise
 const HEX_FULL_CHANNEL: number = 0xff;
 const HEX_RGB_MASK: number = 0xffffff;
 const HEX_TRGB_MASK: number = 0xffffffff;
@@ -91,9 +90,9 @@ export namespace ColorUtils {
      * Encode and convert HSL value to number coded color format (0xRRGGBB).
      *
      * @see getHexFromRgb.
-     * @param h Hue component value between 0 and 1.
-     * @param s Saturation value between 0 and 1.
-     * @param l Lightness channel between 0 and 1.
+     * @param h - Hue component value between 0 and 1.
+     * @param s - Saturation value between 0 and 1.
+     * @param l - Lightness channel between 0 and 1.
      */
     export function getHexFromHsl(h: number, s: number, l: number): number {
         assert(h >= 0 && h <= 1);
@@ -109,7 +108,7 @@ export namespace ColorUtils {
      * format.
      *
      * @see getHexFromRgba.
-     * @param hex The number encoded color value (0xRRGGBB or 0xTTRRGGBB in hex).
+     * @param hex - The number encoded color value (0xRRGGBB or 0xTTRRGGBB in hex).
      * @returns r, g, b, a channels in simple object, where each channel value is saved as floating
      * point from 0 to 1 inclusively.
      */
@@ -127,7 +126,7 @@ export namespace ColorUtils {
     /**
      * Determines if number encoded color contains alpha (opacity) defined and different then 255.
      *
-     * @param hex The number encoded color (0xRRGGBB or 0xTTRRGGBB in hex).
+     * @param hex - The number encoded color (0xRRGGBB or 0xTTRRGGBB in hex).
      * @returns True if color has transparency defined.
      */
     export function hasAlphaInHex(hex: number): boolean {
@@ -139,7 +138,7 @@ export namespace ColorUtils {
      * Retrieves alpha color channel from hex encoded color value.
      *
      * @see getHexFromRgba.
-     * @param hex The number encoded color value (representable as 0xRRGGBB or 0xTTRRGGBB in hex).
+     * @param hex - The number encoded color value (representable as 0xRRGGBB or 0xTTRRGGBB in hex).
      * @returns The floating point alpha component in <0, 1> range.
      */
     export function getAlphaFromHex(hex: number): number {
@@ -153,7 +152,7 @@ export namespace ColorUtils {
      * Remove transparency info from the number coded color, makes it compatible with external libs.
      *
      * @see getAlphaFromHex.
-     * @param hex The number encoded color value (representable as 0xRRGGBB or 0xTTRRGGBB in hex).
+     * @param hex - The number encoded color value (representable as 0xRRGGBB or 0xTTRRGGBB in hex).
      * @returns number coded color value representable as 0xRRGGBB in hex.
      */
     export function removeAlphaFromHex(hex: number): number {

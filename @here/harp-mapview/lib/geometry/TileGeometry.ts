@@ -1,14 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as THREE from "three";
-
 import { GeometryType } from "@here/harp-datasource-protocol";
 import { reconstructLineWidth } from "@here/harp-lines";
 import { assert, LoggerManager } from "@here/harp-utils";
+import * as THREE from "three";
 
 const logger = LoggerManager.instance.create("TileGeometry");
 
@@ -57,13 +56,14 @@ export interface ILineAccessor {
 /**
  * Helper function to check if an accessor is of type `ILineAccessor`.
  *
- * @param arg `true` if `arg` is `ILineAccessor`.
+ * @param arg - `true` if `arg` is `ILineAccessor`.
+ * @internal
  */
 export function isLineAccessor(arg: any): arg is ILineAccessor {
     /**
      * Get vertices from the object.
      *
-     * @param mode Specifies which part of the vertices should be returned.
+     * @param mode - Specifies which part of the vertices should be returned.
      */
 
     return typeof arg.isLineAccessor === "function" && arg.isLineAccessor() === true;
@@ -106,7 +106,8 @@ export interface IObject3dAccessor {
 /**
  * Helper function to check if an accessor is of type `IObject3dAccessor`.
  *
- * @param arg `true` if `arg` is `IObject3dAccessor`.
+ * @param arg - `true` if `arg` is `IObject3dAccessor`.
+ * @internal
  */
 export function isObject3dAccessor(arg: any): arg is IObject3dAccessor {
     return typeof arg.isObject3dAccessor === "function" && arg.isObject3dAccessor() === true;
@@ -126,8 +127,8 @@ export interface IGeometryAccessor {
     /**
      * Set range of primitives in this object related to one or more buffers.
      *
-     * @param start Start index in buffers.
-     * @param end End index in buffers (+1).
+     * @param start - Start index in buffers.
+     * @param end - End index in buffers (+1).
      */
     setRange(start: number, end: number): void;
 }
@@ -320,7 +321,8 @@ export abstract class BufferedGeometryAccessor extends BufferedGeometryAccessorB
 /**
  * Accessor for nonindexed line geometry.
  */
-export class BufferedGeometryLineAccessor extends BufferedGeometryAccessor
+export class BufferedGeometryLineAccessor
+    extends BufferedGeometryAccessor
     implements ILineAccessor {
     constructor(
         readonly object: THREE.Mesh,
@@ -344,7 +346,8 @@ export class BufferedGeometryLineAccessor extends BufferedGeometryAccessor
 /**
  * Accessor for nonindexed unspecified (`Object3D`) geometry.
  */
-export class BufferedGeometryObject3dAccessor extends BufferedGeometryAccessor
+export class BufferedGeometryObject3dAccessor
+    extends BufferedGeometryAccessor
     implements IObject3dAccessor {
     constructor(
         readonly object: THREE.Mesh,
@@ -376,16 +379,14 @@ export abstract class IndexedBufferedGeometryAccessor extends BufferedGeometryAc
      * @param object - mesh to be used
      * @param geometryType - type of geometry
      * @param bufferGeometry - geometry used
-     * @param start
-     * @param end
+     * @param start -
+     * @param end -
      */
     constructor(
         readonly object: THREE.Mesh,
         readonly geometryType: GeometryType,
         protected readonly bufferGeometry: THREE.BufferGeometry,
-        // tslint:disable-next-line:no-unused-variable
         start?: number,
-        // tslint:disable-next-line:no-unused-variable
         end?: number
     ) {
         super(object, geometryType, bufferGeometry);
@@ -437,7 +438,8 @@ export abstract class IndexedBufferedGeometryAccessor extends BufferedGeometryAc
 /**
  * Accessor for lines in an indexed geometry.
  */
-export class IndexedBufferedGeometryLineAccessor extends IndexedBufferedGeometryAccessor
+export class IndexedBufferedGeometryLineAccessor
+    extends IndexedBufferedGeometryAccessor
     implements ILineAccessor {
     constructor(
         readonly object: THREE.Mesh,

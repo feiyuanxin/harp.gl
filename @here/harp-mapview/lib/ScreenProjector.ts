@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,10 +9,19 @@ import * as THREE from "three";
 
 /**
  * Determines whether a position in NDC (Normalized Device Coordinates) is inside the screen.
- * @param ndc The position to check.
+ * @param ndc - The position to check.
  */
 function isOnScreen(ndc: THREE.Vector3) {
     return ndc.z > -1 && ndc.z < 1 && ndc.x >= -1 && ndc.x <= 1 && ndc.y >= -1 && ndc.y <= 1;
+}
+
+/**
+ * Determines whether a position in NDC (Normalized Device Coordinates) is between the near
+ * and far plane.
+ * @param ndc - The position to check.
+ */
+function isInRange(ndc: THREE.Vector3) {
+    return ndc.z > -1 && ndc.z < 1;
 }
 
 /**
@@ -29,7 +38,7 @@ export class ScreenProjector {
     /**
      * Constructs a new `ScreenProjector`.
      *
-     * @param m_camera Camera to project against.
+     * @param m_camera - Camera to project against.
      */
     constructor(private m_camera: THREE.Camera) {}
 
@@ -53,18 +62,14 @@ export class ScreenProjector {
      *
      * @param {(Vector3Like)} source The source vector to project.
      * @param {THREE.Vector2} target The target vector.
-     * @returns {THREE.Vector2} The projected vector (the parameter 'target') or undefined if
-     * outside the near / far plane.
+     * @returns {THREE.Vector2} The projected vector (the parameter 'target')
      */
     project(
         source: Vector3Like,
         target: THREE.Vector2 = new THREE.Vector2()
     ): THREE.Vector2 | undefined {
         const p = this.projectVector(source, ScreenProjector.tempV3);
-        if (p.z > -1 && p.z < 1) {
-            return this.ndcToScreen(p, target);
-        }
-        return undefined;
+        return this.ndcToScreen(p, target);
     }
 
     /**
@@ -74,14 +79,45 @@ export class ScreenProjector {
      * @param {(Vector3Like)} source The source vector to project.
      * @param {THREE.Vector2} target The target vector.
      * @returns {THREE.Vector2} The projected vector (the parameter 'target') or undefined if
-     * outside the screen.
+     * outside of the near/far plane. The point may be outside the screen.
      */
-    projectOnScreen(
+    projectToScreen(
         source: Vector3Like,
         target: THREE.Vector2 = new THREE.Vector2()
     ): THREE.Vector2 | undefined {
         const p = this.projectVector(source, ScreenProjector.tempV3);
-        if (isOnScreen(p)) {
+        if (isInRange(p)) {
+            return this.ndcToScreen(p, target);
+        }
+        return undefined;
+    }
+
+    /**
+     * Test if the area around the specified point is visible on the screen.
+     *
+     * @param {(Vector3Like)} source The centered source vector to project.
+     * @param {(Number)} halfWidth Half of the width of the area in screen space [0..1].
+     * @param {(Number)} halfHeight Half of the height of the area in screen space [0..1].
+     * @param {THREE.Vector2} target The target vector.
+     * @returns {THREE.Vector2} The projected vector (the parameter 'target') or undefined if
+     * the area is completely outside the screen.
+     */
+    projectAreaToScreen(
+        source: Vector3Like,
+        halfWidth: number,
+        halfHeight: number,
+        target: THREE.Vector2 = new THREE.Vector2()
+    ): THREE.Vector2 | undefined {
+        halfWidth *= 2;
+        halfHeight *= 2;
+        const p = this.projectVector(source, ScreenProjector.tempV3);
+        if (
+            isInRange(p) &&
+            p.x + halfWidth >= -1 &&
+            p.x - halfWidth <= 1 &&
+            p.y + halfHeight >= -1 &&
+            p.y - halfHeight <= 1
+        ) {
             return this.ndcToScreen(p, target);
         }
         return undefined;

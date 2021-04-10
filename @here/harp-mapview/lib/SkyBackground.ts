@@ -1,18 +1,18 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { CubemapSky, GradientSky } from "@here/harp-datasource-protocol";
 import { ProjectionType } from "@here/harp-geoutils";
+import * as THREE from "three";
+
 import { SkyCubemapTexture } from "./SkyCubemapTexture";
 import { SkyGradientTexture } from "./SkyGradientTexture";
 
-import * as THREE from "three";
-
 /**
- * Class that handles [[MapView]]'s sky background.
+ * Class that handles {@link MapView}'s sky background.
  */
 export class SkyBackground {
     private m_skyTexture?: SkyGradientTexture | SkyCubemapTexture;
@@ -20,9 +20,9 @@ export class SkyBackground {
     /**
      * Constructs a new `SkyBackground`.
      *
-     * @param m_sky Sky configuration parameters.
-     * @param m_projectionType [[MapView]]'s projection type.
-     * @param camera [[MapView]]'s camera.
+     * @param m_sky - Sky configuration parameters.
+     * @param m_projectionType - {@link MapView}'s projection type.
+     * @param camera - {@link MapView}'s camera.
      */
     constructor(
         private m_sky: GradientSky | CubemapSky,
@@ -58,7 +58,7 @@ export class SkyBackground {
     /**
      * This method updates the skybox based on the camera position (needed for some types of sky).
      *
-     * @param camera The camera used in the map view.
+     * @param camera - The camera used in the map view.
      */
     updateCamera(camera: THREE.Camera) {
         if (this.m_sky.type === "gradient") {
@@ -69,8 +69,8 @@ export class SkyBackground {
     /**
      * Updates the sky texture with new parameters.
      *
-     * @param params New sky configuration parameters.
-     * @param projectionType Which projection is used, this may also change (in which case the
+     * @param params - New sky configuration parameters.
+     * @param projectionType - Which projection is used, this may also change (in which case the
      * textures should be recreated).
      */
     updateTexture(params: GradientSky | CubemapSky, projectionType: ProjectionType) {

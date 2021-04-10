@@ -1,15 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
-import { WebTileDataSource } from "@here/harp-webtile-datasource";
+import { HereTileProvider, HereWebTileDataSource } from "@here/harp-webtile-datasource";
+
 import { apikey } from "../config";
 
-// tslint:disable:max-line-length
 /**
  * A simple example using the webtile data source. Tiles are retrieved from
  * ```
@@ -59,9 +58,9 @@ export namespace SatelliteDataSourceExample {
     const mapView = initializeMapView("mapCanvas");
 
     // snippet:harp_gl_datasource_satellitetile_1.ts
-    const webTileDataSource = new WebTileDataSource({
+    const webTileDataSource = new HereWebTileDataSource({
         apikey,
-        tileBaseAddress: WebTileDataSource.TILE_AERIAL_SATELLITE
+        tileBaseAddress: HereTileProvider.TILE_AERIAL_SATELLITE
     });
     // end:harp_gl_datasource_satellitetile_1.ts
 

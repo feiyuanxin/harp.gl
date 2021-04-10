@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs = require("fs");
-import glob = require("glob");
-import path = require("path");
+/* eslint-disable no-console */
 
-// tslint:disable:no-console
+import fs = require("fs");
+import path = require("path");
+import glob = require("glob");
 
 function writePackageJson(fileName: string, contents: any) {
     fs.writeFileSync(fileName, JSON.stringify(contents, null, 2) + "\n");
@@ -39,6 +39,7 @@ packageFiles.push(__dirname + "/../package.json");
 /* Bump all dependencies */
 
 function bump(dependencies: any[], packageFile: string) {
+    // eslint-disable-next-line @typescript-eslint/no-for-in-array
     for (const dep in dependencies) {
         if (dep !== newPackage) {
             continue;
@@ -54,7 +55,6 @@ function bump(dependencies: any[], packageFile: string) {
 }
 
 for (const packageFile of packageFiles) {
-    // tslint:disable-next-line:no-var-requires
     const pkg = require(packageFile);
 
     bump(pkg.dependencies, packageFile);

@@ -1,15 +1,20 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { Theme } from "@here/harp-datasource-protocol";
-// import { GeoJsonDataProvider } from "@here/harp-omv-datasource";
+// import { GeoJsonDataProvider } from "@here/harp-vectortile-datasource";
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 /**
@@ -83,7 +88,6 @@ export namespace TiledGeoJsonTechniquesExample {
                 },
                 {
                     when:
-                        // tslint:disable-next-line:max-line-length
                         "$layer ^= 'landuse' && (($geometryType ^= 'polygon') && kind in ['nature','forest','park','wood','natural_wood','grass','meadow','village_green','dog_park','garden','nature_reserve','protected_area'])",
                     technique: "fill",
                     attr: {
@@ -127,7 +131,6 @@ export namespace TiledGeoJsonTechniquesExample {
                 },
                 {
                     when:
-                        // tslint:disable-next-line:max-line-length
                         "$layer == 'roads' && kind in ['major_road', 'highway', 'minor_road'] && kind_detail in ['unclassified', 'residential', 'service']",
                     technique: "solid-line",
                     attr: {
@@ -158,7 +161,6 @@ export namespace TiledGeoJsonTechniquesExample {
                 },
                 {
                     when:
-                        // tslint:disable-next-line:max-line-length
                         "$layer == 'roads' && kind in ['major_road', 'highway', 'minor_road'] && kind_detail == 'tertiary'",
                     technique: "solid-line",
                     attr: {
@@ -189,7 +191,6 @@ export namespace TiledGeoJsonTechniquesExample {
                 },
                 {
                     when:
-                        // tslint:disable-next-line:max-line-length
                         "$layer == 'roads' && kind in ['major_road', 'highway', 'minor_road'] && kind_detail == 'secondary'",
                     technique: "solid-line",
                     attr: {
@@ -220,7 +221,6 @@ export namespace TiledGeoJsonTechniquesExample {
                 },
                 {
                     when:
-                        // tslint:disable-next-line:max-line-length
                         "$layer == 'roads' && kind in ['major_road', 'highway', 'minor_road'] && kind_detail == 'primary'",
                     technique: "solid-line",
                     attr: {
@@ -461,7 +461,7 @@ export namespace TiledGeoJsonTechniquesExample {
             }
         });
 
-        const baseMapDataSource = new OmvDataSource({
+        const baseMapDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
             apiFormat: APIFormat.XYZOMV,
             styleSetName: "tilezen",
@@ -474,7 +474,7 @@ export namespace TiledGeoJsonTechniquesExample {
         });
 
         mapView.addDataSource(baseMapDataSource).then(() => {
-            baseMapDataSource.setStyleSet(theme.styles!.tilezen);
+            baseMapDataSource.setTheme(theme);
         });
 
         mapView.update();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -95,9 +95,9 @@ export class TileKey {
     /**
      * Creates a tile key.
      *
-     * @param row The requested row. Must be less than 2 to the power of level.
-     * @param column The requested column. Must be less than 2 to the power of level.
-     * @param level The requested level.
+     * @param row - The requested row. Must be less than 2 to the power of level.
+     * @param column - The requested column. Must be less than 2 to the power of level.
+     * @param level - The requested level.
      */
     static fromRowColumnLevel(row: number, column: number, level: number): TileKey {
         return new TileKey(row, column, level);
@@ -108,14 +108,13 @@ export class TileKey {
      *
      * The quad string can be created with [[toQuadKey]].
      *
-     * @param quadkey The quadkey to convert.
+     * @param quadkey - The quadkey to convert.
      * @returns A new instance of `TileKey`.
      */
     static fromQuadKey(quadkey: string): TileKey {
         const level = quadkey.length;
         let row = 0;
         let column = 0;
-        // tslint:disable:no-bitwise
         for (let i = 0; i < quadkey.length; ++i) {
             const mask = 1 << i;
             const d = parseInt(quadkey.charAt(level - i - 1), 10);
@@ -126,23 +125,22 @@ export class TileKey {
                 row |= mask;
             }
         }
-        // tslint:enable:no-bitwise
         return TileKey.fromRowColumnLevel(row, column, level);
     }
+
     /**
      * Creates a tile key from a numeric Morton code representation.
      *
      * You can convert a tile key into a numeric Morton code with [[mortonCode]].
      *
-     * @param quadKey64 The Morton code to be converted.
-     * @returns A new instance of [[TileKey]].
+     * @param quadKey64 - The Morton code to be converted.
+     * @returns A new instance of {@link TileKey}.
      */
     static fromMortonCode(quadKey64: number): TileKey {
         let level = 0;
         let row = 0;
         let column = 0;
         let quadKey = quadKey64;
-        // tslint:disable:no-bitwise
         while (quadKey > 1) {
             const mask: number = 1 << level;
 
@@ -156,7 +154,6 @@ export class TileKey {
             level++;
             quadKey = (quadKey - (quadKey & 0x3)) / 4;
         }
-        // tslint:enable:no-bitwise
         const result = TileKey.fromRowColumnLevel(row, column, level);
         result.m_mortonCode = quadKey64;
         return result;
@@ -167,7 +164,7 @@ export class TileKey {
      *
      * The string can be created with [[toHereTile]].
      *
-     * @param quadkey64 The string representation of the HERE tile key.
+     * @param quadkey64 - The string representation of the HERE tile key.
      * @returns A new instance of `TileKey`.
      */
     static fromHereTile(quadkey64: string): TileKey {
@@ -181,7 +178,7 @@ export class TileKey {
      *
      * This is 2 to the power of the level.
      *
-     * @param level The level for which to return the number of columns.
+     * @param level - The level for which to return the number of columns.
      * @returns The available columns at the given level.
      */
     static columnsAtLevel(level: number): number {
@@ -193,7 +190,7 @@ export class TileKey {
      *
      * This is 2 to the power of the level.
      *
-     * @param level The level for which to return the number of rows.
+     * @param level - The level for which to return the number of rows.
      * @returns The available rows at the given level.
      */
     static rowsAtLevel(level: number): number {
@@ -203,11 +200,11 @@ export class TileKey {
     /**
      * Returns the closest matching `TileKey` in a cartesian coordinate system.
      *
-     * @param level The level for the tile key.
-     * @param coordX The X coordinate.
-     * @param coordY The Y coordinate.
-     * @param totalWidth The maximum X coordinate.
-     * @param totalHeight The maximum Y coordinate.
+     * @param level - The level for the tile key.
+     * @param coordX - The X coordinate.
+     * @param coordY - The Y coordinate.
+     * @param totalWidth - The maximum X coordinate.
+     * @param totalHeight - The maximum Y coordinate.
      * @returns A new tile key at the given level that includes the given coordinates.
      */
     static atCoords(
@@ -229,7 +226,7 @@ export class TileKey {
      *
      * Note: The parent key of the root key is the root key itself.
      *
-     * @param mortonCode A Morton code, for example, obtained from [[mortonCode]].
+     * @param mortonCode - A Morton code, for example, obtained from [[mortonCode]].
      * @returns The Morton code of the parent tile.
      */
     static parentMortonCode(mortonCode: number): number {
@@ -242,13 +239,13 @@ export class TileKey {
     /**
      * Constructs a new immutable instance of a `TileKey`.
      *
-     * For the better readability, [[TileKey.fromRowColumnLevel]] should be preferred.
+     * For the better readability, {@link TileKey.fromRowColumnLevel} should be preferred.
      *
      * Note - row and column must not be greater than the maximum rows/columns for the given level.
      *
-     * @param row Represents the row in the quadtree.
-     * @param column Represents the column in the quadtree.
-     * @param level Represents the level in the quadtree.
+     * @param row - Represents the row in the quadtree.
+     * @param column - Represents the column in the quadtree.
+     * @param level - Represents the level in the quadtree.
      */
     constructor(readonly row: number, readonly column: number, readonly level: number) {}
 
@@ -261,7 +258,6 @@ export class TileKey {
         if (this.level === 0) {
             throw new Error("Cannot get the parent of the root tile key");
         }
-        // tslint:disable-next-line:no-bitwise
         return TileKey.fromRowColumnLevel(this.row >>> 1, this.column >>> 1, this.level - 1);
     }
 
@@ -272,14 +268,13 @@ export class TileKey {
      *
      * Note - root key is returned if `delta` is smaller than the level of this tile key.
      *
-     * @param delta The numeric difference between the current level and the requested level.
+     * @param delta - The numeric difference between the current level and the requested level.
      */
     changedLevelBy(delta: number): TileKey {
         const level = Math.max(0, this.level + delta);
         let row = this.row;
         let column = this.column;
 
-        // tslint:disable:no-bitwise
         if (delta >= 0) {
             row <<= delta;
             column <<= delta;
@@ -287,7 +282,6 @@ export class TileKey {
             row >>>= -delta;
             column >>>= -delta;
         }
-        // tslint:enable:no-bitwise
         return TileKey.fromRowColumnLevel(row, column, level);
     }
 
@@ -300,7 +294,7 @@ export class TileKey {
      * row and column number. If the requested level equals this tile's level, then the tile key
      * itself is returned. If the requested level is negative, the root tile key is returned.
      *
-     * @param level The requested level.
+     * @param level - The requested level.
      */
     changedLevelTo(level: number): TileKey {
         return this.changedLevelBy(level - this.level);
@@ -318,7 +312,6 @@ export class TileKey {
             let column = this.column;
             let row = this.row;
 
-            // tslint:disable:no-bitwise
             let result = powerOfTwo[this.level << 1];
             for (let i = 0; i < this.level; ++i) {
                 if (column & 0x1) {
@@ -330,7 +323,6 @@ export class TileKey {
                 column >>>= 1;
                 row >>>= 1;
             }
-            // tslint:enable:no-bitwise
 
             this.m_mortonCode = result;
         }
@@ -365,7 +357,6 @@ export class TileKey {
     toQuadKey(): string {
         let result: string = "";
 
-        // tslint:disable:no-bitwise
         for (let i = this.level; i > 0; --i) {
             const mask = 1 << (i - 1);
 
@@ -382,7 +373,6 @@ export class TileKey {
                 result += "0";
             }
         }
-        // tslint:enable:no-bitwise
 
         return result;
     }
@@ -390,7 +380,7 @@ export class TileKey {
     /**
      * Equality operator.
      *
-     * @param qnr The tile key to compare to.
+     * @param qnr - The tile key to compare to.
      * @returns `true` if this tile key has identical row, column and level, `false` otherwise.
      */
     equals(qnr: TileKey): boolean {
@@ -400,7 +390,7 @@ export class TileKey {
     /**
      * Returns the absolute quadkey that is constructed from its sub quadkey.
      *
-     * @param sub The sub key.
+     * @param sub - The sub key.
      * @returns The absolute tile key in the quadtree.
      */
     addedSubKey(sub: string): TileKey {
@@ -416,7 +406,7 @@ export class TileKey {
     /**
      * Returns the absolute quadkey that is constructed from its sub HERE tile key.
      *
-     * @param sub The sub HERE key.
+     * @param sub - The sub HERE key.
      * @returns The absolute tile key in the quadtree.
      */
     addedSubHereTile(sub: string): TileKey {
@@ -443,16 +433,14 @@ export class TileKey {
      *
      * Deltas larger than 16 are not supported.
      *
-     * @param delta The number of levels relative to its parent quadkey. Must be greater or equal to
-     * 0 and smaller than 16.
+     * @param delta - The number of levels relative to its parent quadkey. Must be greater or equal
+     * to 0 and smaller than 16.
      * @returns The quadkey relative to its parent that is `delta` levels up the tree.
      */
     getSubHereTile(delta: number): string {
         const key = this.mortonCode();
-        // tslint:disable-next-line:no-bitwise
         const msb = 1 << (delta * 2);
         const mask = msb - 1;
-        // tslint:disable-next-line:no-bitwise
         const result = (key & mask) | msb;
         return result.toString();
     }

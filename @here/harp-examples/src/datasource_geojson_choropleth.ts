@@ -1,21 +1,16 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import { StyleDeclaration, StyleSet, Theme } from "@here/harp-datasource-protocol";
+import { Style, StyleSet, Theme } from "@here/harp-datasource-protocol";
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
-import { MapView } from "@here/harp-mapview";
-import {
-    APIFormat,
-    AuthenticationMethod,
-    GeoJsonDataProvider,
-    OmvDataSource
-} from "@here/harp-omv-datasource";
+import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
+import { GeoJsonDataProvider, VectorTileDataSource } from "@here/harp-vectortile-datasource";
 import * as THREE from "three";
-import { apikey, copyrightInfo } from "../config";
+
+import { apikey } from "../config";
 
 /**
  * This example demonstrates how to generate a heatmap-like [[StyleSet]] for a GeoJson. To do so,
@@ -91,16 +86,11 @@ export namespace GeoJsonHeatmapExample {
             mapView.resize(window.innerWidth, window.innerHeight);
         });
 
-        const baseMapDataSource = new OmvDataSource({
+        CopyrightElementHandler.install("copyrightNotice", mapView);
+
+        const baseMapDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-            apiFormat: APIFormat.XYZOMV,
-            styleSetName: "tilezen",
-            authenticationCode: apikey,
-            authenticationMethod: {
-                method: AuthenticationMethod.QueryString,
-                name: "apikey"
-            },
-            copyrightInfo
+            authenticationCode: apikey
         });
 
         mapView.addDataSource(baseMapDataSource);
@@ -111,7 +101,7 @@ export namespace GeoJsonHeatmapExample {
     /**
      * A generator for a heatmap-like [[StyleSet]].
      *
-     * @param options Heatmap settings.
+     * @param options - Heatmap settings.
      */
     function generateHeatStyleSet(options: {
         thresholds: number[];
@@ -127,7 +117,7 @@ export namespace GeoJsonHeatmapExample {
             const min = i - 1 < 0 ? 0 : options.thresholds[i - 1];
             // snippet:geojson_heatmap1.ts
             const propertyName = options.property;
-            const style: StyleDeclaration = {
+            const style: Style = {
                 description: "geoJson property-based style",
                 technique: "extruded-polygon",
                 when:
@@ -176,7 +166,7 @@ export namespace GeoJsonHeatmapExample {
         "italy",
         new URL("resources/italy.json", window.location.href)
     );
-    const geoJsonDataSource = new OmvDataSource({
+    const geoJsonDataSource = new VectorTileDataSource({
         dataProvider: geoJsonDataProvider,
         styleSetName: "geojson"
     });

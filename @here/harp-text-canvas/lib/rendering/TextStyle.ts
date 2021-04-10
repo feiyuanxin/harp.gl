@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -192,7 +192,7 @@ export class TextRenderStyle {
     /**
      * Creates a new `TextRenderStyle`.
      *
-     * @param params Input [[TextRenderParameters]].
+     * @param params - Input [[TextRenderParameters]].
      *
      * @returns New `TextRenderStyle`.
      */
@@ -243,6 +243,7 @@ export class TextRenderStyle {
     get params(): TextRenderParameters {
         return this.m_params;
     }
+
     set params(value: TextRenderParameters) {
         this.m_params = { ...this.m_params, ...value };
     }
@@ -253,6 +254,7 @@ export class TextRenderStyle {
     get fontName(): string {
         return this.m_params.fontName!;
     }
+
     set fontName(value: string) {
         this.m_params.fontName = value;
     }
@@ -263,6 +265,7 @@ export class TextRenderStyle {
     get fontSize(): FontSize {
         return this.m_params.fontSize!;
     }
+
     set fontSize(value: FontSize) {
         this.m_params.fontSize = { ...value };
     }
@@ -273,6 +276,7 @@ export class TextRenderStyle {
     get fontStyle(): FontStyle {
         return this.m_params.fontStyle!;
     }
+
     set fontStyle(value: FontStyle) {
         this.m_params.fontStyle = value;
     }
@@ -283,6 +287,7 @@ export class TextRenderStyle {
     get fontVariant(): FontVariant {
         return this.m_params.fontVariant!;
     }
+
     set fontVariant(value: FontVariant) {
         this.m_params.fontVariant = value;
     }
@@ -293,6 +298,7 @@ export class TextRenderStyle {
     get rotation(): number {
         return this.m_params.rotation!;
     }
+
     set rotation(value: number) {
         this.m_params.rotation = value;
     }
@@ -303,6 +309,7 @@ export class TextRenderStyle {
     get color(): THREE.Color {
         return this.m_params.color!;
     }
+
     set color(value: THREE.Color) {
         this.m_params.color!.copy(value);
     }
@@ -313,6 +320,7 @@ export class TextRenderStyle {
     get backgroundColor(): THREE.Color {
         return this.m_params.backgroundColor!;
     }
+
     set backgroundColor(value: THREE.Color) {
         this.m_params.backgroundColor!.copy(value);
     }
@@ -323,6 +331,7 @@ export class TextRenderStyle {
     get opacity(): number {
         return this.m_params.opacity!;
     }
+
     set opacity(value: number) {
         this.m_params.opacity = value;
     }
@@ -333,6 +342,7 @@ export class TextRenderStyle {
     get backgroundOpacity(): number {
         return this.m_params.backgroundOpacity!;
     }
+
     set backgroundOpacity(value: number) {
         this.m_params.backgroundOpacity = value;
     }
@@ -340,7 +350,7 @@ export class TextRenderStyle {
     /**
      * Clone this [[TextRenderStyle]].
      *
-     * @param params Input [[TextRenderParameters]].
+     * @param params - Input [[TextRenderParameters]].
      *
      * @returns Cloned [[TextRenderStyle]].
      */
@@ -351,7 +361,7 @@ export class TextRenderStyle {
     /**
      * Copy other [[TextRenderStyle]] properties into this object instance.
      *
-     * @param source The source object to be copied.
+     * @param source - The source object to be copied.
      *
      * @returns reference to `this` object.
      */
@@ -395,7 +405,7 @@ export class TextLayoutStyle {
     /**
      * Creates a new `TextLayoutStyle`.
      *
-     * @param params Input [[TextLayoutParameters]].
+     * @param params - Input [[TextLayoutParameters]].
      *
      * @returns New `TextLayoutStyle`.
      */
@@ -443,6 +453,7 @@ export class TextLayoutStyle {
     get params(): TextLayoutParameters {
         return this.m_params;
     }
+
     set params(value: TextLayoutParameters) {
         this.m_params = { ...this.m_params, ...value };
     }
@@ -453,6 +464,7 @@ export class TextLayoutStyle {
     get tracking(): number {
         return this.m_params.tracking!;
     }
+
     set tracking(value: number) {
         this.m_params.tracking = value;
     }
@@ -463,6 +475,7 @@ export class TextLayoutStyle {
     get leading(): number {
         return this.m_params.leading!;
     }
+
     set leading(value: number) {
         this.m_params.leading = value;
     }
@@ -473,6 +486,7 @@ export class TextLayoutStyle {
     get maxLines(): number {
         return this.m_params.maxLines!;
     }
+
     set maxLines(value: number) {
         this.m_params.maxLines = value;
     }
@@ -483,6 +497,7 @@ export class TextLayoutStyle {
     get lineWidth(): number {
         return this.m_params.lineWidth!;
     }
+
     set lineWidth(value: number) {
         this.m_params.lineWidth = value;
     }
@@ -493,6 +508,7 @@ export class TextLayoutStyle {
     get canvasRotation(): number {
         return this.m_params.canvasRotation!;
     }
+
     set canvasRotation(value: number) {
         this.m_params.canvasRotation = value;
     }
@@ -503,6 +519,7 @@ export class TextLayoutStyle {
     get lineRotation(): number {
         return this.m_params.lineRotation!;
     }
+
     set lineRotation(value: number) {
         this.m_params.lineRotation = value;
     }
@@ -513,6 +530,7 @@ export class TextLayoutStyle {
     get wrappingMode(): WrappingMode {
         return this.m_params.wrappingMode!;
     }
+
     set wrappingMode(value: WrappingMode) {
         this.m_params.wrappingMode = value;
     }
@@ -523,6 +541,7 @@ export class TextLayoutStyle {
     get verticalAlignment(): VerticalAlignment {
         return this.m_params.verticalAlignment!;
     }
+
     set verticalAlignment(value: VerticalAlignment) {
         this.m_params.verticalAlignment = value;
     }
@@ -533,6 +552,7 @@ export class TextLayoutStyle {
     get horizontalAlignment(): HorizontalAlignment {
         return this.m_params.horizontalAlignment!;
     }
+
     set horizontalAlignment(value: HorizontalAlignment) {
         this.m_params.horizontalAlignment = value;
     }
@@ -545,6 +565,7 @@ export class TextLayoutStyle {
     get placements(): TextPlacements {
         return this.m_params.placements!;
     }
+
     set placements(value: TextPlacements) {
         const { horizontalAlignment, verticalAlignment, placements } = resolvePlacementAndAlignment(
             this.horizontalAlignment,
@@ -559,7 +580,7 @@ export class TextLayoutStyle {
     /**
      * Clone this [[TextLayoutStyle]].
      *
-     * @param params Input [[TextLayoutParameters]].
+     * @param params - Input [[TextLayoutParameters]].
      *
      * @returns Cloned [[TextLayoutStyle]].
      */
@@ -570,7 +591,7 @@ export class TextLayoutStyle {
     /**
      * Copy other [[TextLayoutStyle]] properties into this object instance.
      *
-     * @param other The object to be copied.
+     * @param other - The object to be copied.
      *
      * @returns reference to `this` object.
      */
@@ -586,9 +607,9 @@ export class TextLayoutStyle {
  * If placement is defined it may override alignment settings, if no attributes are
  * provided they may be retrieved from defaults.
  *
- * @param hAlignment The optional horizontal alignment.
- * @param vAlignment The vertical alignment - optional.
- * @param placementsOpt Possible text placements - optional.
+ * @param hAlignment - The optional horizontal alignment.
+ * @param vAlignment - The vertical alignment - optional.
+ * @param placementsOpt - Possible text placements - optional.
  * @internal
  */
 export function resolvePlacementAndAlignment(

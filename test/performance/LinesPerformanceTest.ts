@@ -1,17 +1,15 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-// tslint:disable:only-arrow-functions
 
 import { mercatorProjection } from "@here/harp-geoutils";
 import { createLineGeometry } from "@here/harp-lines";
 import { measureThroughputSync } from "@here/harp-test-utils/lib/ProfileHelper";
 import * as THREE from "three";
 
-describe(`lines`, function() {
+describe(`lines`, function () {
     this.timeout(0);
     const center = new THREE.Vector3();
 
@@ -23,7 +21,7 @@ describe(`lines`, function() {
         { segments: 256 }
     ];
 
-    before(function() {
+    before(function () {
         this.timeout(0);
         tests.forEach(test => {
             const segments = test.segments;
@@ -41,12 +39,12 @@ describe(`lines`, function() {
     });
 
     tests.forEach(test => {
-        it(`createLineGeometry segments=${test.segments}`, async function() {
+        it(`createLineGeometry segments=${test.segments}`, async function () {
             this.timeout(0);
             await measureThroughputSync(
                 `createLineGeometry segments=${test.segments}`,
                 1000,
-                function() {
+                function () {
                     createLineGeometry(center, test.points!, mercatorProjection);
                 }
             );

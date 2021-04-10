@@ -1,18 +1,17 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
 
 import { cloneDeep } from "../lib/ObjectUtils";
 
-describe("ObjectUtils", function() {
-    describe("#cloneDeep", function() {
+describe("ObjectUtils", function () {
+    describe("#cloneDeep", function () {
         function basicDeepEqualAssertion(o: any) {
             assert.deepEqual(cloneDeep(o), o);
         }
@@ -20,7 +19,7 @@ describe("ObjectUtils", function() {
             assert.deepEqual(cloneDeep(o), o);
         }
 
-        it("basic types support", function() {
+        it("basic types support", function () {
             basicStrictEqualAssertion(undefined);
             basicStrictEqualAssertion(null);
             basicStrictEqualAssertion("abc");
@@ -32,7 +31,7 @@ describe("ObjectUtils", function() {
             basicStrictEqualAssertion(true);
         });
 
-        it("basic arrray support", function() {
+        it("basic arrray support", function () {
             basicDeepEqualAssertion([]);
             basicDeepEqualAssertion([1, "2"]);
             basicDeepEqualAssertion([
@@ -47,14 +46,14 @@ describe("ObjectUtils", function() {
             basicDeepEqualAssertion([undefined, 1, undefined]);
         });
 
-        it("suppports object traversal", function() {
+        it("suppports object traversal", function () {
             basicDeepEqualAssertion({});
             basicDeepEqualAssertion({ a: 1, b: "2" });
             basicDeepEqualAssertion({ a: 1, b: { bb: "2" }, c: "c" });
             basicDeepEqualAssertion({ a: 1, b: "2", c: undefined, d: null });
         });
 
-        it("really clones objects", function() {
+        it("really clones objects", function () {
             const a = { s: "s" };
             const clonedA = cloneDeep(a);
             assert.deepEqual(clonedA, a);
@@ -62,7 +61,7 @@ describe("ObjectUtils", function() {
             clonedA.s = "changed";
             assert.deepEqual(a, { s: "s" });
         });
-        it("really clones arrays", function() {
+        it("really clones arrays", function () {
             const a = [1, 2, 3];
             const clonedA = cloneDeep(a);
             assert.deepEqual(clonedA, a);
@@ -70,18 +69,18 @@ describe("ObjectUtils", function() {
             clonedA[0] = 1111;
             assert.deepEqual(a, [1, 2, 3]);
         });
-        it("support cycles #1", function() {
+        it("support cycles #1", function () {
             const a: { a?: any } = {};
             a.a = a;
             basicDeepEqualAssertion(a);
         });
-        it("support cycles #2", function() {
+        it("support cycles #2", function () {
             const a: { b?: any } = {};
             const b = { a };
             a.b = b;
             basicDeepEqualAssertion(a);
         });
-        it("support weird tree with loops", function() {
+        it("support weird tree with loops", function () {
             const p = { p: "i am parent" };
             const a: { b?: any; p: any } = { p };
             const b: { a?: any; p: any } = { p };
@@ -89,14 +88,14 @@ describe("ObjectUtils", function() {
             b.a = a;
             basicDeepEqualAssertion([a, { b: a }, [a, a, a, a, b, b, b]]);
         });
-        it("doesn't clone functions", function() {
+        it("doesn't clone functions", function () {
             function foo() {
                 /** */
             }
             basicStrictEqualAssertion(foo);
             basicStrictEqualAssertion(() => foo());
         });
-        it("realiably fails objects with prototypes", function() {
+        it("realiably fails objects with prototypes", function () {
             class Foo {
                 foo = "foo";
                 bar() {

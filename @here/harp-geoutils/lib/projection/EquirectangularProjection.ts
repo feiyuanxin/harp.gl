@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { GeoBox } from "../coordinates/GeoBox";
 import { GeoCoordinates } from "../coordinates/GeoCoordinates";
@@ -13,8 +15,6 @@ import { isOrientedBox3Like, OrientedBox3Like } from "../math/OrientedBox3Like";
 import { Vector3Like } from "../math/Vector3Like";
 import { EarthConstants } from "./EarthConstants";
 import { Projection, ProjectionType } from "./Projection";
-
-import * as THREE from "three";
 
 class EquirectangularProjection extends Projection {
     static geoToWorldScale: number = 1.0 / (2.0 * Math.PI);
@@ -52,17 +52,6 @@ class EquirectangularProjection extends Projection {
         result?: WorldCoordinates
     ): WorldCoordinates {
         if (result === undefined) {
-            /*
-             * The following tslint:disable is due to the fact that the [[WorldCoordinates]]
-             * might be a concrete class which is not available at runtime.
-             * Consider the following example:
-             *
-             *  const x: THREE.Vector3 = new THREE.Vector3(0,0,0);
-             *  const result = EquirectangularProjection.projectPoint<THREE.Vector3>(x);
-             *
-             * Note: type of `result` is Vector3Like and not as expected: THREE.Vector3!
-             */
-            // tslint:disable-next-line:no-object-literal-type-assertion
             result = { x: 0, y: 0, z: 0 } as WorldCoordinates;
         }
         result.x =
@@ -73,7 +62,7 @@ class EquirectangularProjection extends Projection {
             (THREE.MathUtils.degToRad(geoPoint.latitude) + Math.PI * 0.5) *
             EquirectangularProjection.geoToWorldScale *
             this.unitScale;
-        result.z = geoPoint.altitude || 0;
+        result.z = geoPoint.altitude ?? 0;
         return result;
     }
 
@@ -128,7 +117,7 @@ class EquirectangularProjection extends Projection {
             result.position.z = worldCenter.z;
             result.extents.x = sizeX * 0.5 * this.unitScale;
             result.extents.y = sizeY * 0.5 * this.unitScale;
-            result.extents.z = Math.max(Number.EPSILON, (altitudeSpan || 0) * 0.5);
+            result.extents.z = Math.max(Number.EPSILON, (altitudeSpan ?? 0) * 0.5);
         }
         return result;
     }
@@ -165,13 +154,13 @@ class EquirectangularProjection extends Projection {
 }
 
 /**
- * Equirectangular [[Projection]] used to convert geo coordinates to unit coordinates and vice
+ * Equirectangular {@link Projection} used to convert geo coordinates to unit coordinates and vice
  * versa.
  */
 export const normalizedEquirectangularProjection: Projection = new EquirectangularProjection(1);
 
 /**
- * Equirectangular [[Projection]] used to convert geo coordinates to world coordinates and vice
+ * Equirectangular {@link Projection} used to convert geo coordinates to world coordinates and vice
  * versa.
  */
 export const equirectangularProjection: Projection = new EquirectangularProjection(

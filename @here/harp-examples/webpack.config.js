@@ -7,10 +7,9 @@
 //@ts-check
 
 const webpack = require("webpack");
-const merge = require("webpack-merge");
+const { merge } = require("webpack-merge");
 const path = require("path");
 const glob = require("glob");
-const HardSourceWebpackPlugin = require("hard-source-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 
@@ -32,6 +31,17 @@ const themeList = {
     berlinOutlines: "resources/berlin_tilezen_effects_outlines.json"
 };
 
+function getCacheConfig(name) {
+    // Use a separate cache for each configuration, otherwise cache writing fails.
+    return process.env.HARP_NO_HARD_SOURCE_CACHE ? false :{
+        type: "filesystem",
+        buildDependencies: {
+            config: [ __filename ]
+        },
+        name: "harp-examples_" + name
+    }
+}
+
 function resolveOptional(path, message) {
     try {
         return require.resolve(path);
@@ -50,19 +60,21 @@ const commonConfig = {
     devtool: prepareOnly ? undefined : "source-map",
     externals: [
         {
-            three: "THREE",
-            fs: "undefined"
+            three: "THREE"
         },
-        function(context, request, callback) {
+        ({ context, request }, cb) => {
             return /three\.module\.js$/.test(request)
-                ? callback(null, "THREE")
-                : callback(undefined, undefined);
+                ? cb(null, "THREE")
+                : cb(undefined, undefined);
         }
     ],
     resolve: {
         extensions: [".webpack.js", ".web.ts", ".ts", ".tsx", ".web.js", ".js"],
         alias: {
             "react-native": "react-native-web"
+        },
+        fallback: {
+            fs: false
         }
     },
     module: {
@@ -94,7 +106,7 @@ const commonConfig = {
     stats: {
         all: false,
         timings: true,
-        exclude: "/resources/",
+        exclude: "resources/",
         errors: true,
         entrypoints: true,
         warnings: true
@@ -102,7 +114,6 @@ const commonConfig = {
     // @ts-ignore
     mode: process.env.NODE_ENV || "development",
     plugins: [
-        new HardSourceWebpackPlugin(),
         new webpack.DefinePlugin({
             THEMES: JSON.stringify(themeList)
         })
@@ -113,7 +124,9 @@ const decoderConfig = merge(commonConfig, {
     target: "webworker",
     entry: {
         decoder: "./decoder/decoder.ts"
-    }
+    },
+    // @ts-ignore
+    cache: getCacheConfig("decoder")
 });
 
 const webpackEntries = glob
@@ -162,19 +175,25 @@ const browserConfig = merge(commonConfig, {
             minSize: 1000,
             name: "common"
         }
-    }
+    },
+    // @ts-ignore
+    cache: getCacheConfig("browser")
 });
 
 const exampleBrowserConfig = merge(commonConfig, {
     entry: {
         "example-browser": "./example-browser.ts"
-    }
+    },
+    // @ts-ignore
+    cache: getCacheConfig("example_browser")
 });
 
 const codeBrowserConfig = merge(commonConfig, {
     entry: {
         codebrowser: "./codebrowser.ts"
-    }
+    },
+    // @ts-ignore
+    cache: getCacheConfig("code_browser")
 });
 
 browserConfig.plugins.push(
@@ -202,6 +221,19 @@ const exampleDefs = Object.keys(allEntries).reduce(function(r, entry) {
     return r;
 }, {});
 
+// Workaround for `ERROR in unable to locate` on Windows
+// see https://github.com/webpack-contrib/copy-webpack-plugin/issues/317
+const srcFiles = glob.sync(path.join(__dirname, "src", "*.{ts,tsx,html}")).map(from => {
+    return { from, to: "src/[name].[ext]" };
+});
+
+const htmlFiles = glob.sync(path.join(__dirname, "src/*.html")).map(from => {
+    return {
+        from,
+        to: "[name].[ext]"
+    };
+});
+
 const assets = [
     {
         from: __dirname + "/example-definitions.js.in",
@@ -210,15 +242,9 @@ const assets = [
             return content.toString().replace("{{EXAMPLES}}", JSON.stringify(exampleDefs, null, 4));
         }
     },
-    {
-        from: path.join(__dirname, "src", "*.{ts,tsx,html}"),
-        to: "src/[name].[ext]"
-    },
+    ...srcFiles,
     path.join(__dirname, "index.html"),
-    {
-        from: path.join(__dirname, "src/*.html"),
-        to: "[name].[ext]"
-    },
+    ...htmlFiles,
     path.join(__dirname, "codebrowser.html"),
     { from: path.join(__dirname, "resources"), to: "resources", toType: "dir" },
     { from: path.join(harpMapThemePath, "resources"), to: "resources", toType: "dir" },
@@ -240,6 +266,7 @@ const assets = [
         to: "harp-decoders.js"
     }
 ].filter(asset => {
+    // ignore stuff that is not found
     if (asset === undefined || asset === null) {
         return false;
     } else if (typeof asset === "string") {
@@ -247,11 +274,18 @@ const assets = [
     } else if (typeof asset === "object") {
         return asset.from;
     }
-}); // ignore stuff that is not found
+});
 
-browserConfig.plugins.push(
-    // @ts-ignore
-    new CopyWebpackPlugin(assets, { ignore: ["*.npmignore", "*.gitignore"] })
-);
+assets.forEach(asset => {
+    if (typeof asset === "object") {
+        asset.globOptions = {
+            dot: true,
+            ignore: [".npmignore", ".gitignore"]
+        };
+    }
+});
+
+// @ts-ignore
+browserConfig.plugins.push(new CopyWebpackPlugin({ patterns: assets }));
 
 module.exports = [decoderConfig, browserConfig, codeBrowserConfig, exampleBrowserConfig];

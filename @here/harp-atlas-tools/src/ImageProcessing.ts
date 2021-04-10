@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -72,6 +72,7 @@ export class BlendImages implements ImageProcessor {
         readonly blendOperation: BlendOperation,
         readonly offset: Offset = { x: 0, y: 0 }
     ) {}
+
     run(srcImage: ImageDecoder | ImageEncoder): ImageEncoder {
         // TODO: Not all blending modes has been yet tested
         return ImageUtils.blendImages(
@@ -91,6 +92,7 @@ export class CombineImages implements ImageProcessor {
         readonly sizeRef: ResultImageSizeSpecifier = ResultImageSizeSpecifier.Dst,
         readonly offset: Offset = { x: 0, y: 0 }
     ) {}
+
     run(srcImage: ImageDecoder | ImageEncoder): ImageEncoder {
         return ImageUtils.combineImages(
             this.dstImage,

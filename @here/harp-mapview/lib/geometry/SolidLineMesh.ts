@@ -8,6 +8,7 @@ import { OrientedBox3 } from "@here/harp-geoutils";
 import { SolidLineMaterial } from "@here/harp-materials";
 import { assert } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { displaceBox, DisplacedBufferGeometry, DisplacementRange } from "./DisplacedBufferGeometry";
 
 const tmpSphere = new THREE.Sphere();
@@ -36,10 +37,67 @@ function isSolidLineMaterial(material: THREE.Material | THREE.Material[]): boole
 }
 
 /**
+ * Identify the position attribute that has been used to create the bounding volumes.
+ * Also store version info to be able to detect changes to the data.
+ */
+interface AttributeInfo {
+    /** Attribute used for bounding volume creation. */
+    data: THREE.BufferAttribute | THREE.InterleavedBuffer;
+
+    /** Version of attribute at time of bounding volume creation. */
+    version: number | undefined;
+}
+
+/**
+ * Create an [[AttributeInfo]] for the specified attribute.
+ * @param attribute The attribute to retrieve version info from.
+ * @returns The [[AttributeInfo]] containing a reference and version of the attribute's data.
+ */
+function getAttributeInfo(
+    attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute
+): AttributeInfo {
+    const isBufferAttribute = (attribute as THREE.BufferAttribute).isBufferAttribute === true;
+
+    const data = isBufferAttribute
+        ? (attribute as THREE.BufferAttribute)
+        : (attribute as THREE.InterleavedBufferAttribute).data;
+
+    return {
+        data,
+        version: data.version
+    };
+}
+
+/**
+ * Check if an attribute has changed compared to the version info.
+ * @param attribute Attribute to check.
+ * @param attrInfo Attribute version info.
+ * @returns `true` if the attribute is the same, `false` otherwise.
+ */
+function attributeChanged(
+    attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
+    attrInfo: AttributeInfo
+): boolean {
+    const isBufferAttribute = (attribute as THREE.BufferAttribute).isBufferAttribute === true;
+
+    const data = isBufferAttribute
+        ? (attribute as THREE.BufferAttribute)
+        : (attribute as THREE.InterleavedBufferAttribute).data;
+
+    return (
+        attrInfo === undefined ||
+        attrInfo.data !== data ||
+        ((attribute as THREE.BufferAttribute).isBufferAttribute &&
+            attrInfo.version !== data.version)
+    );
+}
+
+/**
  * Computes the bounding sphere of the part of a given geometry corresponding to a feature.
- * @param geometry The geometry containing the feature.
- * @param featureBeginIndex The index where the feature starts in the geometry's indices attribute.
- * @param featureEndIndex The index where the feature end in the geometry's indices attribute.
+ * @param geometry - The geometry containing the feature.
+ * @param featureBeginIndex - The index where the feature starts in the geometry's
+ *                            indices attribute.
+ * @param featureEndIndex - The index where the feature end in the geometry's indices attribute.
  * @returns The feature bounding sphere.
  */
 function computeFeatureBoundingSphere(
@@ -90,11 +148,11 @@ function computeFeatureBoundingSphere(
 
 /**
  * Finds the intersection of a ray with a extruded line.
- * @param ray Intersection ray in object's local space.
- * @param line The centerline.
- * @param vExtrusion Line extrusion vector.
- * @param normal Extrusion plane normal.
- * @param hWidth Extrusion half width.
+ * @param ray - Intersection ray in object's local space.
+ * @param line - The centerline.
+ * @param vExtrusion - Line extrusion vector.
+ * @param normal - Extrusion plane normal.
+ * @param hWidth - Extrusion half width.
  * @returns Distance of the extruded line intersection to the ray origin.
  */
 function intersectExtrudedLine(
@@ -119,9 +177,9 @@ function intersectExtrudedLine(
 
 /**
  * Finds the intersection of a ray with the closest end cap of a extruded line.
- * @param ray Intersection ray in object's local space.
- * @param line The centerline.
- * @param hWidth Extrusion half width.
+ * @param ray - Intersection ray in object's local space.
+ * @param line - The centerline.
+ * @param hWidth - Extrusion half width.
  * @returns Distance of the end cap intersection to the ray origin.
  */
 function intersectClosestEndCap(ray: THREE.Ray, line: THREE.Line3, hWidth: number): number {
@@ -142,14 +200,14 @@ function intersectClosestEndCap(ray: THREE.Ray, line: THREE.Line3, hWidth: numbe
 
 /**
  * Intersects line
- * @param ray Intersection ray in object's local space.
- * @param line The line to intersect.
- * @param vExtrusion Line extrusion vector.
- * @param hWidth The line's extrusion half width.
- * @param hWidthSq The line's extrusion half width squared.
- * @param plane The extrusion plane.
- * @param interPlane The intersection of the ray with the extrusion plane.
- * @param outInterLine The ray intersetion with the extruded line.
+ * @param ray - Intersection ray in object's local space.
+ * @param line - The line to intersect.
+ * @param vExtrusion - Line extrusion vector.
+ * @param hWidth - The line's extrusion half width.
+ * @param hWidthSq - The line's extrusion half width squared.
+ * @param plane - The extrusion plane.
+ * @param interPlane - The intersection of the ray with the extrusion plane.
+ * @param outInterLine - The ray intersection with the extruded line.
  * @returns true if ray intersects the extruded line, false otherwise.
  */
 function intersectLine(
@@ -189,16 +247,17 @@ function intersectLine(
 
 /**
  * Finds the intersections of a ray with a partition of a solid line mesh representing a feature.
- * @param mesh The mesh whose intersections will be found.
- * @param raycaster Contains the intersection ray.
- * @param localRay Same ray as raycaster.ray but in object's local space.
- * @param halfWidth The line's extrusion half width.
- * @param lHalfWidth The line's extrusion half width in mesh local space.
- * @param lHalfWidthSq The line's extrusion half width squared in mesh local space.
- * @param beginIdx The index where the feature starts in the mesh geometry's indices attribute.
- * @param endIdx The index where the feature end in the mesh geometry's indices attribute.
- * @param bSphere The feature bounding sphere.
- * @param intersections Array where all intersections found between ray and feature will be pushed.
+ * @param mesh - The mesh whose intersections will be found.
+ * @param raycaster - Contains the intersection ray.
+ * @param localRay - Same ray as raycaster.ray but in object's local space.
+ * @param halfWidth - The line's extrusion half width.
+ * @param lHalfWidth - The line's extrusion half width in mesh local space.
+ * @param lHalfWidthSq - The line's extrusion half width squared in mesh local space.
+ * @param beginIdx - The index where the feature starts in the mesh geometry's indices attribute.
+ * @param endIdx - The index where the feature end in the mesh geometry's indices attribute.
+ * @param bSphere - The feature bounding sphere.
+ * @param intersections - Array where all intersections found between ray and feature will
+ *                        be pushed.
  */
 function intersectFeature(
     mesh: THREE.Mesh,
@@ -294,13 +353,13 @@ const MAX_SCALE_RATIO_DIFF = 1e-2;
 
 /**
  * Finds the intersections of a ray with a group within a solid line mesh.
- * @param mesh The mesh whose intersections will be found.
- * @param material The material used by the group inside the mesh.
- * @param raycaster  Contains the intersection ray.
- * @param localRay Same ray as raycaster.ray but in object's local space.
- * @param firstFeatureIdx Index of the first feature in the group.
- * @param groupEndIdx Index of the last vertex in the group.
- * @param intersections  Array where all intersections found between ray and group will be pushed.
+ * @param mesh - The mesh whose intersections will be found.
+ * @param material - The material used by the group inside the mesh.
+ * @param raycaster -  Contains the intersection ray.
+ * @param localRay - Same ray as raycaster.ray but in object's local space.
+ * @param firstFeatureIdx - Index of the first feature in the group.
+ * @param groupEndIdx - Index of the last vertex in the group.
+ * @param intersections -  Array where all intersections found between ray and group will be pushed.
  * @returns The next feature index after the group.
  */
 function intersectGroup(
@@ -366,9 +425,10 @@ export class SolidLineMesh extends THREE.Mesh {
     /**
      * Finds the intersections of a ray with a mesh, assuming the mesh is a polyline extruded in
      * the shaders (see [[SolidLineMaterial]]).
-     * @param mesh The mesh whose intersections will be found.
-     * @param raycaster Contains the intersection ray.
-     * @param intersections Array where all intersections found between ray and mesh will be pushed.
+     * @param mesh - The mesh whose intersections will be found.
+     * @param raycaster - Contains the intersection ray.
+     * @param intersections - Array where all intersections found between ray and mesh will
+     *                        be pushed.
      */
     static raycast(
         mesh: THREE.Mesh,
@@ -380,16 +440,28 @@ export class SolidLineMesh extends THREE.Mesh {
         assert(geometry.index !== null, "Geometry does not have indices");
         const matrixWorld = mesh.matrixWorld;
 
-        tmpInverseMatrix.getInverse(matrixWorld);
+        tmpInverseMatrix.copy(matrixWorld).invert();
         const localRay = tmpRay.copy(raycaster.ray).applyMatrix4(tmpInverseMatrix);
 
         // Test intersection of ray with each of the features within the mesh.
-        if (!mesh.userData.feature) {
+        if (mesh.userData.feature === undefined) {
             mesh.userData.feature = {};
         }
-        if (!mesh.userData.feature.boundingVolumes) {
+
+        const positionAttribute = geometry.attributes["position"];
+        const attributeInfo: AttributeInfo | undefined = mesh.userData.feature
+            .attributeInfo as AttributeInfo;
+
+        // Rebuild bounding volumes if geometry has been modified.
+        if (
+            attributeInfo === undefined ||
+            mesh.userData.feature.boundingVolumes === undefined ||
+            attributeChanged(positionAttribute, attributeInfo)
+        ) {
             mesh.userData.feature.boundingVolumes = [];
+            mesh.userData.feature.attributeInfo = getAttributeInfo(positionAttribute);
         }
+
         const indices = geometry.index!.array;
 
         if (Array.isArray(mesh.material)) {
@@ -422,8 +494,8 @@ export class SolidLineMesh extends THREE.Mesh {
 
     /**
      * Creates an instance of SolidLineMesh.
-     * @param geometry Mesh geometry.
-     * @param material Material(s) to be used by the mesh. They must be instances of
+     * @param geometry - Mesh geometry.
+     * @param material - Material(s) to be used by the mesh. They must be instances of
      * [[SolidLineMaterial]].
      */
     constructor(geometry: THREE.BufferGeometry, material: THREE.Material | THREE.Material[]) {
@@ -431,7 +503,6 @@ export class SolidLineMesh extends THREE.Mesh {
     }
 
     // HARP-9585: Override of base class method, however tslint doesn't recognize it as such.
-    // tslint:disable-next-line: explicit-override
     raycast(raycaster: THREE.Raycaster, intersects: THREE.Intersection[]): void {
         SolidLineMesh.raycast(this, raycaster, intersects);
     }

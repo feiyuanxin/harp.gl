@@ -1,20 +1,21 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import {
-    OmvDataSource,
     OmvWithCustomDataProvider,
-    OmvWithRestClientParams
-} from "@here/harp-omv-datasource";
+    OmvWithRestClientParams,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
 
 /**
  * `GeoJsonDataSource` is used for the visualization of geometric objects provided in the GeoJSON
  * format. To be able to render GeoJSON data, a `GeoJsonDataSource` instance must be added to the
- * [[MapView]] instance.
+ * {@link @here/harp-mapview#MapView} instance.
  *
+ * @example
  * ```typescript
  *    const geoJsonDataProvider = new GeoJsonDataProvider(
  *        "italy",
@@ -27,13 +28,13 @@ import {
  *    mapView.addDataSource(geoJsonDataSource);
  *   ```
  */
-export class GeoJsonDataSource extends OmvDataSource {
+export class GeoJsonDataSource extends VectorTileDataSource {
     /**
      * Default constructor.
      *
-     * @param params Data source configuration's parameters.
+     * @param params - Data source configuration's parameters.
      */
-    constructor(readonly params: OmvWithRestClientParams | OmvWithCustomDataProvider) {
+    constructor(params: OmvWithRestClientParams | OmvWithCustomDataProvider) {
         super({ styleSetName: "geojson", ...params });
     }
 }

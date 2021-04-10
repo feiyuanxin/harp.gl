@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,8 +8,9 @@ import { StyleSet, Theme } from "@here/harp-datasource-protocol";
 import { FeaturesDataSource } from "@here/harp-features-datasource";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
-import { apikey, copyrightInfo } from "../config";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
+
+import { apikey } from "../config";
 
 /**
  * In this example we avail ourselves of the [[FeaturesDataSource]] and its `setFromGeoJson` method
@@ -169,16 +170,9 @@ export namespace GeoJsonExample {
             mapView.resize(innerWidth - _width, innerHeight);
         });
 
-        const baseMap = new OmvDataSource({
+        const baseMap = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-            apiFormat: APIFormat.XYZOMV,
-            styleSetName: "tilezen",
-            authenticationCode: apikey,
-            authenticationMethod: {
-                method: AuthenticationMethod.QueryString,
-                name: "apikey"
-            },
-            copyrightInfo
+            authenticationCode: apikey
         });
         mapView.addDataSource(baseMap);
 
@@ -186,7 +180,6 @@ export namespace GeoJsonExample {
     }
 
     function getExampleHTML(): string {
-        // tslint:disable:max-line-length
         return `
             <link href="https://fonts.googleapis.com/css?family=Fira+Sans:400,500,600&amp;display=swap" rel="stylesheet">
             <style>
@@ -287,7 +280,9 @@ export namespace GeoJsonExample {
             </div>
 
             <input type="file" id="input" style="display: none;" />
-            <button id=browse onclick="document.getElementById('input').click();">Browse a file</button>
+            <button id=browse onclick="document.getElementById('input').click();">
+                Browse a file
+            </button>
 
             <div id="drag-overlay">
                 <div id="drag-dashes"></div>

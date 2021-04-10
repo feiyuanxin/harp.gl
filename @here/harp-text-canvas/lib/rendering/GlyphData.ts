@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -54,19 +54,20 @@ export class GlyphData {
     /**
      * Creates a new `GlyphData` object.
      *
-     * @param codePoint Unicode code point.
-     * @param block Unicode block.
-     * @param width Glyph' width.
-     * @param height Glyph' height.
-     * @param advanceX Amount of pixel to move after placing this glyph.
-     * @param offsetX Horizontal offset from the glyph' origin.
-     * @param offsetY Vertical offset from the glyph' origin.
-     * @param u0 Glyph' left texture coordinate.
-     * @param v0 Glyph' bottom texture coordinate.
-     * @param u1 Glyph' right texture coordinate.
-     * @param v1 Glyph' top texture coordinate.
-     * @param texture Glyph' source texture atlas page.
-     * @param font Glyph' font.
+     * @param codePoint - Unicode code point.
+     * @param block - Unicode block.
+     * @param width - Glyph' width.
+     * @param height - Glyph' height.
+     * @param advanceX - Amount of pixel to move after placing this glyph.
+     * @param offsetX - Horizontal offset from the glyph' origin.
+     * @param offsetY - Vertical offset from the glyph' origin.
+     * @param u0 - Glyph' left texture coordinate.
+     * @param v0 - Glyph' bottom texture coordinate.
+     * @param u1 - Glyph' right texture coordinate.
+     * @param v1 - Glyph' top texture coordinate.
+     * @param texture - Glyph' source texture atlas page.
+     * @param font - Glyph' font.
+     * @param isReplacement - `true` if glyph is a replacement for a missing glyph.
      *
      * @returns New `GlyphData`.
      */
@@ -83,7 +84,8 @@ export class GlyphData {
         u1: number,
         v1: number,
         readonly texture: THREE.Texture,
-        readonly font: Font
+        readonly font: Font,
+        readonly isReplacement: boolean = false
     ) {
         this.character = String.fromCodePoint(codePoint);
         this.direction = UnicodeUtils.getDirection(codePoint, block);
@@ -134,7 +136,8 @@ export class GlyphData {
             this.sourceTextureCoordinates[3].x,
             this.sourceTextureCoordinates[3].y,
             this.texture,
-            this.font
+            this.font,
+            this.isReplacement
         );
     }
 }

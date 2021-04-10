@@ -2,6 +2,7 @@ const Generator = require("yeoman-generator");
 const fs = require("fs");
 const path = require("path");
 const version = require("../../package.json").version;
+const mkdirp = require("mkdirp");
 
 module.exports = class extends Generator {
     constructor(args, opts) {
@@ -40,6 +41,10 @@ module.exports = class extends Generator {
         this.fs.copyTpl([this.templatePath(this.answers.language)], this.destinationPath(), {
             apikey: this.answers.apikey
         });
+        this.fs.copyTpl(
+            [this.templatePath(this.answers.language + "/resources")],
+            this.destinationPath("resources")
+        );
     }
 
     install() {
@@ -49,7 +54,7 @@ module.exports = class extends Generator {
             "@here/harp-geoutils",
             "@here/harp-map-controls",
             "@here/harp-map-theme",
-            "@here/harp-omv-datasource",
+            "@here/harp-vectortile-datasource",
             "@here/harp-webpack-utils"
         ];
         // for CI testing support installing from local packages
@@ -61,8 +66,10 @@ module.exports = class extends Generator {
                   })
                 : harpPackages;
         // npmInstall conflicts with running install-peerdeps, use spawnCommandSync instead
+        this.log("Installing peer dependencies.");
         this.spawnCommandSync("npm", ["install", "--no-save", "install-peerdeps"]);
         this.spawnCommandSync("npx", ["install-peerdeps", "-o", harpDependencies[0]]);
+        this.log("Installing dependencies.");
         this.spawnCommandSync("npm", ["install", "--save", ...harpDependencies]);
         this.spawnCommandSync("npm", [
             "install",
@@ -80,5 +87,13 @@ module.exports = class extends Generator {
                 "typescript"
             ]);
         }
+    }
+
+    end() {
+        this.log(`Thanks for creating a harp.gl app.
+- tweet your accomplishment here: https://twitter.com/intent/tweet?text=harp.gl
+- harp.gl tutorial: https://developer.here.com/tutorials/harpgl/
+- extensive list of examples: https://www.harp.gl/docs/master/examples/
+- contact us here: https://developer.here.com/tutorials/harpgl/#review`);
     }
 };

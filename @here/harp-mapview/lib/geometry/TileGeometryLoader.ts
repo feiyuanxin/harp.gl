@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,14 +18,43 @@ import {
     isTextTechnique,
     Technique
 } from "@here/harp-datasource-protocol";
-import { PerformanceTimer } from "@here/harp-utils";
+import { PerformanceTimer, TaskQueue } from "@here/harp-utils";
 
+import { TileTaskGroups } from "../MapView";
 import { PerformanceStatistics } from "../Statistics";
 import { Tile } from "../Tile";
 import { TileGeometryCreator } from "./TileGeometryCreator";
 
+function addDiscardedTileToStats(tile: Tile) {
+    const stats = PerformanceStatistics.instance;
+    if (stats.enabled) {
+        const name = tile.dataSource.name;
+        const level = tile.tileKey.level;
+        const col = tile.tileKey.column;
+        const row = tile.tileKey.row;
+        const reason = tile.disposed ? `disposed` : `invisible`;
+
+        stats.currentFrame.addMessage(
+            `Decoded tile: ${name} # lvl=${level} col=${col} row=${row} DISCARDED - ${reason}`
+        );
+    }
+}
+
 /**
- * Loads the geometry for its [[Tile]]. Loads all geometry in a single step.
+ * The state the {@link TileGeometryLoader}.
+ */
+export enum TileGeometryLoaderState {
+    Initialized = 0,
+    CreationQueued = 1,
+    CreatingGeometry = 2,
+    Finished = 3,
+    Canceled = 4,
+    Disposed = 5
+}
+
+/**
+ * Loads the geometry for its {@link Tile}. Loads all geometry in a single step.
+ * @internal
  */
 export class TileGeometryLoader {
     /**
@@ -61,7 +90,6 @@ export class TileGeometryLoader {
      * @param {Technique} technique
      */
     static compileGeometryKind(technique: Technique): GeometryKind | GeometryKindSet {
-        // tslint:disable-next-line: deprecation
         let geometryKind = technique.kind;
 
         // Set default kind based on technique.
@@ -87,10 +115,8 @@ export class TileGeometryLoader {
                 geometryKind = GeometryKind.All;
             }
 
-            // tslint:disable-next-line: deprecation
             technique.kind = geometryKind;
         } else if (Array.isArray(geometryKind)) {
-            // tslint:disable-next-line: deprecation
             geometryKind = technique.kind = new GeometryKindSet(geometryKind);
         }
 
@@ -98,54 +124,73 @@ export class TileGeometryLoader {
     }
 
     private m_decodedTile?: DecodedTile;
-    private m_isFinished: boolean = false;
     private m_availableGeometryKinds: GeometryKindSet | undefined;
     private m_enabledKinds: GeometryKindSet | undefined;
     private m_disabledKinds: GeometryKindSet | undefined;
-    private m_timeout: any;
+    private m_priority: number = 0;
+    private m_state: TileGeometryLoaderState = TileGeometryLoaderState.Initialized;
+    private m_finishedPromise: Promise<void>;
+    private m_resolveFinishedPromise?: () => void;
+    private m_rejectFinishedPromise?: () => void;
 
-    constructor(private m_tile: Tile) {}
+    constructor(private readonly m_tile: Tile, private readonly m_taskQueue: TaskQueue) {
+        this.m_finishedPromise = new Promise((resolve, reject) => {
+            this.m_resolveFinishedPromise = resolve;
+            this.m_rejectFinishedPromise = reject;
+        });
+    }
+
+    set priority(value: number) {
+        this.m_priority = value;
+    }
+
+    //This is not a getter as it need to be bound to this for the taskqueue
+    getPriority(): number {
+        return this.m_priority;
+    }
 
     /**
-     * The [[Tile]] this `TileGeometryLoader` is managing.
+     * The {@link Tile} this `TileGeometryLoader` is managing.
      */
     get tile(): Tile {
         return this.m_tile;
     }
 
     /**
+     * `True` if a decoded Tile is set
+     */
+    get hasDecodedTile(): boolean {
+        return this.m_decodedTile !== undefined;
+    }
+
+    /**
      * `True` if all geometry of the `Tile` has been loaded and the loading process is finished.
      */
     get isFinished(): boolean {
-        return this.m_isFinished;
+        return this.m_state === TileGeometryLoaderState.Finished;
     }
 
     /**
-     * `True` if geometry of a `Tile` has been loaded but is not fully processed.
+     * `True` if loader is finished, canceled or disposed.
      */
-    get geometryCreationPending(): boolean {
-        // Geometry loading not yet finished and timeout already set, but not yet processing
-        // (m_timeout !== undefined), or timeout callback already in progress
-        // (m_timeout === undefined), but decoded tile still not reset.
-        return !this.isFinished && this.m_decodedTile !== undefined;
+    get isSettled(): boolean {
+        return this.isFinished || this.isCanceled || this.isDisposed;
     }
 
     /**
-     * `True` if the basic geometry has been loaded, and the `Tile` is ready  for display.
+     * Returns a promise resolved when this `TileGeometryLoader` is in
+     * `TileGeometryLoaderState.Finished` state, or rejected when it's in
+     * `TileGeometryLoaderState.Cancelled` or `TileGeometryLoaderState.Disposed` states.
      */
-    get basicGeometryLoaded(): boolean {
-        return this.m_tile.hasGeometry;
+    waitFinished(): Promise<void> {
+        return this.m_finishedPromise;
     }
 
     /**
-     * `True` if all geometry of the `Tile` has been loaded.
-     */
-    get allGeometryLoaded(): boolean {
-        return this.m_isFinished;
-    }
-
-    /**
-     * Set the [[DecodedTile]] of the tile. Is called after the decoded tile has been loaded, and
+     * Set the {@link @here/harp-datasource-protocol#DecodedTile} of the tile.
+     *
+     * @remarks
+     * Is called after the decoded tile has been loaded, and
      * prepares its content for later processing in the 'updateXXX' methods.
      *
      * @param {DecodedTile} decodedTile The decoded tile with the flat geometry data belonging to
@@ -155,7 +200,7 @@ export class TileGeometryLoader {
     setDecodedTile(decodedTile: DecodedTile): DecodedTile {
         this.m_decodedTile = decodedTile;
 
-        if (this.m_decodedTile !== undefined) {
+        if (this.hasDecodedTile) {
             this.m_availableGeometryKinds = TileGeometryLoader.prepareAvailableGeometryKinds(
                 this.m_decodedTile
             );
@@ -164,7 +209,7 @@ export class TileGeometryLoader {
     }
 
     /**
-     * The kinds of geometry stored in this [[Tile]].
+     * The kinds of geometry stored in this {@link Tile}.
      */
     get availableGeometryKinds(): GeometryKindSet | undefined {
         return this.m_availableGeometryKinds;
@@ -173,196 +218,181 @@ export class TileGeometryLoader {
     /**
      * Start with or continue with loading geometry. Called repeatedly until `isFinished` is `true`.
      */
-    update(
-        enabledKinds: GeometryKindSet | undefined,
-        disabledKinds: GeometryKindSet | undefined
-    ): void {
+    update(enabledKinds?: GeometryKindSet, disabledKinds?: GeometryKindSet): void {
         const tile = this.tile;
 
-        // Cheap sanity check, do it first so no longer processing is needed.
-        if (this.isFinished) {
-            return;
-        }
-
-        // Check if tile should be already discarded (invisible, disposed).
-        // If the tile is not ready for display, or if it has become invisible while being loaded,
-        // for example by moving the camera, the tile is not finished and its geometry is not
-        // created. This is an optimization for fast camera movements and zooms.
-        if (this.discardNeedlessTile(tile)) {
-            return;
-        }
-
-        // Finish loading if tile has no data.
-        if (tile.tileLoader?.isFinished && tile.decodedTile === undefined) {
-            this.finish();
-            return;
-        }
-
-        // Geometry kinds have changed when loading, if so reset entire loading because
-        // this geometry loader generates all geometry at once.
-        if (
-            this.geometryCreationPending &&
-            !this.compareGeometryKinds(enabledKinds, disabledKinds)
-        ) {
+        // Geometry kinds have changed but some is already created, so reset
+        if (this.tile.hasGeometry && !this.compareGeometryKinds(enabledKinds, disabledKinds)) {
             this.reset();
         }
 
         // First time this tile is handled, or reset has been requested.
-        // Note: Finished condition already checked above.
-        if (!this.geometryCreationPending && tile.decodedTile !== undefined) {
-            TileGeometryCreator.instance.processTechniques(tile, enabledKinds, disabledKinds);
-            this.setGeometryKinds(enabledKinds, disabledKinds);
-            this.setDecodedTile(tile.decodedTile);
-            this.prepareForRender(enabledKinds, disabledKinds);
+        if (
+            (this.m_state === TileGeometryLoaderState.Initialized ||
+                this.m_state === TileGeometryLoaderState.Canceled) &&
+            tile.decodedTile !== undefined
+        ) {
+            if (this.m_state === TileGeometryLoaderState.Initialized) {
+                TileGeometryCreator.instance.processTechniques(tile, enabledKinds, disabledKinds);
+                this.setGeometryKinds(enabledKinds, disabledKinds);
+                this.setDecodedTile(tile.decodedTile);
+            }
+            this.queueGeometryCreation(enabledKinds, disabledKinds);
         }
+    }
+
+    /**
+     * Cancel geometry loading.
+     */
+    cancel() {
+        addDiscardedTileToStats(this.tile);
+        this.m_state = TileGeometryLoaderState.Canceled;
+        this.m_rejectFinishedPromise?.();
     }
 
     /**
      * Dispose of any resources.
      */
     dispose(): void {
-        this.m_decodedTile = undefined;
-        // TODO: Release other resource: availableGeometryKind, enabled/disabled sets, timeout?
+        addDiscardedTileToStats(this.tile);
+        this.clear();
+        this.m_state = TileGeometryLoaderState.Disposed;
+        this.m_rejectFinishedPromise?.();
     }
 
     /**
      * Reset the loader to its initial state and cancels any asynchronous work.
+     * @remarks
+     * This method prepares the loader to reload new geometry. Since the loader does not transition
+     * to a final state, the promise returned by {@link TileGeometryLoader.waitFinished} is not
+     * settled.
      */
     reset(): void {
-        this.m_availableGeometryKinds?.clear();
-        this.m_enabledKinds?.clear();
-        this.m_disabledKinds?.clear();
+        this.clear();
 
-        this.m_decodedTile = undefined;
-        this.m_isFinished = false;
-
-        if (this.m_timeout !== undefined) {
-            clearTimeout(this.m_timeout);
-            this.m_timeout = undefined;
+        if (this.isSettled) {
+            this.m_finishedPromise = new Promise((resolve, reject) => {
+                this.m_resolveFinishedPromise = resolve;
+                this.m_rejectFinishedPromise = reject;
+            });
         }
-    }
-
-    private finish() {
-        this.m_tile.loadingFinished();
-        this.m_tile.removeDecodedTile();
-
-        this.m_decodedTile = undefined;
-        this.m_isFinished = true;
-
-        if (this.m_timeout !== undefined) {
-            clearTimeout(this.m_timeout);
-            this.m_timeout = undefined;
-        }
+        this.m_state = TileGeometryLoaderState.Initialized;
     }
 
     /**
-     * Called by [[VisibleTileSet]] to mark that [[Tile]] is visible and it should prepare geometry.
+     * Finish geometry loading.
      */
-    private prepareForRender(
+    finish() {
+        this.m_decodedTile = undefined;
+        this.m_state = TileGeometryLoaderState.Finished;
+        this.m_resolveFinishedPromise?.();
+    }
+
+    private clear() {
+        this.m_availableGeometryKinds?.clear();
+        this.m_enabledKinds?.clear();
+        this.m_disabledKinds?.clear();
+        this.m_decodedTile = undefined;
+    }
+
+    private queueGeometryCreation(
         enabledKinds: GeometryKindSet | undefined,
         disabledKinds: GeometryKindSet | undefined
     ) {
+        if (this.m_state === TileGeometryLoaderState.CreationQueued) {
+            return;
+        }
+
+        this.m_taskQueue.add({
+            execute: this.createGeometry.bind(this, enabledKinds, disabledKinds),
+            group: TileTaskGroups.CREATE,
+            getPriority: this.getPriority.bind(this),
+            isExpired: () => {
+                return this.m_state !== TileGeometryLoaderState.CreationQueued;
+            },
+            estimatedProcessTime: () => {
+                //TODO: this seems to be close in many cases, but take some measures to confirm
+                return (this.tile.decodedTile?.decodeTime ?? 30) / 6;
+            }
+        });
+
+        this.m_state = TileGeometryLoaderState.CreationQueued;
+    }
+
+    private createGeometry(
+        enabledKinds: GeometryKindSet | undefined,
+        disabledKinds: GeometryKindSet | undefined
+    ) {
+        if (this.m_state === TileGeometryLoaderState.CreatingGeometry) {
+            return;
+        }
+        this.m_state = TileGeometryLoaderState.CreatingGeometry;
+
         const tile = this.tile;
         const decodedTile = this.m_decodedTile;
-
         // Just a sanity check that satisfies compiler check below.
         if (decodedTile === undefined) {
             this.finish();
             return;
         }
 
-        this.m_timeout = setTimeout(() => {
-            // Reset timeout so it is untouched during processing.
-            this.m_timeout = undefined;
+        const stats = PerformanceStatistics.instance;
+        let now = 0;
+        if (stats.enabled) {
+            now = PerformanceTimer.now();
+        }
 
-            if (this.discardNeedlessTile(tile)) {
-                return;
-            }
+        const geometryCreator = TileGeometryCreator.instance;
 
-            const stats = PerformanceStatistics.instance;
-            let now = 0;
-            if (stats.enabled) {
-                now = PerformanceTimer.now();
-            }
+        tile.clear();
+        // Set up techniques which should be processed.
+        geometryCreator.initDecodedTile(decodedTile, enabledKinds, disabledKinds);
+        geometryCreator.createAllGeometries(tile, decodedTile);
 
-            const geometryCreator = TileGeometryCreator.instance;
-
-            tile.clear();
-            // Set up techniques which should be processed.
-            geometryCreator.initDecodedTile(decodedTile, enabledKinds, disabledKinds);
-            geometryCreator.createAllGeometries(tile, decodedTile);
-
-            if (stats.enabled) {
-                const geometryCreationTime = PerformanceTimer.now() - now;
-                const currentFrame = stats.currentFrame;
-
-                // Account for the geometry creation in the current frame.
-                currentFrame.addValue("render.fullFrameTime", geometryCreationTime);
-                currentFrame.addValue("render.geometryCreationTime", geometryCreationTime);
-
-                currentFrame.addValue("geometry.geometryCreationTime", geometryCreationTime);
-                currentFrame.addValue("geometryCount.numGeometries", decodedTile.geometries.length);
-                currentFrame.addValue("geometryCount.numTechniques", decodedTile.techniques.length);
-                currentFrame.addValue(
-                    "geometryCount.numPoiGeometries",
-                    decodedTile.poiGeometries !== undefined ? decodedTile.poiGeometries.length : 0
-                );
-                currentFrame.addValue(
-                    "geometryCount.numTextGeometries",
-                    decodedTile.textGeometries !== undefined ? decodedTile.textGeometries.length : 0
-                );
-                currentFrame.addValue(
-                    "geometryCount.numTextPathGeometries",
-                    decodedTile.textPathGeometries !== undefined
-                        ? decodedTile.textPathGeometries.length
-                        : 0
-                );
-                currentFrame.addValue(
-                    "geometryCount.numPathGeometries",
-                    decodedTile.pathGeometries !== undefined ? decodedTile.pathGeometries.length : 0
-                );
-                currentFrame.addMessage(
-                    // tslint:disable-next-line: max-line-length
-                    `Decoded tile: ${tile.dataSource.name} # lvl=${tile.tileKey.level} col=${tile.tileKey.column} row=${tile.tileKey.row}`
-                );
-            }
-            this.finish();
-            tile.dataSource.requestUpdate();
-        }, 0);
+        if (stats.enabled) {
+            this.addStats(stats, now);
+        }
+        this.finish();
+        tile.dataSource.requestUpdate();
     }
 
-    private discardNeedlessTile(tile: Tile): boolean {
-        // If the tile has become invisible while being loaded, for example by moving the
-        // camera, the tile is not finished and its geometry is not created. This is an
-        // optimization for fast camera movements and zooms.
-        if (!tile.isVisible) {
-            // Dispose the tile from the visible set, so it can be reloaded properly next time
-            // it is needed.
-            tile.mapView.visibleTileSet.disposeTile(tile);
+    private addStats(stats: PerformanceStatistics, now: number) {
+        const tile = this.tile;
+        const decodedTile = this.m_decodedTile;
+        if (decodedTile === undefined) {
+            return;
+        }
 
-            const stats = PerformanceStatistics.instance;
-            if (stats.enabled) {
-                stats.currentFrame.addMessage(
-                    // tslint:disable-next-line: max-line-length
-                    `Decoded tile: ${tile.dataSource.name} # lvl=${tile.tileKey.level} col=${tile.tileKey.column} row=${tile.tileKey.row} DISCARDED - invisible`
-                );
-            }
-            this.finish();
-            return true;
-        }
-        // Tile already disposed (this may potentially happen in timeout callback).
-        else if (tile.disposed) {
-            const stats = PerformanceStatistics.instance;
-            if (stats.enabled) {
-                stats.currentFrame.addMessage(
-                    // tslint:disable-next-line: max-line-length
-                    `Decoded tile: ${tile.dataSource.name} # lvl=${tile.tileKey.level} col=${tile.tileKey.column} row=${tile.tileKey.row} DISCARDED - disposed`
-                );
-            }
-            this.finish();
-            return true;
-        }
-        return false;
+        const geometryCreationTime = PerformanceTimer.now() - now;
+        const currentFrame = stats.currentFrame;
+
+        // Account for the geometry creation in the current frame.
+        currentFrame.addValue("render.fullFrameTime", geometryCreationTime);
+        currentFrame.addValue("render.geometryCreationTime", geometryCreationTime);
+
+        currentFrame.addValue("geometry.geometryCreationTime", geometryCreationTime);
+        currentFrame.addValue("geometryCount.numGeometries", decodedTile.geometries.length);
+        currentFrame.addValue("geometryCount.numTechniques", decodedTile.techniques.length);
+        currentFrame.addValue(
+            "geometryCount.numPoiGeometries",
+            decodedTile.poiGeometries !== undefined ? decodedTile.poiGeometries.length : 0
+        );
+        currentFrame.addValue(
+            "geometryCount.numTextGeometries",
+            decodedTile.textGeometries !== undefined ? decodedTile.textGeometries.length : 0
+        );
+        currentFrame.addValue(
+            "geometryCount.numTextPathGeometries",
+            decodedTile.textPathGeometries !== undefined ? decodedTile.textPathGeometries.length : 0
+        );
+        currentFrame.addValue(
+            "geometryCount.numPathGeometries",
+            decodedTile.pathGeometries !== undefined ? decodedTile.pathGeometries.length : 0
+        );
+        currentFrame.addMessage(
+            // tslint:disable-next-line: max-line-length
+            `Decoded tile: ${tile.dataSource.name} # lvl=${tile.tileKey.level} col=${tile.tileKey.column} row=${tile.tileKey.row}`
+        );
     }
 
     /**
@@ -370,8 +400,8 @@ export class TileGeometryLoader {
      *
      * This values are stored to detect geometry kind changes during loading.
      *
-     * @param enabledKinds Set of geometry kinds to be displayed or undefined.
-     * @param disabledKinds Set of geometry kinds that won't be rendered.
+     * @param enabledKinds - Set of geometry kinds to be displayed or undefined.
+     * @param disabledKinds - Set of geometry kinds that won't be rendered.
      */
     private setGeometryKinds(
         enabledKinds: GeometryKindSet | undefined,
@@ -397,8 +427,8 @@ export class TileGeometryLoader {
      * Method compares input sets with recently used geometry kinds in performance wise
      * manner, taking special care of undefined and zero size sets.
      *
-     * @param enabledKinds Set of geometry kinds to be displayed or undefined.
-     * @param disabledKinds Set of geometry kinds that won't be rendered.
+     * @param enabledKinds - Set of geometry kinds to be displayed or undefined.
+     * @param disabledKinds - Set of geometry kinds that won't be rendered.
      * @return `true` only if sets are logically equal, meaning that undefined and empty sets
      * may result in same geometry (techniques kind) beeing rendered.
      */
@@ -451,5 +481,19 @@ export class TileGeometryLoader {
         }
         // No difference found.
         return true;
+    }
+
+    /**
+     * `True` if TileGeometryLoader was canceled
+     */
+    private get isCanceled(): boolean {
+        return this.m_state === TileGeometryLoaderState.Canceled;
+    }
+
+    /**
+     * `True` if TileGeometryLoader was disposed
+     */
+    private get isDisposed(): boolean {
+        return this.m_state === TileGeometryLoaderState.Disposed;
     }
 }

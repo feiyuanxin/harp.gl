@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -11,6 +11,7 @@
  */
 
 import "@here/harp-fetch";
+
 import { DeferredPromise } from "./DeferredPromise";
 
 /**
@@ -24,22 +25,22 @@ import { DeferredPromise } from "./DeferredPromise";
 export interface ITransferManager {
     /**
      * Downloads a JSON object.
-     * @param url The URL to download
-     * @param init Optional extra parameters for the download.
+     * @param url - The URL to download
+     * @param init - Optional extra parameters for the download.
      */
     downloadJson<T>(url: RequestInfo, init?: RequestInit): Promise<T>;
 
     /**
      * Downloads a binary object.
-     * @param url The URL to download
-     * @param init Optional extra parameters for the download
+     * @param url - The URL to download
+     * @param init - Optional extra parameters for the download
      */
     downloadArrayBuffer(url: RequestInfo, init?: RequestInit): Promise<ArrayBuffer>;
 
     /**
      * Downloads a URL and returns the response.
-     * @param url The URL to download.
-     * @param init Optional extra parameters for the download.
+     * @param url - The URL to download.
+     * @param init - Optional extra parameters for the download.
      */
     download(url: RequestInfo, init?: RequestInit): Promise<Response>;
 }
@@ -74,6 +75,7 @@ export class TransferManager implements ITransferManager {
     static instance(): TransferManager {
         return TransferManager.defaultInstance;
     }
+
     private static readonly defaultInstance = new TransferManager();
     private static async fetchRepeatedly(
         fetchFunction: typeof fetch,
@@ -83,69 +85,83 @@ export class TransferManager implements ITransferManager {
         init?: RequestInit
     ): Promise<Response> {
         try {
-            const response = await fetchFunction(url, init);
-            if (response.status !== 503 || retryCount > maxRetries) {
-                return response;
+            if (retryCount < maxRetries) {
+                const response = await fetchFunction(url, init);
+                // Return response when successful or empty
+                if (response.status === 200 || response.status === 204) {
+                    return response;
+                } else if (response.status >= 400 && response.status < 500) {
+                    // Prevent further retries in case of a client error code
+                    retryCount = maxRetries;
+                    const responseText = await response.text();
+                    throw new Error(responseText);
+                }
+            } else {
+                throw new Error("Max number of retries reached");
             }
         } catch (err) {
             if (
                 err.hasOwnProperty("isCancelled") ||
-                (err.hasOwnProperty("name") && err.name === "AbortError") ||
-                retryCount > maxRetries
+                err.name === "AbortError" ||
+                retryCount >= maxRetries
             ) {
                 throw err;
             }
         }
-        return TransferManager.waitFor(TransferManager.retryTimeout * retryCount).then(() =>
-            TransferManager.fetchRepeatedly(fetchFunction, maxRetries, retryCount + 1, url, init)
+        return await TransferManager.waitFor(TransferManager.retryTimeout * retryCount).then(() =>
+            TransferManager.fetchRepeatedly(fetchFunction, retryCount + 1, maxRetries, url, init)
         );
     }
+
     private static waitFor(milliseconds: number): Promise<void> {
         return new Promise<void>(resolve => setTimeout(resolve, milliseconds));
     }
+
     private activeDownloadCount = 0;
-    private downloadQueue = new Array<DeferredPromise<Response>>();
-    private activeDownloads = new Map<RequestInfo, Promise<any>>();
+    private readonly downloadQueue = new Array<DeferredPromise<Response>>();
+    private readonly activeDownloads = new Map<RequestInfo, Promise<any>>();
     /**
      * Constructs a new [[TransferManager]].
      *
-     * @param fetchFunction The default fetch function to use.
-     * @param maxRetries The maximum amount to try to re-fetch a resource.
+     * @param fetchFunction - The default fetch function to use.
+     * @param maxRetries - The maximum amount to try to re-fetch a resource.
      */
     constructor(readonly fetchFunction = fetch, readonly maxRetries: number = 5) {}
     /**
-     * Downloads a JSON object. Merges downloads if requested multiple times.
+     * Downloads a JSON object. Merges downloads of string URLs if requested multiple times.
      *
      * Note: This method merges multiple downloads of the same string URL to
      * only one request. The init parameter is ignored if the download is merged.
      * Call [[download]] instead to download the resource without merging.
      *
-     * @param url The URL to download
-     * @param init Optional extra parameters for the download.
+     * @param url - The URL or RequestInfo to download
+     * @param init - Optional extra parameters for the download.
      */
     downloadJson<T>(url: RequestInfo, init?: RequestInit): Promise<T> {
         return this.downloadAs<T>(response => response.json(), url, init);
     }
+
     /**
-     * Downloads a binary object. Merges downloads if requested multiple times.
+     * Downloads a binary object. Merges downloads of string URLS if requested multiple times.
      *
      * Note: This method merges multiple downloads of the same string URL to
      * only one request. The init parameter is ignored if the download is merged.
      * Call [[download]] instead to download the resource without merging.
      *
-     * @param url The URL to download
-     * @param init Optional extra parameters for the download
+     * @param url - The URL or RequestInfo to download
+     * @param init - Optional extra parameters for the download
      */
     downloadArrayBuffer(url: RequestInfo, init?: RequestInit): Promise<ArrayBuffer> {
         return this.download(url, init).then(response => response.arrayBuffer());
     }
+
     /**
      * Downloads a URL and returns the response.
      *
      * Does not merge multiple requests to the same URL.
      *
-     * @param url The URL to download.
-     * @param init Optional extra parameters for the download.
+     * @param url - The URL or RequestInfo to download.
+     * @param init - Optional extra parameters for the download.
      */
     download(url: RequestInfo, init?: RequestInit): Promise<Response> {
         if (this.activeDownloadCount >= TransferManager.maxParallelDownloads) {
@@ -155,6 +171,7 @@ export class TransferManager implements ITransferManager {
         }
         return this.doDownload(url, init);
     }
+
     private async doDownload(url: RequestInfo, init?: RequestInit): Promise<Response> {
         try {
             ++this.activeDownloadCount;
@@ -173,10 +190,12 @@ export class TransferManager implements ITransferManager {
             throw error;
         }
     }
+
     private onDownloadDone() {
         --this.activeDownloadCount;
         this.execDeferredDownload();
     }
+
     private execDeferredDownload() {
         const future = this.downloadQueue.pop();
         if (future === undefined) {
@@ -184,6 +203,7 @@ export class TransferManager implements ITransferManager {
         }
         future.exec();
     }
+
     private downloadAs<T>(
         converter: (response: Response) => Promise<T>,
         url: RequestInfo,

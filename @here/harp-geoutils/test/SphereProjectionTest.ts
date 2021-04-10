@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
 import { Vector3 } from "three";
+
 import { GeoBox } from "../lib/coordinates/GeoBox";
 import { GeoCoordinates } from "../lib/coordinates/GeoCoordinates";
 import { GeoCoordinatesLike } from "../lib/coordinates/GeoCoordinatesLike";
@@ -20,7 +20,7 @@ import { webMercatorTilingScheme } from "../lib/tiling/WebMercatorTilingScheme";
 
 const epsilon = 0.000001;
 
-describe("SphereProjection", function() {
+describe("SphereProjection", function () {
     const samples: Array<[GeoCoordinatesLike, Vector3Like]> = [
         [new GeoCoordinates(0, 0, 0), { x: EarthConstants.EQUATORIAL_RADIUS, y: 0, z: 0 }],
 
@@ -29,7 +29,7 @@ describe("SphereProjection", function() {
         [new GeoCoordinates(90, 0, 0), { x: 0, y: 0, z: EarthConstants.EQUATORIAL_RADIUS }]
     ];
 
-    it("ProjectUnprojectPoint", function() {
+    it("ProjectUnprojectPoint", function () {
         const geoPoint = new GeoCoordinates(37.8178183439856, -122.4410209359072, 12.0);
         const worldPoint = sphereProjection.projectPoint(geoPoint);
         const geoPoint2 = sphereProjection.unprojectPoint(worldPoint);
@@ -38,20 +38,20 @@ describe("SphereProjection", function() {
         assert.approximately(geoPoint.altitude!, geoPoint2.altitude!, epsilon);
     });
 
-    it("GroundDistance", function() {
+    it("GroundDistance", function () {
         const geoPoint = new GeoCoordinates(37.8178183439856, -122.4410209359072, 12.0);
         const worldPoint = sphereProjection.projectPoint(geoPoint);
         assert.approximately(sphereProjection.groundDistance(worldPoint), 12.0, epsilon);
     });
 
-    it("ScalePointToSurface", function() {
+    it("ScalePointToSurface", function () {
         const geoPoint = new GeoCoordinates(37.8178183439856, -122.4410209359072, 12.0);
         const worldPoint = sphereProjection.projectPoint(geoPoint);
         sphereProjection.scalePointToSurface(worldPoint);
         assert.approximately(sphereProjection.groundDistance(worldPoint), 0, epsilon);
     });
 
-    it("LocalTangentSpace", function() {
+    it("LocalTangentSpace", function () {
         const transform = {
             xAxis: { x: 0, y: 0, z: 0 },
             yAxis: { x: 0, y: 0, z: 0 },
@@ -89,7 +89,7 @@ describe("SphereProjection", function() {
         assert.approximately(transform.zAxis.z, obb.zAxis.z, epsilon);
     });
 
-    it("LocalTangentSpaceAtWorld", function() {
+    it("LocalTangentSpaceAtWorld", function () {
         const transform = {
             xAxis: { x: 0, y: 0, z: 0 },
             yAxis: { x: 0, y: 0, z: 0 },
@@ -130,8 +130,7 @@ describe("SphereProjection", function() {
     });
 
     samples.forEach(([geoPoint, expectedWorldPoint]) => {
-        // tslint:disable-next-line: max-line-length
-        it(`ProjectPoint (${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude})`, function() {
+        it(`ProjectPoint (${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude})`, function () {
             const worldPoint = sphereProjection.projectPoint(geoPoint);
 
             assert.approximately(expectedWorldPoint.x, worldPoint.x, epsilon);
@@ -146,7 +145,7 @@ describe("SphereProjection", function() {
         });
     });
 
-    (function() {
+    (function () {
         const worldBox = new OrientedBox3();
 
         const southEastLow = new GeoCoordinates(-10, -10, -10);
@@ -176,8 +175,7 @@ describe("SphereProjection", function() {
         ];
 
         insidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            it(`ProjectBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = new Vector3();
                 sphereProjection.projectPoint(geoPoint, p);
                 assert.isTrue(worldBox.contains(p));
@@ -185,8 +183,7 @@ describe("SphereProjection", function() {
         });
 
         outsidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            it(`ProjectBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = new Vector3();
                 sphereProjection.projectPoint(geoPoint, p);
                 assert.isFalse(worldBox.contains(p));
@@ -194,7 +191,7 @@ describe("SphereProjection", function() {
         });
     })();
 
-    (function() {
+    (function () {
         const worldBox = new OrientedBox3();
 
         const southEastLow = new GeoCoordinates(40, -170, -10);
@@ -214,8 +211,7 @@ describe("SphereProjection", function() {
         const outsidePoints = [new GeoCoordinates(60, 0, 0)];
 
         insidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBigBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            it(`ProjectBigBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = new Vector3();
                 sphereProjection.projectPoint(geoPoint, p);
                 assert.isTrue(worldBox.contains(p));
@@ -223,8 +219,7 @@ describe("SphereProjection", function() {
         });
 
         outsidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBigBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            it(`ProjectBigBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = new Vector3();
                 sphereProjection.projectPoint(geoPoint, p);
                 assert.isFalse(worldBox.contains(p));

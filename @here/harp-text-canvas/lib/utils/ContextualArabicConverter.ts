@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -28,12 +28,17 @@ export class ContextualArabicConverter {
         return this.m_instance;
     }
 
-    private m_singleCharactersMap: Map<number, ReadonlyArray<number | undefined>> = new Map();
-    private m_combinedCharactersMap: Map<
+    private readonly m_singleCharactersMap: Map<
+        number,
+        ReadonlyArray<number | undefined>
+    > = new Map();
+
+    private readonly m_combinedCharactersMap: Map<
         number,
         Map<number, ReadonlyArray<number | undefined>>
     > = new Map();
-    private m_neutralCharacters: number[];
+
+    private readonly m_neutralCharacters: number[];
 
     private constructor() {
         // Single characters.
@@ -139,7 +144,7 @@ export class ContextualArabicConverter {
     /**
      * Converts isolated arabic characters into their contextual form.
      *
-     * @param input String with isolated arabic characters.
+     * @param input - String with isolated arabic characters.
      */
     convert(input: string): string {
         let output = "";

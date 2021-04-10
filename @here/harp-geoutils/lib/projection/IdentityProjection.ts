@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { GeoBox } from "../coordinates/GeoBox";
 import { GeoCoordinates } from "../coordinates/GeoCoordinates";
@@ -12,8 +14,6 @@ import { MathUtils } from "../math/MathUtils";
 import { isOrientedBox3Like, OrientedBox3Like } from "../math/OrientedBox3Like";
 import { Vector3Like } from "../math/Vector3Like";
 import { Projection, ProjectionType } from "./Projection";
-
-import * as THREE from "three";
 
 class IdentityProjection extends Projection {
     /** @override */
@@ -48,12 +48,11 @@ class IdentityProjection extends Projection {
         result?: WorldCoordinates
     ): WorldCoordinates {
         if (!result) {
-            // tslint:disable-next-line:no-object-literal-type-assertion
             result = { x: 0, y: 0, z: 0 } as WorldCoordinates;
         }
         result.x = THREE.MathUtils.degToRad(geoPoint.longitude);
         result.y = THREE.MathUtils.degToRad(geoPoint.latitude);
-        result.z = geoPoint.altitude || 0;
+        result.z = geoPoint.altitude ?? 0;
         return result;
     }
 
@@ -135,6 +134,6 @@ class IdentityProjection extends Projection {
 }
 
 /**
- * Identity [[Projection]] used to convert geo coordinates to unit coordinates and vice versa.
+ * Identity {@link Projection} used to convert geo coordinates to unit coordinates and vice versa.
  */
 export const identityProjection: Projection = new IdentityProjection(1);

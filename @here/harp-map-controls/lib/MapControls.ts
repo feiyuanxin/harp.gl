@@ -1,12 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as geoUtils from "@here/harp-geoutils";
-import { MapView, MapViewEventNames, MapViewUtils } from "@here/harp-mapview";
+import { EventDispatcher, MapView, MapViewEventNames, MapViewUtils } from "@here/harp-mapview";
 import * as THREE from "three";
+
 import * as utils from "./Utils";
 
 enum State {
@@ -55,7 +56,7 @@ const USER_INPUTS_TO_CONSIDER = 5;
 /**
  * The default maximum for the camera tilt. This value avoids seeing the horizon.
  */
-const DEFAULT_MAX_TILT_ANGLE = Math.PI / 4;
+const DEFAULT_MAX_TILT_ANGLE = THREE.MathUtils.degToRad(89);
 
 /**
  * Epsilon value to rule out when a number can be considered 0.
@@ -85,14 +86,16 @@ const MAX_TAP_DURATION = 120;
  *  - Three fingers = Orbiting the map. Up down movements influences the current orbit altitude.
  *    Left/right changes the azimuth.
  */
-export class MapControls extends THREE.EventDispatcher {
+export class MapControls extends EventDispatcher {
     /**
      * Creates MapControls object and attaches it specified [[MapView]].
      *
      * @param mapView - [[MapView]] object to which MapControls should be attached to.
+     * @param disposeWithMapView - If `true`, an event with MapView is registered to dispose of
+     * `MapControls` if MapView itself is disposed.
      */
-    static create(mapView: MapView) {
-        return new MapControls(mapView);
+    static create(mapView: MapView, disposeWithMapView = true) {
+        return new MapControls(mapView, disposeWithMapView);
     }
 
     /**
@@ -107,14 +110,14 @@ export class MapControls extends THREE.EventDispatcher {
      * mouse pointer position: The result then will be used as an offset to orbit the camera.
      * Default value is `0.1`.
      */
-    orbitingMouseDeltaFactor = 0.1;
+    orbitingMouseDeltaFactor = 0.1 * THREE.MathUtils.DEG2RAD;
 
     /**
      * This factor will be applied to the delta of the current touch pointer position and the last
      * touch pointer position: The result then will be used as an offset to orbit the camera.
      * Default value is `0.1`.
      */
-    orbitingTouchDeltaFactor = 0.1;
+    orbitingTouchDeltaFactor = 0.1 * THREE.MathUtils.DEG2RAD;
 
     /**
      * Set to `true` to enable input handling through this map control, `false` to disable input
@@ -124,7 +127,17 @@ export class MapControls extends THREE.EventDispatcher {
     enabled = true;
 
     /**
-     * Set to `true` to enable orbiting and tilting through these controls, `false` otherwise.
+     * Set to `true` to enable zooming through these controls, `false` otherwise.
+     */
+    zoomEnabled = true;
+
+    /**
+     * Set to `true` to enable panning through these controls, `false` otherwise.
+     */
+    panEnabled = true;
+
+    /**
+     * Set to `true` to enable tilting through these controls, `false` otherwise.
      */
     tiltEnabled = true;
 
@@ -141,7 +154,7 @@ export class MapControls extends THREE.EventDispatcher {
     /**
      * Inertia damping duration for the zoom, in seconds.
      */
-    zoomInertiaDampingDuration = 0.5;
+    zoomInertiaDampingDuration = 0.6;
 
     /**
      * Inertia damping duration for the panning, in seconds.
@@ -167,12 +180,34 @@ export class MapControls extends THREE.EventDispatcher {
 
     /**
      * Determines the zoom level delta for single mouse wheel movement. So after each mouse wheel
-     * movement the current zoom level will be added or subtracted by this value. The default value
-     * is `0.2` - this means that every 5th mouse wheel movement you will cross a zoom level.
+     * movement the current zoom level will be added or subtracted by this value.
+     *
+     * The default values are:
+     * - `0.2` when `inertiaEnabled` is `false` - this means that every 5th mouse wheel movement
+     * you will cross a zoom level.
+     * - `0.8`, otherwise.
+     */
+    get zoomLevelDeltaOnMouseWheel(): number {
+        return this.m_zoomLevelDeltaOnMouseWheel !== undefined
+            ? this.m_zoomLevelDeltaOnMouseWheel
+            : this.inertiaEnabled
+            ? 0.8
+            : 0.2;
+    }
+
+    /**
+     * Set the zoom level delta for a single mouse wheel movement.
      *
      * **Note**: To reverse the zoom direction, you can provide a negative value.
      */
-    zoomLevelDeltaOnMouseWheel = 0.2;
+    set zoomLevelDeltaOnMouseWheel(delta: number) {
+        this.m_zoomLevelDeltaOnMouseWheel = delta;
+    }
+
+    /**
+     * @private
+     */
+    private m_zoomLevelDeltaOnMouseWheel?: number;
 
     /**
      * Zoom level delta when using the UI controls.
@@ -219,22 +254,23 @@ export class MapControls extends THREE.EventDispatcher {
     private readonly m_currentViewDirection = new THREE.Vector3();
 
     private readonly m_lastMousePosition = new THREE.Vector2(0, 0);
+    private readonly m_initialMousePosition = new THREE.Vector2(0, 0);
     private readonly m_mouseDelta = new THREE.Vector2(0, 0);
 
     private m_needsRenderLastFrame: boolean = true;
 
     // Internal variables for animating panning (planar + spherical panning).
     private m_panIsAnimated: boolean = false;
-    private m_panDistanceFrameDelta: THREE.Vector3 = new THREE.Vector3();
+    private readonly m_panDistanceFrameDelta: THREE.Vector3 = new THREE.Vector3();
     private m_panAnimationTime: number = 0;
     private m_panAnimationStartTime: number = 0;
     private m_lastAveragedPanDistanceOrAngle: number = 0;
     private m_currentInertialPanningSpeed: number = 0;
-    private m_lastPanVector: THREE.Vector3 = new THREE.Vector3();
-    private m_rotateGlobeQuaternion: THREE.Quaternion = new THREE.Quaternion();
-    private m_lastRotateGlobeAxis: THREE.Vector3 = new THREE.Vector3();
+    private readonly m_lastPanVector: THREE.Vector3 = new THREE.Vector3();
+    private readonly m_rotateGlobeQuaternion: THREE.Quaternion = new THREE.Quaternion();
+    private readonly m_lastRotateGlobeAxis: THREE.Vector3 = new THREE.Vector3();
     private m_lastRotateGlobeAngle: number = 0;
-    private m_lastRotateGlobeFromVector: THREE.Vector3 = new THREE.Vector3();
+    private readonly m_lastRotateGlobeFromVector: THREE.Vector3 = new THREE.Vector3();
     private m_recentPanDistancesOrAngles: [number, number, number, number, number] = [
         0,
         0,
@@ -242,12 +278,13 @@ export class MapControls extends THREE.EventDispatcher {
         0,
         0
     ];
+
     private m_currentPanDistanceOrAngleIndex: number = 0;
 
     // Internal variables for animating zoom.
     private m_zoomIsAnimated: boolean = false;
     private m_zoomDeltaRequested: number = 0;
-    private m_zoomTargetNormalizedCoordinates: THREE.Vector2 = new THREE.Vector2();
+    private readonly m_zoomTargetNormalizedCoordinates: THREE.Vector2 = new THREE.Vector2();
     private m_zoomAnimationTime: number = 0;
     private m_zoomAnimationStartTime: number = 0;
     private m_startZoom: number = 0;
@@ -266,8 +303,8 @@ export class MapControls extends THREE.EventDispatcher {
     private m_tiltState?: TiltState;
     private m_state: State = State.NONE;
 
-    private m_tmpVector2: THREE.Vector2 = new THREE.Vector2();
-    private m_tmpVector3: THREE.Vector3 = new THREE.Vector3();
+    private readonly m_tmpVector2: THREE.Vector2 = new THREE.Vector2();
+    private readonly m_tmpVector3: THREE.Vector3 = new THREE.Vector3();
 
     // Internal variables for animating double tap.
     private m_tapStartTime: number = 0;
@@ -303,9 +340,11 @@ export class MapControls extends THREE.EventDispatcher {
     /**
      * Constructs a new `MapControls` object.
      *
-     * @param mapView [[MapView]] this controller modifies.Z
+     * @param mapView - [[MapView]] this controller modifies.
+     * @param disposeWithMapView - If `true`, an event with MapView is registered to dispose of
+     * `MapControls` if MapView itself is disposed.
      */
-    constructor(readonly mapView: MapView) {
+    constructor(readonly mapView: MapView, disposeWithMapView = true) {
         super();
 
         this.camera = mapView.camera;
@@ -319,6 +358,13 @@ export class MapControls extends THREE.EventDispatcher {
         this.tilt = this.tilt.bind(this);
         this.resetNorth = this.resetNorth.bind(this);
         this.assignZoomAfterTouchZoomRender = this.assignZoomAfterTouchZoomRender.bind(this);
+
+        if (disposeWithMapView) {
+            // Catch the disposal of `MapView`.
+            mapView.addEventListener(MapViewEventNames.Dispose, () => {
+                this.dispose();
+            });
+        }
     }
 
     /**
@@ -326,6 +372,7 @@ export class MapControls extends THREE.EventDispatcher {
      *
      * Unregisters all global event handlers used. This is method should be called when you stop
      * using `MapControls`.
+     * @override
      */
     dispose = () => {
         // replaced with real code in bindInputEvents
@@ -341,77 +388,6 @@ export class MapControls extends THREE.EventDispatcher {
             pitch: THREE.MathUtils.radToDeg(attitude.pitch),
             roll: THREE.MathUtils.radToDeg(attitude.roll)
         };
-    }
-
-    /**
-     * Moves the camera along the view direction in meters.
-     * A positive value will move the camera further away from the point where the camera looks at.
-     * A negative value will move the camera near to the point where the camera looks at.
-     *
-     * @param amount Amount to move along the view direction in meters.
-     */
-    moveAlongTheViewDirection(amount: number) {
-        if (amount === 0) {
-            return;
-        }
-        this.camera.getWorldDirection(this.m_currentViewDirection);
-        let maxDistance = MapViewUtils.calculateDistanceToGroundFromZoomLevel(
-            this.mapView,
-            this.mapView.minZoomLevel
-        );
-        let minDistance = MapViewUtils.calculateDistanceToGroundFromZoomLevel(
-            this.mapView,
-            this.mapView.maxZoomLevel
-        );
-        this.m_currentViewDirection.multiplyScalar(amount);
-        if (this.mapView.projection.type === geoUtils.ProjectionType.Planar) {
-            const distance = THREE.MathUtils.clamp(
-                this.camera.position.z + this.m_currentViewDirection.z,
-                minDistance,
-                maxDistance
-            );
-            this.camera.position.z = distance;
-        } else if (this.mapView.projection.type === geoUtils.ProjectionType.Spherical) {
-            const zOnVertical =
-                Math.cos(this.camera.position.angleTo(this.m_currentViewDirection)) *
-                this.m_currentViewDirection.length();
-            minDistance += geoUtils.EarthConstants.EQUATORIAL_RADIUS;
-            maxDistance += geoUtils.EarthConstants.EQUATORIAL_RADIUS;
-            const distance = THREE.MathUtils.clamp(
-                this.camera.position.length() + zOnVertical,
-                minDistance,
-                maxDistance
-            );
-            this.camera.position.setLength(distance);
-        }
-
-        // In sphere, we may have to also orbit the camera around the position located at the
-        // center of the screen, in order to limit the tilt to `maxTiltAngle`, as we change
-        // this tilt by changing the camera's height above.
-        if (
-            this.mapView.projection.type === geoUtils.ProjectionType.Spherical &&
-            this.m_maxTiltAngle !== undefined
-        ) {
-            // Use pre-calculated camera target, otherwise we could get it via:
-            // centerScreenTarget = MapViewUtils.getTargetPositionFromCamera(camera, projection)
-            // and convert to geo-coordinates via:
-            // this.mapView.projection.unprojectPoint(centerScreenTarget)
-            const tilt = MapViewUtils.extractSphericalCoordinatesFromLocation(
-                this.mapView,
-                this.camera,
-                this.mapView.target
-            ).tilt;
-            const deltaTilt = tilt - this.m_maxTiltAngle;
-            if (deltaTilt > 0) {
-                MapViewUtils.orbitFocusPoint(this.mapView, 0, deltaTilt, this.m_maxTiltAngle);
-            }
-        }
-
-        this.updateMapView();
-        this.mapView.addEventListener(
-            MapViewEventNames.AfterRender,
-            this.assignZoomAfterTouchZoomRender
-        );
     }
 
     /**
@@ -448,8 +424,8 @@ export class MapControls extends THREE.EventDispatcher {
      * Zooms and moves the map in such a way that the given target position remains at the same
      * position after the zoom.
      *
-     * @param targetPositionOnScreenXinNDC Target x position in NDC space.
-     * @param targetPositionOnScreenYinNDC Target y position in NDC space.
+     * @param targetPositionOnScreenXinNDC - Target x position in NDC space.
+     * @param targetPositionOnScreenYinNDC - Target y position in NDC space.
      */
     zoomOnTargetPosition(
         targetPositionOnScreenXinNDC: number,
@@ -468,14 +444,14 @@ export class MapControls extends THREE.EventDispatcher {
     /**
      * Zooms to the desired location by the provided value.
      *
-     * @param zoomLevel Zoom level.
-     * @param screenTarget Zoom target on screen.
+     * @param zoomLevel - Zoom level.
+     * @param screenTarget - Zoom target on screen.
      */
     setZoomLevel(
         zoomLevel: number,
         screenTarget: { x: number; y: number } | THREE.Vector2 = { x: 0, y: 0 }
     ) {
-        if (this.enabled === false) {
+        if (!this.enabled || !this.zoomEnabled) {
             return;
         }
 
@@ -501,6 +477,10 @@ export class MapControls extends THREE.EventDispatcher {
      * Toggles the camera tilt between 0 (looking down) and the value at `this.tiltAngle`.
      */
     toggleTilt(): void {
+        if (!this.enabled || !this.tiltEnabled) {
+            return;
+        }
+
         this.stopExistingAnimations();
         this.m_startTilt = this.currentTilt;
         const aimTilt = this.m_startTilt < EPSILON;
@@ -528,14 +508,17 @@ export class MapControls extends THREE.EventDispatcher {
     }
 
     /**
-     * Set camera max tilt angle. The value is clamped between 0 and 90 degrees. In sphere
+     * Set camera max tilt angle. The value is clamped between 0 and 89 degrees. In sphere
      * projection, at runtime, the value is also clamped so that the camera does not look above the
      * horizon.
      *
-     * @param angle Angle in degrees.
+     * @param angle - Angle in degrees.
      */
     set maxTiltAngle(angle: number) {
-        this.m_maxTiltAngle = Math.max(0, Math.min(90, THREE.MathUtils.degToRad(angle)));
+        this.m_maxTiltAngle = Math.max(
+            0,
+            Math.min(DEFAULT_MAX_TILT_ANGLE, THREE.MathUtils.degToRad(angle))
+        );
     }
 
     /**
@@ -635,9 +618,11 @@ export class MapControls extends THREE.EventDispatcher {
 
         const deltaAzimuth = this.m_currentAzimuth - this.m_lastAzimuth;
 
-        MapViewUtils.orbitFocusPoint(
+        MapViewUtils.orbitAroundScreenPoint(
             this.mapView,
-            THREE.MathUtils.radToDeg(deltaAzimuth),
+            0,
+            0,
+            deltaAzimuth,
             0,
             this.m_maxTiltAngle
         );
@@ -655,6 +640,9 @@ export class MapControls extends THREE.EventDispatcher {
             this.m_tiltRequested = undefined;
         }
 
+        // Whether the tilt animation has reached full duration & a final frame is rendered. We need
+        // this to know when to stop the tilt (and hence deregister the methon )
+        let tiltAnimationFinished = false;
         if (this.inertiaEnabled) {
             if (!this.m_tiltIsAnimated) {
                 this.m_tiltIsAnimated = true;
@@ -662,12 +650,12 @@ export class MapControls extends THREE.EventDispatcher {
             }
             const currentTime = performance.now();
             this.m_tiltAnimationTime = (currentTime - this.m_tiltAnimationStartTime) / 1000;
-            const tiltFinished = this.m_tiltAnimationTime > this.tiltToggleDuration;
+            const tiltFinished = this.m_tiltAnimationTime >= this.tiltToggleDuration;
             if (tiltFinished) {
                 if (this.m_needsRenderLastFrame) {
                     this.m_needsRenderLastFrame = false;
                     this.m_tiltAnimationTime = this.tiltToggleDuration;
-                    this.stopTilt();
+                    tiltAnimationFinished = true;
                 }
             } else {
                 this.m_needsRenderLastFrame = true;
@@ -684,16 +672,13 @@ export class MapControls extends THREE.EventDispatcher {
 
         const initialTilt = this.currentTilt;
         const deltaAngle = this.m_currentTilt - initialTilt;
-        const oldCameraDistance = this.mapView.camera.position.z / Math.cos(initialTilt);
-        const newHeight = Math.cos(initialTilt) * oldCameraDistance;
 
-        MapViewUtils.orbitFocusPoint(
-            this.mapView,
-            newHeight - this.camera.position.z,
-            THREE.MathUtils.radToDeg(deltaAngle),
-            this.m_maxTiltAngle
-        );
+        MapViewUtils.orbitAroundScreenPoint(this.mapView, 0, 0, 0, deltaAngle, this.m_maxTiltAngle);
         this.updateMapView();
+
+        if (tiltAnimationFinished) {
+            this.stopTilt();
+        }
     }
 
     private stopTilt() {
@@ -703,7 +688,14 @@ export class MapControls extends THREE.EventDispatcher {
     }
 
     private easeOutCubic(startValue: number, endValue: number, time: number): number {
-        return startValue + (endValue - startValue) * (--time * time * time + 1);
+        // https://easings.net/#easeOutCubic
+        return startValue + (endValue - startValue) * (1 - Math.pow(1 - time, 3));
+    }
+
+    private easeOutCirc(startValue: number, endValue: number, time: number): number {
+        // https://easings.net/#easeOutCirc
+        const easing = Math.sqrt(1 - Math.pow(time - 1, 2));
+        return startValue + (endValue - startValue) * easing;
     }
 
     private handleZoom() {
@@ -739,13 +731,13 @@ export class MapControls extends THREE.EventDispatcher {
         this.currentZoom =
             !this.inertiaEnabled || Math.abs(this.zoomLevelTargeted - this.m_startZoom) < EPSILON
                 ? this.zoomLevelTargeted
-                : this.easeOutCubic(
+                : this.easeOutCirc(
                       this.m_startZoom,
                       this.zoomLevelTargeted,
                       Math.min(1, this.m_zoomAnimationTime / this.zoomInertiaDampingDuration)
                   );
 
-        MapViewUtils.zoomOnTargetPosition(
+        const success = MapViewUtils.zoomOnTargetPosition(
             this.mapView,
             this.m_zoomTargetNormalizedCoordinates.x,
             this.m_zoomTargetNormalizedCoordinates.y,
@@ -753,7 +745,7 @@ export class MapControls extends THREE.EventDispatcher {
             this.m_maxTiltAngle
         );
 
-        if (resetZoomState) {
+        if (resetZoomState || !success) {
             this.m_targetedZoom = undefined;
             this.m_currentZoom = undefined;
         }
@@ -906,7 +898,7 @@ export class MapControls extends THREE.EventDispatcher {
     }
 
     private mouseDoubleClick(event: MouseEvent) {
-        if (this.enabled === false) {
+        if (!this.enabled || !this.zoomEnabled) {
             return;
         }
         const mousePos = this.getPointerPosition(event);
@@ -918,7 +910,7 @@ export class MapControls extends THREE.EventDispatcher {
             return;
         }
 
-        if (event.shiftKey || event.ctrlKey) {
+        if (event.shiftKey) {
             return;
         }
 
@@ -928,11 +920,12 @@ export class MapControls extends THREE.EventDispatcher {
             return;
         }
 
-        if (event.button === 0) {
+        // Support mac users who press ctrl key when wanting to right click
+        if (event.button === 0 && !event.ctrlKey && this.panEnabled) {
             this.m_state = State.PAN;
         } else if (event.button === 1) {
             this.m_state = State.ROTATE;
-        } else if (event.button === 2 && this.tiltEnabled) {
+        } else if ((event.button === 2 || event.ctrlKey) && this.tiltEnabled) {
             this.m_state = State.ORBIT;
         } else {
             return;
@@ -941,8 +934,15 @@ export class MapControls extends THREE.EventDispatcher {
         this.dispatchEvent(MAPCONTROL_EVENT_BEGIN_INTERACTION);
 
         const mousePos = this.getPointerPosition(event);
-        this.m_lastMousePosition.setX(mousePos.x);
-        this.m_lastMousePosition.setY(mousePos.y);
+        this.m_lastMousePosition.copy(mousePos);
+        if (event.altKey === true) {
+            const { width, height } = utils.getWidthAndHeightFromCanvas(this.domElement);
+            this.m_initialMousePosition.copy(
+                utils.calculateNormalizedDeviceCoordinates(mousePos.x, mousePos.y, width, height)
+            );
+        } else {
+            this.m_initialMousePosition.set(0, 0);
+        }
 
         const onMouseMove = this.mouseMove.bind(this);
         const onMouseUp = this.mouseUp.bind(this);
@@ -989,8 +989,11 @@ export class MapControls extends THREE.EventDispatcher {
             );
         } else if (this.m_state === State.ORBIT) {
             this.stopExistingAnimations();
-            MapViewUtils.orbitFocusPoint(
+
+            MapViewUtils.orbitAroundScreenPoint(
                 this.mapView,
+                this.m_initialMousePosition.x,
+                this.m_initialMousePosition.y,
                 this.orbitingMouseDeltaFactor * this.m_mouseDelta.x,
                 -this.orbitingMouseDeltaFactor * this.m_mouseDelta.y,
                 this.m_maxTiltAngle
@@ -1025,6 +1028,10 @@ export class MapControls extends THREE.EventDispatcher {
     }
 
     private mouseWheel(event: WheelEvent) {
+        if (!this.enabled || !this.zoomEnabled) {
+            return;
+        }
+
         const { width, height } = utils.getWidthAndHeightFromCanvas(this.domElement);
         const screenTarget = utils.calculateNormalizedDeviceCoordinates(
             event.offsetX,
@@ -1034,7 +1041,7 @@ export class MapControls extends THREE.EventDispatcher {
         );
 
         this.setZoomLevel(
-            this.zoomLevelTargeted + this.zoomLevelDeltaOnMouseWheel * (event.deltaY > 0 ? -1 : 1),
+            this.mapView.zoomLevel - this.zoomLevelDeltaOnMouseWheel * Math.sign(event.deltaY),
             screenTarget
         );
 
@@ -1179,7 +1186,6 @@ export class MapControls extends THREE.EventDispatcher {
         this.m_touchState.touches = [];
 
         // TouchList doesn't conform to iterator interface so we cannot use 'for of'
-        // tslint:disable-next-line:prefer-for-of
         for (let i = 0; i < touches.length; ++i) {
             const touchState = this.convertTouchPoint(touches[i]);
             if (touchState !== undefined) {
@@ -1241,7 +1247,11 @@ export class MapControls extends THREE.EventDispatcher {
         this.m_fingerMoved = true;
         this.updateTouches(event.touches);
 
-        if (this.m_touchState.touches.length <= 2 && this.m_touchState.touches[0] !== undefined) {
+        if (
+            this.panEnabled &&
+            this.m_touchState.touches.length <= 2 &&
+            this.m_touchState.touches[0] !== undefined
+        ) {
             this.panFromTo(
                 this.m_touchState.touches[0].initialWorldPosition,
                 this.m_touchState.touches[0].currentWorldPosition
@@ -1249,16 +1259,56 @@ export class MapControls extends THREE.EventDispatcher {
         }
 
         if (this.m_touchState.touches.length === 2) {
-            const pinchDistance = this.calculatePinchDistanceInWorldSpace();
-            if (Math.abs(pinchDistance) < EPSILON) {
-                return;
+            const touches = this.m_touchState.touches;
+            const center = new THREE.Vector2();
+
+            if (this.zoomEnabled === true || this.rotateEnabled === true) {
+                const { width, height } = utils.getWidthAndHeightFromCanvas(this.domElement);
+                touches.forEach(touch => {
+                    const ndcPoint = utils.calculateNormalizedDeviceCoordinates(
+                        touch.currentTouchPoint.x,
+                        touch.currentTouchPoint.y,
+                        width,
+                        height
+                    );
+                    center.add(ndcPoint);
+                });
+                center.divideScalar(touches.length);
             }
-            this.updateCurrentRotation();
-            const deltaRotation =
-                this.m_touchState.currentRotation - this.m_touchState.initialRotation;
-            this.stopExistingAnimations();
-            MapViewUtils.rotate(this.mapView, THREE.MathUtils.radToDeg(deltaRotation));
-            this.moveAlongTheViewDirection(pinchDistance);
+            if (this.zoomEnabled) {
+                const pinchDistance = this.calculatePinchDistanceInWorldSpace();
+                if (Math.abs(pinchDistance) < EPSILON) {
+                    return;
+                }
+                const newZL = MapViewUtils.calculateZoomLevelFromDistance(
+                    this.mapView,
+                    this.mapView.targetDistance - pinchDistance
+                );
+
+                MapViewUtils.zoomOnTargetPosition(
+                    this.mapView,
+                    center.x,
+                    center.y,
+                    newZL,
+                    this.m_maxTiltAngle
+                );
+            }
+
+            if (this.rotateEnabled) {
+                this.updateCurrentRotation();
+                const deltaRotation =
+                    this.m_touchState.currentRotation - this.m_touchState.initialRotation;
+                this.stopExistingAnimations();
+
+                MapViewUtils.orbitAroundScreenPoint(
+                    this.mapView,
+                    center.x,
+                    center.y,
+                    deltaRotation,
+                    0,
+                    this.m_maxTiltAngle
+                );
+            }
         }
 
         // Tilting
@@ -1269,8 +1319,10 @@ export class MapControls extends THREE.EventDispatcher {
                 firstTouch.lastTouchPoint
             );
             this.stopExistingAnimations();
-            MapViewUtils.orbitFocusPoint(
+            MapViewUtils.orbitAroundScreenPoint(
                 this.mapView,
+                0,
+                0,
                 this.orbitingTouchDeltaFactor * diff.x,
                 -this.orbitingTouchDeltaFactor * diff.y,
                 this.m_maxTiltAngle
@@ -1302,8 +1354,8 @@ export class MapControls extends THREE.EventDispatcher {
     }
 
     private handleDoubleTap() {
-        // Continue only if no touchmove happened.
-        if (this.m_fingerMoved) {
+        // Continue only if no touchmove happened and zoom's enabled.
+        if (this.m_fingerMoved || !this.zoomEnabled) {
             return;
         }
 
@@ -1412,7 +1464,7 @@ export class MapControls extends THREE.EventDispatcher {
      * Function takes into account canvas position in client space (including scrolling) as also
      * canvas scaling factor.
      *
-     * @param event The mouse event.
+     * @param event - The mouse event.
      * @returns [[THREE.Vector2]] containing _x_, _y_ mouse pointer position.
      */
     private getPointerPosition(event: MouseEvent | Touch): THREE.Vector2 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,6 +9,7 @@
 import * as fs from "fs";
 import * as glob from "glob";
 import * as util from "util";
+
 import { ImageTestResultLocal, TestImageProps } from "./Interface";
 
 const promisedGlob = util.promisify(glob);
@@ -18,8 +19,8 @@ const promisedGlob = util.promisify(glob);
  *
  * Relative to `process.cwd()`, which is usually `mapsdk` folder.
  *
- * @param imageProps
- * @param outputBasePath
+ * @param imageProps -
+ * @param outputBasePath -
  */
 export function getOutputImagePath(imageProps: TestImageProps, outputBasePath: string): string {
     if (imageProps.name && imageProps.module) {
@@ -39,7 +40,7 @@ export function getOutputImagePath(imageProps: TestImageProps, outputBasePath: s
 /**
  * Search for IBCT results in `searchPath`.
  *
- * @param searchPath
+ * @param searchPath -
  */
 export async function loadSavedResults(searchPath: string = ".") {
     const paths = await promisedGlob(`${searchPath}/**/*.ibct-result.json`);

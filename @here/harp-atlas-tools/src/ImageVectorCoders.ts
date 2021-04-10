@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as Jimp from "jimp";
+import * as sharp from "sharp";
+
 import { ColorUtils } from "./ColorUtils";
 import { FileSystem, ImageFormat } from "./FileSystem";
 import { ImageBitmapEncoderConstructor } from "./ImageBitmapCoders";
@@ -26,17 +28,12 @@ export class ImageVectorDecoderConstructor implements ImageDecoderConstructor {
     }
 
     async load(filePath: string): Promise<ImageDecoder> {
-        // No @types for this module
-        // tslint:disable:no-var-requires
-        const svg2png = require("svg2png");
         const fileBuffer: Buffer = await FileSystem.readFile(filePath);
-        const pngBuffer: Buffer = await svg2png(
-            fileBuffer,
-            this.targetWidth !== 0 && this.targetHeight !== 0
-                ? { width: this.targetWidth, height: this.targetHeight }
-                : {}
-        );
-        const bitmap: Jimp = await Jimp.read(pngBuffer);
+        const resize = this.targetWidth !== 0 && this.targetHeight !== 0;
+        const png = resize
+            ? sharp(fileBuffer).resize({ width: this.targetWidth, height: this.targetHeight }).png()
+            : sharp(fileBuffer).png();
+        const bitmap: Jimp = await Jimp.read(await png.toBuffer());
         return new ImageVectorDecoder(fileBuffer, bitmap);
     }
 }
@@ -45,8 +42,7 @@ export class ImageVectorEncoderConstructor implements ImageEncoderConstructor {
     create(width: number, height: number): Promise<ImageEncoder> {
         // We do not support writing to blank vector file so use bitmap encoder
         // instead as fallback support.
-        // tslint:disable-next-line: max-line-length
-        const bitmapEncoderCtor: ImageBitmapEncoderConstructor = new ImageBitmapEncoderConstructor();
+        const bitmapEncoderCtor = new ImageBitmapEncoderConstructor();
         return bitmapEncoderCtor.create(width, height);
     }
 }
@@ -138,7 +134,7 @@ class ImageVectorEncoder implements ImageEncoder {
      * (based on the file extension provided) or if no extension is provided the PNG image
      * format is used.
      *
-     * @param filePath file storage path.
+     * @param filePath - file storage path.
      */
     write(filePath: string): Promise<any> {
         if (!this.m_pixelModified && FileSystem.getImageFormat(filePath) === ImageFormat.SVG) {
@@ -158,7 +154,7 @@ class ImageVectorEncoder implements ImageEncoder {
                         if (err) {
                             reject(new Error("Failed to write and image: " + filePath));
                         } else {
-                            resolve();
+                            resolve(undefined);
                         }
                     });
                 }

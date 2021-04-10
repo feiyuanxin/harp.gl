@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { FontCatalog } from "../rendering/FontCatalog";
 import { SdfTextMaterial } from "../rendering/TextMaterials";
@@ -13,6 +15,7 @@ import { SdfTextMaterial } from "../rendering/TextMaterials";
  */
 export interface SdfTextMaterialParameters {
     fontCatalog: FontCatalog;
+    rendererCapabilities: THREE.WebGLCapabilities;
     isBackground?: boolean;
     vertexSource?: string;
     fragmentSource?: string;
@@ -22,7 +25,7 @@ export interface SdfTextMaterialParameters {
  * Helper function designed to create [[SdfTextMaterials]] that can be rendered using
  * [[TextCanvas]].
  *
- * @param params Material parameters.
+ * @param params - Material parameters.
  *
  * @returns New `SdfTextMaterial`.
  */
@@ -35,6 +38,7 @@ export function createSdfTextMaterial(params: SdfTextMaterialParameters): SdfTex
         isMsdf: params.fontCatalog.type === "msdf",
         isBackground: params.isBackground === true,
         vertexSource: params.vertexSource,
-        fragmentSource: params.fragmentSource
+        fragmentSource: params.fragmentSource,
+        rendererCapabilities: params.rendererCapabilities
     });
 }

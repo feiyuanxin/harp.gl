@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { LoggerManager } from "@here/harp-utils";
 
 import {
@@ -33,21 +32,39 @@ import {
     interpolatedPropertyDefinitionToJsonExpr,
     isInterpolatedPropertyDefinition
 } from "./InterpolatedPropertyDefs";
-import { AttrScope, mergeTechniqueDescriptor } from "./TechniqueDescriptor";
-import { IndexedTechnique, Technique, techniqueDescriptors } from "./Techniques";
-import {
-    Definitions,
-    isActualSelectorDefinition,
-    isJsonExprReference,
-    Style,
-    StyleDeclaration,
-    StyleSelector,
-    StyleSet
-} from "./Theme";
+import { DecoderOptions } from "./ITileDecoder";
+import { AttrScope, getTechniqueAttributeDescriptor } from "./TechniqueDescriptors";
+import { IndexedTechnique, setTechniqueRenderOrderOrPriority, Technique } from "./Techniques";
+import { Definitions, Style, StyleSet } from "./Theme";
 
 const logger = LoggerManager.instance.create("StyleSetEvaluator");
 
-const emptyTechniqueDescriptor = mergeTechniqueDescriptor<Technique>({});
+const DEFAULT_TECHNIQUE_ATTR_SCOPE = AttrScope.TechniqueGeometry;
+
+/**
+ * Get the attribute scope of the given style property.
+ *
+ * @remarks
+ * Certain Style properties change their dynamic scope behavior
+ * based on other properties. For example, the `color` property
+ * of `extruded-polygon` change behavior based on the usage
+ * of `vertexColors`.
+ *
+ * @param style A valid Style.
+ * @param attrName The name of the attribute of the {@link style}.
+ */
+function getStyleAttributeScope(style: InternalStyle, attrName: string): AttrScope {
+    if (style.technique === "extruded-polygon") {
+        if (attrName === "color" && style.vertexColors !== false) {
+            return DEFAULT_TECHNIQUE_ATTR_SCOPE;
+        }
+    }
+
+    return (
+        getTechniqueAttributeDescriptor(style.technique, attrName)?.scope ??
+        DEFAULT_TECHNIQUE_ATTR_SCOPE
+    );
+}
 
 interface StyleInternalParams {
     /**
@@ -111,10 +128,10 @@ interface StyleInternalParams {
     _usesFeatureState?: boolean;
 }
 
-type InternalStyle = Style & StyleSelector & StyleInternalParams;
+type InternalStyle = Style & StyleInternalParams;
 
 /**
- * [[StyleConditionClassifier]] searches for usages of `$layer` in `when` conditions
+ * `StyleConditionClassifier` searches for usages of `$layer` in `when` conditions
  * associated with styling rules.
  *
  * @hidden
@@ -212,18 +229,18 @@ class StyleConditionClassifier implements ExprVisitor<Expr | undefined, Expr | u
     }
 
     visitStepExpr(expr: StepExpr, enclosingExpr: Expr | undefined): Expr | undefined {
-        throw new Error("todo");
+        return expr;
     }
 
     visitInterpolateExpr(expr: InterpolateExpr, enclosingExpr: Expr | undefined): Expr | undefined {
-        throw new Error("todo");
+        return expr;
     }
 
     /**
      * Tests if the given `call` matches the structure ["==", ["get", name], value].
      * If a match is found returns an object containing the `name` and the `value`;
      *
-     * @param call The expression to match.
+     * @param call - The expression to match.
      */
     private matchVarStringComparison(call: CallExpr) {
         if (call.op === "==") {
@@ -298,7 +315,6 @@ class OptimizedSubSetKey {
 
     private updateKey() {
         if (this.layer !== undefined) {
-            // tslint:disable-next-line:prefer-conditional-expression
             if (this.geometryType !== undefined) {
                 this.key = `${this.layer}:${this.geometryType}`;
             } else {
@@ -314,6 +330,13 @@ class OptimizedSubSetKey {
         this.cachedStyleSet = undefined;
     }
 }
+
+/**
+ * Options to be passed to the StyleSetEvaluator
+ *
+ * Basically identical as the DecoderOptions but requires styleSet to be set.
+ */
+export type StyleSetOptions = Omit<DecoderOptions, "languages"> & { styleSet: StyleSet };
 
 /**
  * Combine data from datasource and apply the rules from a specified theme to show it on the map.
@@ -337,9 +360,9 @@ export class StyleSetEvaluator {
     private m_previousResult: IndexedTechnique[] | undefined;
     private m_previousEnv: Env | undefined;
 
-    constructor(styleSet: StyleSet, definitions?: Definitions) {
-        this.m_definitions = definitions;
-        this.styleSet = resolveReferences(styleSet, definitions);
+    constructor(private readonly m_options: StyleSetOptions) {
+        this.m_definitions = this.m_options.definitions;
+        this.styleSet = resolveReferences(this.m_options.styleSet, this.m_definitions);
         computeDefaultRenderOrder(this.styleSet);
         this.compileStyleSet();
     }
@@ -349,10 +372,10 @@ export class StyleSetEvaluator {
      * *The techniques in the resulting array may not be modified* since they are being reused for
      * identical objects.
      *
-     * @param env The objects environment, i.e. the attributes that are relevant for its
+     * @param env - The objects environment, i.e. the attributes that are relevant for its
      * representation.
-     * @param layer The optional layer name used to filter techniques.
-     * @param geometryType The optional geometryType used to filter techniques.
+     * @param layer - The optional layer name used to filter techniques.
+     * @param geometryType - The optional geometryType used to filter techniques.
      */
     getMatchingTechniques(
         env: Env,
@@ -395,7 +418,7 @@ export class StyleSetEvaluator {
     /**
      * Check if `styleSet` contains any rule related to `layer`.
      *
-     * @param layer name of layer
+     * @param layer - name of layer
      */
     wantsLayer(layer: string): boolean {
         return (
@@ -406,8 +429,8 @@ export class StyleSetEvaluator {
     /**
      * Check if `styleSet` contains any rule related to particular `[layer, geometryType]` pair.
      *
-     * @param layer name of layer
-     * @param geometryType type of layer - `point`, `line` or `polygon`
+     * @param layer - name of layer
+     * @param geometryType - type of layer - `point`, `line` or `polygon`
      */
     wantsFeature(layer: string, geometryType?: string): boolean {
         return (
@@ -505,7 +528,7 @@ export class StyleSetEvaluator {
     /**
      * Compile the `when` conditions reachable from the given `style`.
      *
-     * @param style The current style.
+     * @param style - The current style.
      */
     private compileStyle(style: InternalStyle) {
         this.checkStyleDynamicAttributes(style);
@@ -514,8 +537,7 @@ export class StyleSetEvaluator {
             try {
                 style._whenExpr = Array.isArray(style.when)
                     ? Expr.fromJSON(style.when, this.m_definitions, this.m_definitionExprCache)
-                    : // tslint:disable-next-line: deprecation
-                      Expr.parse(style.when);
+                    : Expr.parse(style.when);
 
                 // search for usages of '$layer' and any other
                 // special symbol that can be used to speed up the evaluation
@@ -561,10 +583,10 @@ export class StyleSetEvaluator {
      * current objects' environment. The attributes of the styles are assembled to create a unique
      * technique for every object.
      *
-     * @param env The objects environment, i.e. the attributes that are relevant for its
+     * @param env - The objects environment, i.e. the attributes that are relevant for its
      *            representation.
-     * @param style Current style (could also be top of stack).
-     * @param result The array of resulting techniques. There may be more than one technique per
+     * @param style - Current style (could also be top of stack).
+     * @param result - The array of resulting techniques. There may be more than one technique per
      *               object, resulting in multiple graphical objects for representation.
      * @returns `true` if style has been found and processing is finished. `false` if not found, or
      *          more than one technique should be applied.
@@ -629,9 +651,8 @@ export class StyleSetEvaluator {
         if (style.minZoomLevel !== undefined) {
             let minZoomLevel: Value = style.minZoomLevel;
 
-            if (style._minZoomLevelExpr) {
-                // the constraint is defined as expression, evaluate it and
-                // use its value
+            if (style._minZoomLevelExpr?.isDynamic() === false) {
+                // Only filter by zoom level if the expression is not dynamic.
                 try {
                     minZoomLevel = style._minZoomLevelExpr.evaluate(
                         env,
@@ -655,7 +676,8 @@ export class StyleSetEvaluator {
         if (style.maxZoomLevel !== undefined) {
             let maxZoomLevel: Value = style.maxZoomLevel;
 
-            if (style._maxZoomLevelExpr) {
+            if (style._maxZoomLevelExpr?.isDynamic() === false) {
+                // Only filter by zoom level if the expression is not dynamic.
                 try {
                     maxZoomLevel = style._maxZoomLevelExpr.evaluate(
                         env,
@@ -671,7 +693,7 @@ export class StyleSetEvaluator {
                 }
             }
 
-            if (typeof maxZoomLevel === "number" && zoomLevel > maxZoomLevel) {
+            if (typeof maxZoomLevel === "number" && zoomLevel >= maxZoomLevel) {
                 return false;
             }
         }
@@ -738,9 +760,6 @@ export class StyleSetEvaluator {
         const dynamicForwardedAttributes = style._dynamicForwardedAttributes;
         const targetStaticAttributes = style._staticAttributes;
 
-        const techniqueDescriptor =
-            techniqueDescriptors[style.technique] || emptyTechniqueDescriptor;
-
         const processAttribute = (attrName: string, attrValue: Value | JsonExpr | undefined) => {
             if (attrValue === undefined) {
                 return;
@@ -777,14 +796,7 @@ export class StyleSetEvaluator {
             }
 
             if (Expr.isExpr(attrValue)) {
-                let attrScope: AttrScope | undefined = (techniqueDescriptor.attrScopes as any)[
-                    attrName as any
-                ];
-
-                if (attrScope === undefined) {
-                    // Use [[AttrScope.TechniqueGeometry]] as default scope for the attribute.
-                    attrScope = AttrScope.TechniqueGeometry;
-                }
+                const attrScope = getStyleAttributeScope(style, attrName);
 
                 const deps = attrValue.dependencies();
 
@@ -907,6 +919,11 @@ export class StyleSetEvaluator {
         if (style._usesFeatureState !== undefined) {
             technique._usesFeatureState = style._usesFeatureState;
         }
+        setTechniqueRenderOrderOrPriority(
+            technique,
+            this.m_options.priorities ?? [],
+            this.m_options.labelPriorities ?? []
+        );
         this.m_techniques.push(technique as IndexedTechnique);
         return technique as IndexedTechnique;
     }
@@ -923,38 +940,18 @@ function computeDefaultRenderOrder(styleSet: InternalStyle[]) {
     }
 }
 
-function resolveReferences(styleSet: StyleDeclaration[], definitions: Definitions | undefined) {
+function resolveReferences(styleSet: Style[], definitions: Definitions | undefined) {
     return styleSet.map(style => resolveStyleReferences(style, definitions));
 }
 
-function resolveStyleReferences(
-    style: StyleDeclaration,
-    definitions: Definitions | undefined
-): InternalStyle {
-    if (isJsonExpr(style)) {
-        if (!isJsonExprReference(style)) {
-            throw new Error("invalid expression in this context, only 'ref's are supported");
-        }
-        // expand and instantiate references to style definitions.
-        const definitionName = style[1];
-        const def = definitions && definitions[definitionName];
-        if (!def) {
-            throw new Error(`invalid reference '${definitionName}' - not found`);
-        }
-        if (!isActualSelectorDefinition(def)) {
-            throw new Error(`invalid reference '${definitionName}' - expected style definition`);
-        }
-        // instantiate the style
-        return resolveStyleReferences(def, definitions);
-    }
-
+function resolveStyleReferences(style: Style, definitions: Definitions | undefined): InternalStyle {
     return { ...style };
 }
 
 /**
  * Create transferable representation of dynamic technique.
  *
- * Converts  non-transferable [[Expr]]instances back to JSON form.
+ * Converts  non-transferable {@link Expr}instances back to JSON form.
  */
 export function makeDecodedTechnique(technique: IndexedTechnique): IndexedTechnique {
     const result: Partial<IndexedTechnique> = {};

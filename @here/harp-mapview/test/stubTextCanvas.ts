@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -15,16 +15,17 @@ import {
 } from "@here/harp-text-canvas";
 import * as sinon from "sinon";
 import * as THREE from "three";
+
 import { TextCanvasFactory } from "../lib/text/TextCanvasFactory";
 
 /**
  * Creates a TextCanvas stub.
- * @param sandbox Sinon sandbox to keep track of created stubs.
- * @param addTextSpy Spy that will be called when [[addText]] method is called.
- * @param addTextBufferObjSpy Spy that will be called when [[addTextBufferObject]] method is called
- * on the created TextCanvas stub.
- * @param fontCatalog Font catalog used by the created text canvas.
- * @param textWidthHeight Text width and height used to compute bounds.
+ * @param sandbox - Sinon sandbox to keep track of created stubs.
+ * @param addTextSpy - Spy that will be called when [[addText]] method is called.
+ * @param addTextBufferObjSpy - Spy that will be called when [[addTextBufferObject]] method is
+ *                              called on the created TextCanvas stub.
+ * @param fontCatalog - Font catalog used by the created text canvas.
+ * @param textWidthHeight - Text width and height used to compute bounds.
  * @returns TextCanvas stub.
  */
 export function stubTextCanvas(
@@ -32,9 +33,10 @@ export function stubTextCanvas(
     addTextSpy: sinon.SinonSpy,
     addTextBufferObjSpy: sinon.SinonSpy,
     fontCatalog: FontCatalog,
-    textWidthHeight: number
+    textWidth: number,
+    textHeight: number
 ): TextCanvas {
-    const renderer = ({} as unknown) as THREE.WebGLRenderer;
+    const renderer = ({ capabilities: { isWebGL2: false } } as any) as THREE.WebGLRenderer;
     const textCanvas = new TextCanvas({
         renderer,
         fontCatalog,
@@ -69,8 +71,8 @@ export function stubTextCanvas(
             ) => {
                 // Return a box centered on origin with dimensions DEF_TEXT_WIDTH_HEIGHT
                 outputBounds.set(
-                    new THREE.Vector2(-textWidthHeight / 2, -textWidthHeight / 2),
-                    new THREE.Vector2(textWidthHeight / 2, textWidthHeight / 2)
+                    new THREE.Vector2(-textWidth / 2, -textHeight / 2),
+                    new THREE.Vector2(textWidth / 2, textHeight / 2)
                 );
                 // Same bbox for character bounds, as if text had a single character.
                 if (params !== undefined && params.outputCharacterBounds !== undefined) {
@@ -89,8 +91,9 @@ export function stubTextCanvas(
         .stub(textCanvas, "addTextBufferObject")
         .callsFake((textBufferObject: TextBufferObject, params?: TextBufferAdditionParameters) => {
             addTextBufferObjSpy(
-                textBufferObject,
-                params === undefined ? undefined : params.opacity
+                params?.pickingData,
+                params?.opacity,
+                params?.position?.toArray().slice(0, 2)
             );
             return true;
         });
@@ -101,16 +104,16 @@ export function stubTextCanvas(
 
 /**
  * Stubs text canvas factory.
- * @param sandbox Sinon sandbox to keep track of created stubs.
- * @param textCanvas The text canvas to be returned by the factory.
+ * @param sandbox - Sinon sandbox to keep track of created stubs.
+ * @param textCanvas - The text canvas to be returned by the factory.
  * @returns TextCanvasFactory stub.
  */
 export function stubTextCanvasFactory(
     sandbox: sinon.SinonSandbox,
     textCanvas: TextCanvas
-): TextCanvasFactory {
+): sinon.SinonStubbedInstance<TextCanvasFactory> {
     const textCanvasFactoryStub = sandbox.createStubInstance(TextCanvasFactory);
     textCanvasFactoryStub.createTextCanvas.returns((textCanvas as unknown) as TextCanvas);
 
-    return (textCanvasFactoryStub as unknown) as TextCanvasFactory;
+    return textCanvasFactoryStub;
 }

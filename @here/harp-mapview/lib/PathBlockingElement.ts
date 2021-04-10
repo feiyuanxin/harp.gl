@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -29,7 +29,7 @@ export class PathBlockingElement {
     /**
      * Constructs a path from a list of points.
      * Pre allocates the [[screenSpaceLines]] used to render.
-     * @param points Points in world coordinates.
+     * @param points - Points in world coordinates.
      */
     constructor(readonly points: Vector3Like[]) {
         this.screenSpaceLines = new Array<THREE.Line3>(points.length >= 2 ? points.length - 1 : 0);

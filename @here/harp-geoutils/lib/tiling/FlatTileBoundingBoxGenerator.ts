@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { GeoBox } from "../coordinates/GeoBox";
 import { Box3Like } from "../math/Box3Like";
@@ -11,8 +13,6 @@ import { Projection } from "../projection/Projection";
 import { SubdivisionScheme } from "./SubdivisionScheme";
 import { TileKey } from "./TileKey";
 import { TilingScheme } from "./TilingScheme";
-
-import * as THREE from "three";
 
 /**
  * `FlatTileBoundingBoxGenerator` generates bounding boxes in world and geo coordinates for a given
@@ -26,9 +26,9 @@ export class FlatTileBoundingBoxGenerator {
      * Creates a new `FlatTileBoundingBoxGenerator` that can generate bounding boxes for the given
      * TilingScheme.
      *
-     * @param tilingScheme The [[TilingScheme]] used to compute bounding boxes.
-     * @param minElevation The minimum elevation in meters.
-     * @param maxElevation The maximum elevation in meters.
+     * @param tilingScheme - The {@link TilingScheme} used to compute bounding boxes.
+     * @param minElevation - The minimum elevation in meters.
+     * @param maxElevation - The maximum elevation in meters.
      */
     constructor(
         readonly tilingScheme: TilingScheme,
@@ -42,21 +42,21 @@ export class FlatTileBoundingBoxGenerator {
     }
 
     /**
-     * Returns the [[Projection]] of the [[TilingScheme]].
+     * Returns the {@link Projection} of the {@link TilingScheme}.
      */
     get projection(): Projection {
         return this.m_tilingScheme.projection;
     }
 
     /**
-     * Returns the [[SubdivisionScheme]] of the [[TilingScheme]].
+     * Returns the {@link SubdivisionScheme} of the {@link TilingScheme}.
      */
     get subdivisionScheme(): SubdivisionScheme {
         return this.m_tilingScheme.subdivisionScheme;
     }
 
     /**
-     * Returns the bounding box in world coordinates of the given [[TileKey]].
+     * Returns the bounding box in world coordinates of the given {@link TileKey}.
      *
      * Example:
      * ```typescript
@@ -65,8 +65,8 @@ export class FlatTileBoundingBoxGenerator {
      * console.log(worldBounds.getCenter());
      * ```
      *
-     * @param tileKey The TileKey.
-     * @param result The optional object used to store the resulting bounding box in world
+     * @param tileKey - The TileKey.
+     * @param result - The optional object used to store the resulting bounding box in world
      * coordinates.
      */
     getWorldBox(tileKey: TileKey, result?: Box3Like): Box3Like {
@@ -92,7 +92,7 @@ export class FlatTileBoundingBoxGenerator {
     }
 
     /**
-     * Returns the bounding box in geo coordinates for the given [[TileKey]].
+     * Returns the bounding box in geo coordinates for the given {@link TileKey}.
      *
      * Example:
      * ```typescript
@@ -100,7 +100,7 @@ export class FlatTileBoundingBoxGenerator {
      * console.log(geoBox.center);
      * ```
      *
-     * @param tileKey The [[TileKey]].
+     * @param tileKey - The {@link TileKey}.
      */
     getGeoBox(tileKey: TileKey): GeoBox {
         const worldBox = this.getWorldBox(tileKey);

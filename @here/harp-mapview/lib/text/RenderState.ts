@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -43,14 +43,14 @@ export class RenderState {
     /**
      * Computed opacity depending on value.
      */
-    opacity: number = 1.0;
+    opacity: number = 0.0;
 
     private m_state = FadingState.Undefined;
 
     /**
      * Create a `RenderState`.
      *
-     * @param fadeTime The duration of the fading in milliseconds.
+     * @param fadeTime - The duration of the fading in milliseconds.
      */
     constructor(public fadeTime = DEFAULT_FADE_TIME) {}
 
@@ -61,7 +61,7 @@ export class RenderState {
         this.m_state = FadingState.Undefined;
         this.value = 0.0;
         this.startTime = 0.0;
-        this.opacity = 1.0;
+        this.opacity = 0.0;
     }
 
     /**
@@ -113,10 +113,15 @@ export class RenderState {
     }
 
     /**
-     * @returns `true` if state is neither faded out nor undefined.
+     * @returns `true` if state is neither faded out nor undefined and the opacity is larger
+     * than 0.
      */
     isVisible(): boolean {
-        return this.m_state !== FadingState.FadedOut && this.m_state !== FadingState.Undefined;
+        return (
+            this.m_state !== FadingState.FadedOut &&
+            this.m_state !== FadingState.Undefined &&
+            this.opacity > 0
+        );
     }
 
     /**
@@ -124,10 +129,20 @@ export class RenderState {
      * If previous state is [[FadingState.FadingIn]] or [[FadingState.FadedIn]] it remains
      * unchanged.
      *
-     * @param time Current time.
+     * @param time - Current time.
+     * @param disableFading - Optional flag to disable fading.
      */
-    startFadeIn(time: number) {
+    startFadeIn(time: number, disableFading?: boolean) {
         if (this.m_state === FadingState.FadingIn || this.m_state === FadingState.FadedIn) {
+            return;
+        }
+
+        if (disableFading === true) {
+            this.value = 1;
+            this.opacity = 1;
+            this.m_state = FadingState.FadedIn;
+            this.startTime = time;
+
             return;
         }
 
@@ -147,13 +162,17 @@ export class RenderState {
 
     /**
      * Updates the state to [[FadingState.FadingOut]].
-     * If previous state is [[FadingState.FadingOut]] or [[FadingState.FadedOut]] it remains
-     * unchanged.
+     * If previous state is [[FadingState.FadingOut]], [[FadingState.FadedOut]] or
+     * [[FadingState.Undefined]] it remains unchanged.
      *
-     * @param time Current time.
+     * @param time - Current time.
      */
     startFadeOut(time: number) {
-        if (this.m_state === FadingState.FadingOut || this.m_state === FadingState.FadedOut) {
+        if (
+            this.m_state === FadingState.FadingOut ||
+            this.m_state === FadingState.FadedOut ||
+            this.m_state === FadingState.Undefined
+        ) {
             return;
         }
 
@@ -176,8 +195,8 @@ export class RenderState {
      * [[FadingState.FadedIn]] when the opacity becomes 0 or 1 respectively.
      * It does nothing if [[isFading]] !== `true`.
      *
-     * @param time Current time.
-     * @param disableFading `true` if fading is disabled, `false` otherwise.
+     * @param time - Current time.
+     * @param disableFading - `true` if fading is disabled, `false` otherwise.
      */
     updateFading(time: number, disableFading: boolean): void {
         if (this.m_state !== FadingState.FadingIn && this.m_state !== FadingState.FadingOut) {

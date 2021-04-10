@@ -1,24 +1,24 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 import { MapEnv, ShaderTechnique, Technique } from "@here/harp-datasource-protocol";
 import { TileKey } from "@here/harp-geoutils";
 import { MapMeshStandardMaterial } from "@here/harp-materials";
 import { assert, expect } from "chai";
 import * as THREE from "three";
+
 import { DisplacedMesh } from "../lib/geometry/DisplacedMesh";
 import { buildObject, createMaterial, usesObject3D } from "./../lib/DecodedTileHelpers";
 import { Tile } from "./../lib/Tile";
 import { FakeOmvDataSource } from "./FakeOmvDataSource";
 
-describe("Tile Creation", function() {
-    it("ShaderTechnique", function() {
-        const tile = new Tile(new FakeOmvDataSource(), new TileKey(0, 0, 0));
+describe("Tile Creation", function () {
+    it("ShaderTechnique", function () {
+        const tile = new Tile(new FakeOmvDataSource({ name: "omv" }), new TileKey(0, 0, 0));
         const technique: ShaderTechnique = {
             name: "shader",
             primitive: "line",
@@ -33,7 +33,8 @@ describe("Tile Creation", function() {
             renderOrder: 0
         };
         const env = new MapEnv({ $zoom: 14 });
-        const shaderMaterial = createMaterial({ technique, env });
+        const rendererCapabilities: THREE.WebGLCapabilities = { isWebGL2: false } as any;
+        const shaderMaterial = createMaterial(rendererCapabilities, { technique, env });
         assert.isTrue(
             shaderMaterial instanceof THREE.ShaderMaterial,
             "expected a THREE.ShaderMaterial"
@@ -174,8 +175,8 @@ describe("Tile Creation", function() {
                 : test.technique.name;
         const elevation = test.elevation ? "elevation" : "no elevation";
         const testName = `buildObject builds proper obj for ${name} technique with ${elevation}`;
-        it(testName, function() {
-            const tile = new Tile(new FakeOmvDataSource(), new TileKey(0, 0, 0));
+        it(testName, function () {
+            const tile = new Tile(new FakeOmvDataSource({ name: "omv" }), new TileKey(0, 0, 0));
             const geometry = new THREE.BufferGeometry();
             const material = new MapMeshStandardMaterial();
 

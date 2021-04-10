@@ -1,14 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
-
-import { assert } from "chai";
-import * as THREE from "three";
 
 import {
     CirclesStyle,
@@ -20,7 +16,7 @@ import {
     Light,
     PoiStyle,
     SolidLineStyle,
-    StyleDeclaration,
+    Style,
     TextTechniqueStyle,
     TextureCoordinateType,
     Theme
@@ -29,10 +25,12 @@ import { FeaturesDataSource } from "@here/harp-features-datasource";
 import { GeoBox, OrientedBox3, ProjectionType } from "@here/harp-geoutils";
 import { LookAtParams, MapAnchor, MapView, MapViewEventNames } from "@here/harp-mapview";
 import { GeoJsonTiler } from "@here/harp-mapview-decoder/index-worker";
-import { OmvTileDecoder } from "@here/harp-omv-datasource/index-worker";
 import { getPlatform, RenderingTestHelper, TestOptions, waitForEvent } from "@here/harp-test-utils";
 import { getReferenceImageUrl } from "@here/harp-test-utils/lib/rendering/ReferenceImageLocator";
-import { getOptionValue, mergeWithOptions } from "@here/harp-utils";
+import { getOptionValue } from "@here/harp-utils";
+import { VectorTileDecoder } from "@here/harp-vectortile-datasource/index-worker";
+import { assert } from "chai";
+import * as THREE from "three";
 
 interface RenderingTestOptions extends TestOptions {
     /**
@@ -60,7 +58,7 @@ function baseRenderingTest(
         // We can ignore error here, as _if_ this file was really needed, then test
         // will try to resolve this promise and report failure in test context.
     });
-    it(name, async function() {
+    it(name, async function () {
         let canvas: HTMLCanvasElement | undefined;
         // TODO: remove `module` name from RenderingTestHalper API
         try {
@@ -137,20 +135,22 @@ function mapViewFeaturesRenderingTest(
     baseRenderingTest(
         name,
         options,
-        async function(canvas) {
+        async function (canvas) {
             //document.body.appendChild(canvas);
             mapView = new MapView({
                 canvas,
                 theme: options.theme ?? {},
                 preserveDrawingBuffer: true,
+                disableFading: true,
                 pixelRatio: 1
             });
             mapView.animatedExtrusionHandler.enabled = false;
             const dataSource = new FeaturesDataSource({
                 styleSetName: "geojson",
                 geojson: options.geoJson,
-                decoder: new OmvTileDecoder(),
-                tiler: new GeoJsonTiler()
+                decoder: new VectorTileDecoder(),
+                tiler: new GeoJsonTiler(),
+                gatherFeatureAttributes: true
             });
             mapView.addDataSource(dataSource);
 
@@ -163,7 +163,7 @@ function mapViewFeaturesRenderingTest(
                 getOptionValue(options.margin, 0.15)
             );
 
-            const lookAt = mergeWithOptions(defaultLookAt, options.lookAt);
+            const lookAt: LookAtParams = { ...defaultLookAt, ...options.lookAt } as any;
 
             mapView.lookAt(lookAt);
             if (options.grid !== undefined) {
@@ -176,7 +176,7 @@ function mapViewFeaturesRenderingTest(
 
                 const grid = new THREE.GridHelper(gridSize, gridDivisions, 0xff0000, 0x00ff00);
                 grid.geometry.rotateX(Math.PI / 2);
-                (grid as MapAnchor).geoPosition = position;
+                (grid as MapAnchor).anchor = position;
                 grid.setRotationFromMatrix(box.getRotationMatrix());
                 mapView.mapAnchors.add(grid);
             }
@@ -199,7 +199,7 @@ function mapViewFeaturesRenderingTest(
     );
 }
 
-describe("MapView Styling Test", function() {
+describe("MapView Styling Test", function () {
     const referenceBackground: Feature = {
         // background polygon, taking about half of view
         type: "Feature",
@@ -219,7 +219,7 @@ describe("MapView Styling Test", function() {
             kind: "background"
         }
     };
-    const referenceBackroundStyle: StyleDeclaration = {
+    const referenceBackroundStyle: Style = {
         when: "$geometryType == 'polygon' && kind == 'background'",
         technique: "fill",
         final: true,
@@ -231,12 +231,11 @@ describe("MapView Styling Test", function() {
         fontCatalogs: [
             {
                 name: "fira",
-                url: "../@here/harp-fontcatalog/resources/Default_FontCatalog.json"
+                url: "../dist/resources/fonts/Default_FontCatalog.json"
             }
         ],
         images: {
             "my-marker-icon": {
-                // tslint:disable-next-line:max-line-length
                 url:
                     "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDIyLjEuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHdpZHRoPSI0OHB4IiBoZWlnaHQ9IjQ4cHgiIHZlcnNpb249IjEuMSIgaWQ9Imx1aS1pY29uLWRlc3RpbmF0aW9ucGluLW9uZGFyay1zb2xpZC1sYXJnZSIKCSB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB4PSIwcHgiIHk9IjBweCIgdmlld0JveD0iMCAwIDQ4IDQ4IgoJIGVuYWJsZS1iYWNrZ3JvdW5kPSJuZXcgMCAwIDQ4IDQ4IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPGc+Cgk8ZyBpZD0ibHVpLWljb24tZGVzdGluYXRpb25waW4tb25kYXJrLXNvbGlkLWxhcmdlLWJvdW5kaW5nLWJveCIgb3BhY2l0eT0iMCI+CgkJPHBhdGggZmlsbD0iI2ZmZmZmZiIgZD0iTTQ3LDF2NDZIMVYxSDQ3IE00OCwwSDB2NDhoNDhWMEw0OCwweiIvPgoJPC9nPgoJPHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGZpbGw9IiNmZmZmZmYiIGQ9Ik0yNCwyQzEzLjg3MDgsMiw1LjY2NjcsMTAuMTU4NCw1LjY2NjcsMjAuMjIzMwoJCWMwLDUuMDMyNSwyLjA1MzMsOS41ODg0LDUuMzcxNywxMi44ODgzTDI0LDQ2bDEyLjk2MTctMTIuODg4M2MzLjMxODMtMy4zLDUuMzcxNy03Ljg1NTgsNS4zNzE3LTEyLjg4ODMKCQlDNDIuMzMzMywxMC4xNTg0LDM0LjEyOTIsMiwyNCwyeiBNMjQsMjVjLTIuNzY1LDAtNS0yLjIzNS01LTVzMi4yMzUtNSw1LTVzNSwyLjIzNSw1LDVTMjYuNzY1LDI1LDI0LDI1eiIvPgo8L2c+Cjwvc3ZnPgo=",
                 preload: true
@@ -250,7 +249,7 @@ describe("MapView Styling Test", function() {
         ]
     };
 
-    describe("point features", function() {
+    describe("point features", function () {
         const points: Feature[] = [
             {
                 type: "Feature",
@@ -287,7 +286,6 @@ describe("MapView Styling Test", function() {
             testCases: { [name: string]: TextTechniqueStyle["attr"] },
             options?: Partial<GeoJsonMapViewRenderingTestOptions>
         ) {
-            // tslint:disable-next-line:forin
             for (const testCase in testCases) {
                 const attr: TextTechniqueStyle["attr"] = testCases[testCase]!;
                 mapViewFeaturesRenderingTest(`solid-line-styling-${testCase}`, {
@@ -320,7 +318,6 @@ describe("MapView Styling Test", function() {
             testCases: { [name: string]: PoiStyle["attr"] },
             options?: Partial<GeoJsonMapViewRenderingTestOptions>
         ) {
-            // tslint:disable-next-line:forin
             for (const testCase in testCases) {
                 const attr: PoiStyle["attr"] = testCases[testCase]!;
                 mapViewFeaturesRenderingTest(`poi-styling-${testCase}`, {
@@ -354,7 +351,6 @@ describe("MapView Styling Test", function() {
             testCases: { [name: string]: CirclesStyle["attr"] },
             options?: Partial<GeoJsonMapViewRenderingTestOptions>
         ) {
-            // tslint:disable-next-line:forin
             for (const testCase in testCases) {
                 const attr: CirclesStyle["attr"] = testCases[testCase]!;
                 mapViewFeaturesRenderingTest(`solid-line-styling-${testCase}`, {
@@ -384,7 +380,7 @@ describe("MapView Styling Test", function() {
             }
         }
 
-        describe("text", function() {
+        describe("text", function () {
             makePointTextTestCases(
                 {
                     "point-text-basic": { color: "#f0f", size: 16 },
@@ -402,7 +398,7 @@ describe("MapView Styling Test", function() {
             );
         });
 
-        describe("poi", function() {
+        describe("poi", function () {
             makePointPoiTestCases(
                 {
                     "poi-basic-icon-only": {
@@ -435,7 +431,7 @@ describe("MapView Styling Test", function() {
             );
         });
 
-        describe("circles", function() {
+        describe("circles", function () {
             makePointTestCases(
                 {
                     "point-circles-basic": { color: "#ca6", size: 10 },
@@ -449,7 +445,7 @@ describe("MapView Styling Test", function() {
             );
         });
     });
-    describe("line features", function() {
+    describe("line features", function () {
         const straightLine: Feature = {
             type: "Feature",
             geometry: {
@@ -485,33 +481,38 @@ describe("MapView Styling Test", function() {
             testCases: { [name: string]: SolidLineStyle["attr"] },
             lineGeometry: Feature = straightLine
         ) {
-            // tslint:disable-next-line:forin
             for (const testCase in testCases) {
-                const attr: SolidLineStyle["attr"] = testCases[testCase]!;
-                mapViewFeaturesRenderingTest(`solid-line-styling-${testCase}`, {
-                    geoJson: {
-                        type: "FeatureCollection",
-                        features: [lineGeometry, referenceBackground]
-                    },
-                    theme: {
-                        styles: {
-                            geojson: [
-                                referenceBackroundStyle,
-                                {
-                                    when: "$geometryType == 'line'",
-                                    technique: "solid-line",
-                                    attr
-                                }
-                            ]
+                for (const clipping of [true, false]) {
+                    const postfix = clipping === true ? "" : "-no-clipping";
+                    const attr: SolidLineStyle["attr"] = JSON.parse(
+                        JSON.stringify(testCases[testCase]!)
+                    );
+                    attr!.clipping = clipping;
+                    mapViewFeaturesRenderingTest(`solid-line-styling-${testCase}${postfix}`, {
+                        geoJson: {
+                            type: "FeatureCollection",
+                            features: [lineGeometry, referenceBackground]
+                        },
+                        theme: {
+                            styles: {
+                                geojson: [
+                                    referenceBackroundStyle,
+                                    {
+                                        when: "$geometryType == 'line'",
+                                        technique: "solid-line",
+                                        attr
+                                    }
+                                ]
+                            }
                         }
-                    }
-                    // grid: 100
-                });
+                        // grid: 100
+                    });
+                }
             }
         }
 
-        describe("solid-line technique", function() {
-            describe("basic", function() {
+        describe("solid-line technique", function () {
+            describe("basic", function () {
                 makeLineTestCase({
                     "basic-100m": { lineWidth: 100, color: "#0b97c4" },
                     "basic-dash-100m": {
@@ -617,7 +618,7 @@ describe("MapView Styling Test", function() {
                 );
             });
 
-            describe("with outline", function() {
+            describe("with outline", function () {
                 makeLineTestCase({
                     "outline-10px-2px": {
                         // BUGGY ?
@@ -672,7 +673,7 @@ describe("MapView Styling Test", function() {
                 );
             });
         });
-        describe("text from lines", function() {
+        describe("text from lines", function () {
             mapViewFeaturesRenderingTest(`line-text-basic`, {
                 width: 200,
                 height: 200,
@@ -696,7 +697,8 @@ describe("MapView Styling Test", function() {
                                     color: "#E3D49A",
                                     outlineColor: "#3A4C69",
                                     lineWidth: 40,
-                                    outlineWidth: 10
+                                    outlineWidth: 10,
+                                    clipping: true
                                 }
                             },
                             {
@@ -718,7 +720,7 @@ describe("MapView Styling Test", function() {
             });
         });
     });
-    describe("polygon features", function() {
+    describe("polygon features", function () {
         const lights: Light[] = [
             {
                 type: "ambient",
@@ -738,22 +740,43 @@ describe("MapView Styling Test", function() {
                 }
             }
         ];
-        const rectangle: Feature = {
+        const rectangle1: Feature = {
             // sample rectangular polygon
             type: "Feature",
             geometry: {
                 type: "Polygon",
                 coordinates: [
                     [
-                        [0.004, 0.002],
-                        [-0.004, 0.002],
+                        [0.001, 0.001],
+                        [-0.004, 0.001],
                         [-0.004, -0.002],
-                        [0.004, -0.002]
+                        [0.001, -0.002],
+                        [0.001, 0.001]
                     ]
                 ]
             },
             properties: {
-                kind: "mall",
+                name: "Awesome Building",
+                kind: "building",
+                height: 200
+            }
+        };
+        const rectangle2: Feature = {
+            type: "Feature",
+            geometry: {
+                type: "Polygon",
+                coordinates: [
+                    [
+                        [0.001, 0.002],
+                        [0.004, 0.002],
+                        [0.004, -0.002],
+                        [0.001, -0.002]
+                    ]
+                ]
+            },
+            properties: {
+                name: "Not So Awesome Building",
+                kind: "building",
                 height: 200
             }
         };
@@ -773,7 +796,6 @@ describe("MapView Styling Test", function() {
                 delete options.geoJson;
             }
 
-            // tslint:disable-next-line:forin
             for (const testCase in testCases) {
                 const attr: T["attr"] = testCases[testCase]!;
 
@@ -782,7 +804,8 @@ describe("MapView Styling Test", function() {
                         type: "FeatureCollection",
                         features: [
                             // tested horizontal line
-                            rectangle,
+                            rectangle1,
+                            rectangle2,
                             referenceBackground,
                             ...extraFeatures
                         ]
@@ -804,14 +827,14 @@ describe("MapView Styling Test", function() {
                 });
             }
         }
-        describe("fill technique", function() {
-            describe("no outline", function() {
+        describe("fill technique", function () {
+            describe("no outline", function () {
                 makePolygonTestCases("fill", {
                     fill: { color: "#0b97c4" },
                     "fill-rgba": { color: "#0b97c470" }
                 });
             });
-            describe("with outline", function() {
+            describe("with outline", function () {
                 makePolygonTestCases("fill", {
                     // all tests are buggy ? because all outlines have 1px width
                     "fill-outline-200m": { color: "#0b97c4", lineColor: "#7f7", lineWidth: 200 },
@@ -820,12 +843,23 @@ describe("MapView Styling Test", function() {
                         lineColor: "#7f7",
                         lineWidth: 200
                     },
-                    "fiil-rgba-outline-rgba-200m": {
+                    "fill-rgba-outline-rgba-200m": {
                         color: "#0b97c470",
                         lineColor: "#7f77",
                         lineWidth: 200
+                    },
+                    "fill-outline-disabled": {
+                        color: "#0b97c4",
+                        lineColor: "#7f7",
+                        lineWidth: 200,
+                        enabled: false
+                    },
+                    "fill-outline-partially-disabled": {
+                        color: "#0b97c4",
+                        lineColor: "#7f7",
+                        lineWidth: 200,
+                        enabled: ["match", ["get", "name"], "Awesome Building", true, false]
                     }
-
                     // TODO: not supported by typings
                     // "rect-rgba-outline-rgba-5px": {
                     //     color: "#0b97c470",
@@ -835,13 +869,13 @@ describe("MapView Styling Test", function() {
                 });
             });
         });
-        describe("standard technique", function() {
+        describe("standard technique", function () {
             mapViewFeaturesRenderingTest(
                 `polygon-standard-texture`,
                 {
                     geoJson: {
                         type: "FeatureCollection",
-                        features: [rectangle, referenceBackground]
+                        features: [rectangle1, rectangle2, referenceBackground]
                     },
                     theme: {
                         lights,
@@ -869,7 +903,7 @@ describe("MapView Styling Test", function() {
                 },
                 async () => {
                     // we have no API to know when texture is already loaded
-                    return new Promise(resolve => setTimeout(resolve, 500));
+                    return await new Promise(resolve => setTimeout(resolve, 500));
                 }
             );
             mapViewFeaturesRenderingTest(
@@ -877,7 +911,7 @@ describe("MapView Styling Test", function() {
                 {
                     geoJson: {
                         type: "FeatureCollection",
-                        features: [rectangle, referenceBackground]
+                        features: [rectangle1, referenceBackground]
                     },
                     theme: {
                         lights,
@@ -906,12 +940,12 @@ describe("MapView Styling Test", function() {
                 },
                 async () => {
                     // we have no API to know when texture is already loaded
-                    return new Promise(resolve => setTimeout(resolve, 500));
+                    return await new Promise(resolve => setTimeout(resolve, 500));
                 }
             );
         });
 
-        describe("extruded-polygon technique", function() {
+        describe("extruded-polygon technique", function () {
             const tower: Feature = {
                 // sample polygon, that is smaller and higher than previous one
                 type: "Feature",
@@ -939,7 +973,7 @@ describe("MapView Styling Test", function() {
                     heading: 30
                 }
             };
-            describe("flat", function() {
+            describe("flat", function () {
                 makePolygonTestCases(
                     "extruded-polygon",
                     {
@@ -955,7 +989,7 @@ describe("MapView Styling Test", function() {
                     viewOptions
                 );
             });
-            describe("3d", function() {
+            describe("3d", function () {
                 makePolygonTestCases(
                     "extruded-polygon",
                     {
@@ -963,17 +997,35 @@ describe("MapView Styling Test", function() {
                         "extruded-polygon-3d-rgba": {
                             color: "#0b97c480"
                         },
+                        "extruded-polygon-3d-rgba-disabled": {
+                            color: "#0b97c480",
+                            enabled: false
+                        },
                         "extruded-polygon-3d-rgba-outline": {
                             color: "#0b97c480",
                             lineWidth: 1,
                             lineColorMix: 0,
                             lineColor: "#7f7"
+                        },
+                        "extruded-polygon-3d-rgba-outline-disabled": {
+                            color: "#0b97c480",
+                            lineWidth: 1,
+                            lineColorMix: 0,
+                            lineColor: "#7f7",
+                            enabled: false
+                        },
+                        "extruded-polygon-3d-rgba-outline-partialy-disabled": {
+                            color: "#0b97c480",
+                            lineWidth: 1,
+                            lineColorMix: 0,
+                            lineColor: "#7f7",
+                            enabled: ["match", ["get", "name"], "Awesome Building", true, false]
                         }
                     },
                     viewOptions
                 );
             });
-            describe("3d overlapping", function() {
+            describe("3d overlapping", function () {
                 makePolygonTestCases(
                     "extruded-polygon",
                     {

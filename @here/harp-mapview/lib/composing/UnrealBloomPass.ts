@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { CopyShader, LuminosityHighPassShader } from "@here/harp-materials";
 import * as THREE from "three";
+
 import { Pass } from "./Pass";
 
 const BlurDirectionX = new THREE.Vector2(1.0, 0.0);
@@ -19,22 +20,30 @@ export class BloomPass extends Pass {
     radius: number;
     threshold: number;
     resolution: THREE.Vector2 = new THREE.Vector2(256, 256);
-    private m_renderTargetsHorizontal: THREE.WebGLRenderTarget[] = [];
-    private m_renderTargetsVertical: THREE.WebGLRenderTarget[] = [];
-    private m_nMips: number = 5;
-    private m_highPassUniforms: any;
-    private m_materialHighPassFilter: THREE.ShaderMaterial;
-    private m_separableBlurMaterials: THREE.ShaderMaterial[] = [];
-    private m_materialCopy: THREE.ShaderMaterial;
-    private m_copyUniforms: any;
-    private m_compositeMaterial: THREE.ShaderMaterial;
+    private readonly m_renderTargetsHorizontal: THREE.WebGLRenderTarget[] = [];
+    private readonly m_renderTargetsVertical: THREE.WebGLRenderTarget[] = [];
+    private readonly m_nMips: number = 5;
+    private readonly m_highPassUniforms: any;
+    private readonly m_materialHighPassFilter: THREE.ShaderMaterial;
+    private readonly m_separableBlurMaterials: THREE.ShaderMaterial[] = [];
+    private readonly m_materialCopy: THREE.ShaderMaterial;
+    private readonly m_copyUniforms: any;
+    private readonly m_compositeMaterial: THREE.ShaderMaterial;
 
-    private m_camera: THREE.OrthographicCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    private m_scene: THREE.Scene = new THREE.Scene();
+    private readonly m_camera: THREE.OrthographicCamera = new THREE.OrthographicCamera(
+        -1,
+        1,
+        1,
+        -1,
+        0,
+        1
+    );
+
+    private readonly m_scene: THREE.Scene = new THREE.Scene();
     private m_basic = new THREE.MeshBasicMaterial();
     private m_quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2));
 
-    private m_bloomTintColors: THREE.Vector3[] = [
+    private readonly m_bloomTintColors: THREE.Vector3[] = [
         new THREE.Vector3(1, 1, 1),
         new THREE.Vector3(1, 1, 1),
         new THREE.Vector3(1, 1, 1),
@@ -42,7 +51,7 @@ export class BloomPass extends Pass {
         new THREE.Vector3(1, 1, 1)
     ];
 
-    private m_renderTargetBright: THREE.WebGLRenderTarget;
+    private readonly m_renderTargetBright: THREE.WebGLRenderTarget;
 
     constructor(resolution: THREE.Vector2, strength: number, radius: number, threshold: number) {
         super();
@@ -85,7 +94,6 @@ export class BloomPass extends Pass {
 
         this.m_highPassUniforms = THREE.UniformsUtils.clone(LuminosityHighPassShader.uniforms);
 
-        // tslint:disable:no-string-literal
         this.m_highPassUniforms["luminosityThreshold"].value = threshold;
         this.m_highPassUniforms["smoothWidth"].value = 0.01;
 
@@ -137,7 +145,6 @@ export class BloomPass extends Pass {
 
         this.m_copyUniforms = THREE.UniformsUtils.clone(CopyShader.uniforms);
         this.m_copyUniforms["opacity"].value = 1.0;
-        // tslint:enable:no-string-literal
 
         this.m_materialCopy = new THREE.ShaderMaterial({
             uniforms: this.m_copyUniforms,
@@ -149,6 +156,7 @@ export class BloomPass extends Pass {
             transparent: true
         });
     }
+
     dispose() {
         for (const rt of this.m_renderTargetsHorizontal) {
             rt.dispose();
@@ -158,6 +166,7 @@ export class BloomPass extends Pass {
         }
         this.m_renderTargetBright.dispose();
     }
+
     /** @override */
     setSize(width: number, height: number) {
         let resx = Math.round(width / 2);
@@ -166,7 +175,6 @@ export class BloomPass extends Pass {
         for (let i = 0; i < this.m_nMips; i++) {
             this.m_renderTargetsHorizontal[i].setSize(resx, resy);
             this.m_renderTargetsVertical[i].setSize(resx, resy);
-            // tslint:disable-next-line:no-string-literal
             this.m_separableBlurMaterials[i].uniforms["texSize"].value = new THREE.Vector2(
                 resx,
                 resy
@@ -175,6 +183,7 @@ export class BloomPass extends Pass {
             resy = Math.round(resy / 2);
         }
     }
+
     /** @override */
     render(
         renderer: THREE.WebGLRenderer,
@@ -183,8 +192,6 @@ export class BloomPass extends Pass {
         writeBuffer: THREE.WebGLRenderTarget | null,
         readBuffer: THREE.WebGLRenderTarget
     ) {
-        // tslint:disable:no-string-literal
-
         // Render input to screen
         if (this.renderToScreen) {
             this.m_quad.material = this.m_basic;
@@ -248,7 +255,6 @@ export class BloomPass extends Pass {
             renderer.setRenderTarget(readBuffer);
             renderer.render(this.m_scene, this.m_camera);
         }
-        // tslint:enable:no-string-literal
     }
 
     getSeperableBlurMaterial(kernelRadius: number): THREE.ShaderMaterial {

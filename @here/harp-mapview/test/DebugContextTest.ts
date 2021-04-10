@@ -1,18 +1,17 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
-
-import { debugContext } from "../lib/DebugContext";
 
 import { assert } from "chai";
 
-describe("debug-context", function() {
-    it("ok", function() {
+import { debugContext } from "../lib/DebugContext";
+
+describe("debug-context", function () {
+    it("ok", function () {
         assert.isTrue(true);
 
         assert.isTrue(typeof debugContext === "object");

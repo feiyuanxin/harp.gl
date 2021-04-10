@@ -1,14 +1,16 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { GeoCoordinates, mercatorProjection, sphereProjection } from "@here/harp-geoutils";
 import { CopyrightElementHandler, MapView, MapViewEventNames } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
 import { GUI } from "dat.gui";
-import { apikey, copyrightInfo } from "../config";
+import * as Stats from "stats.js";
+
+import { apikey } from "../config";
 
 /**
  * In this example we simply use the `lookAt` method to make the camera orbit around a geolocation.
@@ -32,9 +34,16 @@ export namespace CameraOrbitExample {
 
     // snippet:harp_gl_camera_orbit_example_1.ts
     const dubai = new GeoCoordinates(25.19705, 55.27419);
-    const options = { target: dubai, tilt: 25, zoomLevel: 16.1, heading: 0, globe: true };
+    const options = {
+        target: dubai,
+        tilt: 25,
+        zoomLevel: 16.1,
+        heading: 0,
+        globe: true,
+        headingSpeed: 0.1
+    };
     map.addEventListener(MapViewEventNames.AfterRender, () => {
-        options.heading = (options.heading + 0.1) % 360;
+        options.heading = (options.heading + options.headingSpeed) % 360;
         map.lookAt(options);
         map.update();
         updateHTML();
@@ -46,6 +55,16 @@ export namespace CameraOrbitExample {
     gui.add(options, "zoomLevel", 1, 20, 0.1);
     gui.add(options, "globe").onChange(() => {
         map.projection = options.globe ? sphereProjection : mercatorProjection;
+    });
+    gui.add(options, "headingSpeed", 0.1, 10, 0.1);
+
+    const stats = new Stats();
+    stats.dom.style.bottom = "0px";
+    stats.dom.style.top = "";
+    document.body.appendChild(stats.dom);
+    map.addEventListener(MapViewEventNames.Render, () => {
+        stats.end();
+        stats.begin();
     });
 
     function createBaseMap(): MapView {
@@ -67,16 +86,9 @@ export namespace CameraOrbitExample {
             mapView.resize(window.innerWidth, window.innerHeight);
         });
 
-        const omvDataSource = new OmvDataSource({
+        const omvDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-            apiFormat: APIFormat.XYZOMV,
-            styleSetName: "tilezen",
-            authenticationCode: apikey,
-            authenticationMethod: {
-                method: AuthenticationMethod.QueryString,
-                name: "apikey"
-            },
-            copyrightInfo
+            authenticationCode: apikey
         });
         mapView.addDataSource(omvDataSource);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +7,12 @@
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 /**
@@ -71,7 +76,7 @@ export namespace HelloCustomThemeExample {
     </style>
     <p id=info>This example shows the theme extension mechanism: the styles for the parks ` +
         `and the buildings are overwritten from an original theme to make them respectively green` +
-        ` and brown.< /p>
+        ` and brown.</p>
 `;
     // Create a new MapView for the HTMLCanvasElement of the given id.
     function initializeMapView(id: string): MapView {
@@ -87,14 +92,20 @@ export namespace HelloCustomThemeExample {
                     parkColor: {
                         type: "color",
                         value: "#00aa33"
-                    },
-                    extrudedBuildings: {
-                        technique: "fill",
-                        when: ["ref", "extrudedBuildingsCondition"],
-                        attr: {
-                            color: "#774400"
-                        }
                     }
+                },
+                styles: {
+                    tilezen: [
+                        {
+                            // overrides the `extrudedBuildings` style
+                            // to use the fill technique instead of
+                            // extruded polygons.
+                            id: "extrudedBuildings",
+                            technique: "fill",
+                            when: ["ref", "extrudedBuildingsCondition"],
+                            color: ["ref", "defaultBuildingColor"]
+                        }
+                    ]
                 }
             }
         });
@@ -122,13 +133,13 @@ export namespace HelloCustomThemeExample {
             map.resize(window.innerWidth, window.innerHeight);
         });
 
-        addOmvDataSource(map);
+        addVectorTileDataSource(map);
 
         return map;
     }
 
-    function addOmvDataSource(map: MapView) {
-        const omvDataSource = new OmvDataSource({
+    function addVectorTileDataSource(map: MapView) {
+        const omvDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
             apiFormat: APIFormat.XYZOMV,
             styleSetName: "tilezen",

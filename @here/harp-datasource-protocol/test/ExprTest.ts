@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
+
 import { CallExpr, Env, Expr, JsonExpr, MapEnv, Value, ValueMap } from "../lib/Expr";
 import { Definitions } from "../lib/Theme";
 
@@ -18,15 +18,14 @@ function evaluate(expr: string | JsonExpr | Expr, env?: Env | ValueMap): Value {
     return (Expr.isExpr(expr)
         ? expr
         : typeof expr === "string"
-        ? // tslint:disable-next-line: deprecation
-          Expr.parse(expr)
+        ? Expr.parse(expr)
         : Expr.fromJSON(expr)
-    ).evaluate(env || new Env());
+    ).evaluate(env ?? new Env());
 }
 
-describe("Expr", function() {
-    describe("language features", function() {
-        it("supports length function", function() {
+describe("Expr", function () {
+    describe("language features", function () {
+        it("supports length function", function () {
             assert.equal(evaluate("length('foo')"), 3);
             assert.equal(evaluate("length('')"), 0);
 
@@ -37,7 +36,7 @@ describe("Expr", function() {
 
             assert.throws(() => evaluate("length()"), "Syntax error");
         });
-        it("supports has function", function() {
+        it("supports has function", function () {
             assert.equal(evaluate("has(foo)"), false);
 
             const env = { str: "bar", n: 3 };
@@ -46,7 +45,7 @@ describe("Expr", function() {
             assert.equal(evaluate("has(foo)", env), false);
         });
 
-        it("supports of literals in the 'in' operator", function() {
+        it("supports of literals in the 'in' operator", function () {
             assert.equal(evaluate("2 in [1,2,3]"), true);
             assert.equal(evaluate("'x' in ['y','x','z']"), true);
             assert.throw(() => evaluate("1 in [1,2,(3)]"));
@@ -54,30 +53,30 @@ describe("Expr", function() {
         });
     });
 
-    describe("#fromJson", function() {
-        describe("ref operator support", function() {
+    describe("#fromJson", function () {
+        describe("ref operator support", function () {
             const baseDefinitions: Definitions = {
-                color: "#ff0",
+                color: { value: "#ff0" },
                 string: { value: "abc" },
                 number: { type: "number", value: 123 },
                 number2: { value: 234 },
-                boolean: true
+                boolean: { value: true }
             };
-            it("supports literal references", function() {
+            it("supports literal references", function () {
                 assert.equal(evaluate(Expr.fromJSON(["ref", "color"], baseDefinitions)), "#ff0");
                 assert.equal(evaluate(Expr.fromJSON(["ref", "string"], baseDefinitions)), "abc");
                 assert.equal(evaluate(Expr.fromJSON(["ref", "number"], baseDefinitions)), 123);
                 assert.equal(evaluate(Expr.fromJSON(["ref", "number2"], baseDefinitions)), 234);
                 assert.equal(evaluate(Expr.fromJSON(["ref", "boolean"], baseDefinitions)), true);
             });
-            it("throws on missing definitions", function() {
+            it("throws on missing definitions", function () {
                 assert.throws(() => {
                     Expr.fromJSON(["ref", "badRef"], baseDefinitions);
                 }, /definition 'badRef' not found/);
             });
-            it("supports basic expression references", function() {
+            it("supports basic expression references", function () {
                 const definitions: Definitions = {
-                    literalExpr: ["+", 2, 3],
+                    literalExpr: { value: ["+", 2, 3] },
                     boxedTypedExpr: { type: "selector", value: ["+", 3, 4] },
                     boxedUntypedExpr: { value: ["+", 4, 5] }
                 };
@@ -85,19 +84,23 @@ describe("Expr", function() {
                 assert.equal(evaluate(Expr.fromJSON(["ref", "boxedTypedExpr"], definitions)), 7);
                 assert.equal(evaluate(Expr.fromJSON(["ref", "boxedUntypedExpr"], definitions)), 9);
             });
-            it("supports embedded basic embedded references", function() {
+            it("supports embedded basic embedded references", function () {
                 const definitions: Definitions = {
                     ...baseDefinitions,
                     refConstantExpr: { type: "selector", value: ["+", 2, ["ref", "number"]] }
                 };
                 assert.equal(evaluate(Expr.fromJSON(["ref", "refConstantExpr"], definitions)), 125);
             });
-            it("supports complex embedded references", function() {
+            it("supports complex embedded references", function () {
                 const definitions: Definitions = {
-                    number: 1,
-                    refConstantExpr: ["+", 1, ["ref", "number"]],
-                    refExpr1: ["+", ["ref", "number"], ["ref", "number"], ["ref", "refExpr2"]],
-                    refExpr2: ["*", ["ref", "refConstantExpr"], ["ref", "refConstantExpr"]],
+                    number: { value: 1 },
+                    refConstantExpr: { value: ["+", 1, ["ref", "number"]] },
+                    refExpr1: {
+                        value: ["+", ["ref", "number"], ["ref", "number"], ["ref", "refExpr2"]]
+                    },
+                    refExpr2: {
+                        value: ["*", ["ref", "refConstantExpr"], ["ref", "refConstantExpr"]]
+                    },
                     refTopExpr: {
                         // 6 - 4 -> 2, old syntax
                         type: "selector",
@@ -108,7 +111,7 @@ describe("Expr", function() {
                 assert.equal(evaluate(Expr.fromJSON(["ref", "refExpr2"], definitions)), 4);
                 assert.equal(evaluate(Expr.fromJSON(["ref", "refTopExpr"], definitions)), 2);
             });
-            it("rejects circular references", function() {
+            it("rejects circular references", function () {
                 const definitions: Definitions = {
                     refSelfReference: {
                         // 2
@@ -132,7 +135,7 @@ describe("Expr", function() {
                     Expr.fromJSON(["ref", "refTopBar"], definitions);
                 }, /circular referene to 'refTopBar'/);
             });
-            it("reuses Expr instances created from same definition", function() {
+            it("reuses Expr instances created from same definition", function () {
                 const definitions: Definitions = {
                     foo: {
                         type: "selector",
@@ -151,7 +154,7 @@ describe("Expr", function() {
                 // Assert that both children of both exprs refer to exactly same expr instance.
                 assert.strictEqual(callExpr.args[0], callExpr.args[1]);
             });
-            it("uses definitionExprCache across calls", function() {
+            it("uses definitionExprCache across calls", function () {
                 const definitions: Definitions = {
                     foo: {
                         type: "selector",
@@ -169,9 +172,9 @@ describe("Expr", function() {
     });
 });
 
-describe("MapEnv", function() {
+describe("MapEnv", function () {
     let env: MapEnv;
-    before(function() {
+    before(function () {
         env = new MapEnv(
             {
                 foo: "foo"
@@ -182,15 +185,15 @@ describe("MapEnv", function() {
             })
         );
     });
-    it("provides entries", function() {
+    it("provides entries", function () {
         assert.strictEqual(env.lookup("foo"), "foo");
         assert.isUndefined(env.lookup("baz"));
     });
-    it("asks parent for undefined properties", function() {
+    it("asks parent for undefined properties", function () {
         assert.strictEqual(env.lookup("parentProperty"), 123);
         assert.strictEqual(env.lookup("bar"), "bar");
     });
-    it("doesn't expose properties inherited from Object.prototype", function() {
+    it("doesn't expose properties inherited from Object.prototype", function () {
         assert.isUndefined(env.lookup("hasOwnProperty"));
         assert.isUndefined(env.lookup("constructor"));
         assert.isUndefined(env.lookup("__proto__"));

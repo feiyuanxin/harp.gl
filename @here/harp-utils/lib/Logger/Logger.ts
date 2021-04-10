@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,7 +14,11 @@ export class Logger implements ILogger {
     enabled: boolean = true;
     level: LogLevel = LogLevel.Trace;
 
-    constructor(readonly name: string, private m_channel: IChannel, options?: LoggerOptions) {
+    constructor(
+        readonly name: string,
+        private readonly m_channel: IChannel,
+        options?: LoggerOptions
+    ) {
         if (options !== undefined) {
             this.update(options);
         }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -282,7 +282,7 @@ export namespace PerformanceBenchmark {
     let flyoverNumFrames: number | undefined;
     let numDecoders: number | undefined;
 
-    let latestResult: SimpleFrameStatistics;
+    let latestResult: SimpleFrameStatistics | undefined;
 
     function startTest(testTitle: string, testLocation: string) {
         isCancelled = false;
@@ -648,6 +648,8 @@ export namespace PerformanceBenchmark {
                 "6": 6,
                 "8": 8
             },
+            throttlingEnabled: mapViewApp.mapView.throttlingEnabled,
+            maxTilesPerFrame: mapViewApp.mapView.visibleTileSet.maxTilesPerFrame,
             PhasedLoading: false,
             Berlin: () => {
                 openMapBerlin();
@@ -738,9 +740,9 @@ export namespace PerformanceBenchmark {
                 };
 
                 ThemeLoader.load(themeUrl, { uriResolver: fontUriResolver }).then(
-                    (newTheme: Theme) => {
+                    async (newTheme: Theme) => {
                         mapViewApp.mapView.clearTileCache();
-                        mapViewApp.mapView.theme = newTheme;
+                        await mapViewApp.mapView.setTheme(newTheme);
                     }
                 );
             })
@@ -800,6 +802,13 @@ export namespace PerformanceBenchmark {
             .setValue(decoderCount === undefined ? undefined : decoderCount.toFixed(0));
 
         benchmarksFolder
+            .add(guiOptions, "throttlingEnabled")
+            .onFinishChange(value => {
+                mapViewApp.mapView.throttlingEnabled = value;
+            })
+            .listen();
+
+        benchmarksFolder
             .add(guiOptions, "PixelRatio", guiOptions.PixelRatio)
             .onChange((ratioString: string) => {
                 const ratio = ratioString === "undefined" ? undefined : parseFloat(ratioString);
@@ -833,6 +842,13 @@ export namespace PerformanceBenchmark {
             .onChange((labels: boolean | undefined) => {
                 showLabels = labels === true;
             });
+
+        benchmarksFolder
+            .add(guiOptions, "maxTilesPerFrame", 0, 10, 1)
+            .onFinishChange(value => {
+                mapViewApp.mapView.visibleTileSet.maxTilesPerFrame = value;
+            })
+            .listen();
 
         openAndZoomFolder = benchmarksFolder.addFolder("OpenAndZoom");
 
@@ -919,37 +935,39 @@ export namespace PerformanceBenchmark {
     function saveTable() {
         const stats = latestResult;
 
-        let resultCSV =
-            "Name, Avg, Min, Max, Median, Med 75, Med 90, Med 95, Med 97, Med 99, Med 999\n";
+        if (stats) {
+            let resultCSV =
+                "Name, Avg, Min, Max, Median, Med 75, Med 90, Med 95, Med 97, Med 99, Med 999\n";
 
-        const frameStatsStrings = Array.from(stats.frameStats!.keys()).sort();
-        for (const stat of frameStatsStrings) {
-            const frameStat = stats.frameStats!.get(stat)!;
+            const frameStatsStrings = Array.from(stats.frameStats!.keys()).sort();
+            for (const stat of frameStatsStrings) {
+                const frameStat = stats.frameStats!.get(stat)!;
 
-            const row = `${stat}, ${valueString(frameStat.avg)}, ${valueString(
-                frameStat.min
-            )}, ${valueString(frameStat.max)}, ${valueString(frameStat.median)}, ${valueString(
-                frameStat.median75
-            )}, ${valueString(frameStat.median90)}, ${valueString(
-                frameStat.median95
-            )}, ${valueString(frameStat.median97)}, ${valueString(
-                frameStat.median99
-            )}, ${valueString(frameStat.median999)}\n`;
-            resultCSV += row;
+                const row = `${stat}, ${valueString(frameStat.avg)}, ${valueString(
+                    frameStat.min
+                )}, ${valueString(frameStat.max)}, ${valueString(frameStat.median)}, ${valueString(
+                    frameStat.median75
+                )}, ${valueString(frameStat.median90)}, ${valueString(
+                    frameStat.median95
+                )}, ${valueString(frameStat.median97)}, ${valueString(
+                    frameStat.median99
+                )}, ${valueString(frameStat.median999)}\n`;
+                resultCSV += row;
+            }
+            const type = "text/csv";
+            const blob = new Blob([resultCSV], { type });
+            const a = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            a.download = `results.csv`;
+            a.href = url;
+            a.dispatchEvent(
+                new MouseEvent(`click`, {
+                    bubbles: true,
+                    cancelable: true,
+                    view: window
+                })
+            );
         }
-        const type = "text/csv";
-        const blob = new Blob([resultCSV], { type });
-        const a = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        a.download = `results.csv`;
-        a.href = url;
-        a.dispatchEvent(
-            new MouseEvent(`click`, {
-                bubbles: true,
-                cancelable: true,
-                view: window
-            })
-        );
     }
 
     const million = 1024 * 1024;
@@ -962,11 +980,7 @@ export namespace PerformanceBenchmark {
         }
 
         let str = value.toFixed(digits);
-        while (
-            str.length > 1 &&
-            str.indexOf(".") >= 0 &&
-            (str.endsWith("0") || str.endsWith("."))
-        ) {
+        while (str.length > 1 && str.includes(".") && (str.endsWith("0") || str.endsWith("."))) {
             str = str.substr(0, str.length - 1);
         }
 
@@ -988,7 +1002,7 @@ export namespace PerformanceBenchmark {
         row.appendChild(cell);
     }
 
-    function createTable(stats: SimpleFrameStatistics) {
+    function createTable(stats: SimpleFrameStatistics | undefined) {
         document.getElementById("testTitle")!.innerHTML = title;
         document.getElementById("testLocation")!.innerHTML = location;
         document.getElementById("testCanvasSize")!.innerHTML = canvasSize;

@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { convertFragmentShaderToWebGL2, convertVertexShaderToWebGL2 } from "@here/harp-utils";
 import * as THREE from "three";
 
 const SdfShaderChunks = {
@@ -40,11 +41,11 @@ const SdfShaderChunks = {
         }
 
         float getDistance(vec2 uvOffset) {
-            vec3 sample = texture2D(sdfTexture, vUv.xy + uvOffset).rgb;
+            vec3 texSample = texture2D(sdfTexture, vUv.xy + uvOffset).rgb;
             #if MSDF
-            return median(sample.r, sample.g, sample.b);
+            return median(texSample.r, texSample.g, texSample.b);
             #else
-            return sample.r;
+            return texSample.r;
             #endif
         }
 
@@ -114,18 +115,18 @@ const copyFragmentSource: string = `
     varying vec3 vUv;
 
     void main() {
-        vec4 sample = vec4(0.0);
+        vec4 texSample = vec4(0.0);
         if (vUv.z < pageOffset || vUv.z > (pageOffset + 7.0)) discard;
-        else if (vUv.z < pageOffset + 1.0) sample = texture2D(page0, vUv.xy);
-        else if (vUv.z < pageOffset + 2.0) sample = texture2D(page1, vUv.xy);
-        else if (vUv.z < pageOffset + 3.0) sample = texture2D(page2, vUv.xy);
-        else if (vUv.z < pageOffset + 4.0) sample = texture2D(page3, vUv.xy);
-        else if (vUv.z < pageOffset + 5.0) sample = texture2D(page4, vUv.xy);
-        else if (vUv.z < pageOffset + 6.0) sample = texture2D(page5, vUv.xy);
-        else if (vUv.z < pageOffset + 7.0) sample = texture2D(page6, vUv.xy);
-        else sample = texture2D(page7, vUv.xy);
+        else if (vUv.z < pageOffset + 1.0) texSample = texture2D(page0, vUv.xy);
+        else if (vUv.z < pageOffset + 2.0) texSample = texture2D(page1, vUv.xy);
+        else if (vUv.z < pageOffset + 3.0) texSample = texture2D(page2, vUv.xy);
+        else if (vUv.z < pageOffset + 4.0) texSample = texture2D(page3, vUv.xy);
+        else if (vUv.z < pageOffset + 5.0) texSample = texture2D(page4, vUv.xy);
+        else if (vUv.z < pageOffset + 6.0) texSample = texture2D(page5, vUv.xy);
+        else if (vUv.z < pageOffset + 7.0) texSample = texture2D(page6, vUv.xy);
+        else texSample = texture2D(page7, vUv.xy);
 
-        gl_FragColor = sample;
+        gl_FragColor = texSample;
     }`;
 
 const sdfTextVertexSource: string = `
@@ -157,25 +158,70 @@ const sdfTextFragmentSource: string = `
         gl_FragColor = color;
     }`;
 
+interface RendererMaterialParameters {
+    rendererCapabilities: THREE.WebGLCapabilities;
+}
+
+interface RawShaderMaterialParameters extends THREE.ShaderMaterialParameters {
+    rendererCapabilities: THREE.WebGLCapabilities;
+}
+
+class RawShaderMaterial extends THREE.RawShaderMaterial {
+    /**
+     * The constructor of `RawShaderMaterial`.
+     *
+     * @param params - `RawShaderMaterial` parameters.  Always required except when cloning
+     * another material.
+     */
+    constructor(params?: RawShaderMaterialParameters) {
+        const isWebGL2 = params?.rendererCapabilities.isWebGL2 === true;
+
+        const shaderParams: THREE.ShaderMaterialParameters | undefined = params
+            ? {
+                  ...params,
+                  glslVersion: isWebGL2 ? THREE.GLSL3 : THREE.GLSL1,
+                  vertexShader:
+                      isWebGL2 && params.vertexShader
+                          ? convertVertexShaderToWebGL2(params.vertexShader)
+                          : params.vertexShader,
+                  fragmentShader:
+                      isWebGL2 && params.fragmentShader
+                          ? convertFragmentShaderToWebGL2(params.fragmentShader)
+                          : params.fragmentShader
+              }
+            : undefined;
+        // Remove properties that are not in THREE.ShaderMaterialParameters, otherwise THREE.js
+        // will log warnings.
+        if (shaderParams) {
+            delete (shaderParams as any).rendererCapabilities;
+        }
+        super(shaderParams);
+    }
+}
+
 /**
  * @hidden
  * Material used for clearing glyphs from a [[GlyphTextureCache]].
  */
-export class GlyphClearMaterial extends THREE.RawShaderMaterial {
+export class GlyphClearMaterial extends RawShaderMaterial {
     /**
      * Creates a new `GlyphClearMaterial`.
-     *
+     * @param params - Material parameters. Always required except when cloning another
+     * material.
      * @returns New `GlyphClearMaterial`.
      */
-    constructor() {
-        const shaderParams: THREE.ShaderMaterialParameters = {
-            name: "GlyphClearMaterial",
-            vertexShader: clearVertexSource,
-            fragmentShader: clearFragmentSource,
-            uniforms: {},
-            depthTest: false,
-            depthWrite: false
-        };
+    constructor(params?: RendererMaterialParameters) {
+        const shaderParams: RawShaderMaterialParameters | undefined = params
+            ? {
+                  name: "GlyphClearMaterial",
+                  vertexShader: clearVertexSource,
+                  fragmentShader: clearFragmentSource,
+                  uniforms: {},
+                  depthTest: false,
+                  depthWrite: false,
+                  rendererCapabilities: params.rendererCapabilities
+              }
+            : undefined;
         super(shaderParams);
     }
 }
@@ -184,31 +230,35 @@ export class GlyphClearMaterial extends THREE.RawShaderMaterial {
  * @hidden
  * Material used for copying glyphs into a [[GlyphTextureCache]].
  */
-export class GlyphCopyMaterial extends THREE.RawShaderMaterial {
+export class GlyphCopyMaterial extends RawShaderMaterial {
     /**
      * Creates a new `GlyphCopyMaterial`.
-     *
+     * @param params - Material parameters. Always required except when cloning another
+     * material.
      * @returns New `GlyphCopyMaterial`.
      */
-    constructor() {
-        const shaderParams: THREE.ShaderMaterialParameters = {
-            name: "GlyphCopyMaterial",
-            vertexShader: copyVertexSource,
-            fragmentShader: copyFragmentSource,
-            uniforms: {
-                pageOffset: new THREE.Uniform(0.0),
-                page0: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page1: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page2: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page3: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page4: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page5: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page6: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
-                page7: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE)
-            },
-            depthTest: false,
-            depthWrite: false
-        };
+    constructor(params?: RawShaderMaterialParameters) {
+        const shaderParams: RawShaderMaterialParameters | undefined = params
+            ? {
+                  name: "GlyphCopyMaterial",
+                  vertexShader: copyVertexSource,
+                  fragmentShader: copyFragmentSource,
+                  uniforms: {
+                      pageOffset: new THREE.Uniform(0.0),
+                      page0: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page1: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page2: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page3: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page4: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page5: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page6: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE),
+                      page7: new THREE.Uniform(THREE.Texture.DEFAULT_IMAGE)
+                  },
+                  depthTest: false,
+                  depthWrite: false,
+                  rendererCapabilities: params.rendererCapabilities
+              }
+            : undefined;
         super(shaderParams);
     }
 }
@@ -217,7 +267,7 @@ export class GlyphCopyMaterial extends THREE.RawShaderMaterial {
  * @hidden
  * Material parameters passed on [[SdfTextMaterial]] creation.
  */
-export interface SdfTextMaterialParameters {
+export interface SdfTextMaterialParameters extends RendererMaterialParameters {
     texture: THREE.Texture;
     textureSize: THREE.Vector2;
     size: number;
@@ -231,41 +281,46 @@ export interface SdfTextMaterialParameters {
 /**
  * Material designed to render transformable, high quality SDF text.
  */
-export class SdfTextMaterial extends THREE.RawShaderMaterial {
+export class SdfTextMaterial extends RawShaderMaterial {
     /**
      * Creates a new `SdfTextMaterial`.
      *
-     * @param params Material parameters.
-     *
+     * @param params - Material parameters. Always required except when cloning another
+     * material.
      * @returns New `SdfTextMaterial`.
      */
-    constructor(params: SdfTextMaterialParameters) {
-        const shaderParams: THREE.ShaderMaterialParameters = {
-            name: "SdfTextMaterial",
-            vertexShader:
-                params.vertexSource !== undefined ? params.vertexSource : sdfTextVertexSource,
-            fragmentShader:
-                params.fragmentSource !== undefined ? params.fragmentSource : sdfTextFragmentSource,
-            uniforms: {
-                sdfTexture: new THREE.Uniform(params.texture),
-                sdfParams: new THREE.Uniform(
-                    new THREE.Vector4(
-                        params.textureSize.x,
-                        params.textureSize.y,
-                        params.size,
-                        params.distanceRange
-                    )
-                )
-            },
-            defines: {
-                MSDF: params.isMsdf ? 1.0 : 0.0,
-                BG_TEXT: params.isBackground ? 1.0 : 0.0
-            },
-            depthTest: true,
-            depthWrite: true,
-            side: THREE.DoubleSide,
-            transparent: true
-        };
+    constructor(params?: SdfTextMaterialParameters) {
+        const shaderParams: RawShaderMaterialParameters | undefined = params
+            ? {
+                  name: "SdfTextMaterial",
+                  vertexShader:
+                      params.vertexSource !== undefined ? params.vertexSource : sdfTextVertexSource,
+                  fragmentShader:
+                      params.fragmentSource !== undefined
+                          ? params.fragmentSource
+                          : sdfTextFragmentSource,
+                  uniforms: {
+                      sdfTexture: new THREE.Uniform(params.texture),
+                      sdfParams: new THREE.Uniform(
+                          new THREE.Vector4(
+                              params.textureSize.x,
+                              params.textureSize.y,
+                              params.size,
+                              params.distanceRange
+                          )
+                      )
+                  },
+                  defines: {
+                      MSDF: params.isMsdf ? 1.0 : 0.0,
+                      BG_TEXT: params.isBackground ? 1.0 : 0.0
+                  },
+                  depthTest: true,
+                  depthWrite: false,
+                  side: THREE.DoubleSide,
+                  transparent: true,
+                  rendererCapabilities: params.rendererCapabilities
+              }
+            : undefined;
         super(shaderParams);
         this.extensions.derivatives = true;
     }

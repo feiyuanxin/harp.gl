@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-self.importScripts("three.min.js");
+import "./deps";
+import {
+    GeoJsonTilerService,
+    VectorTileDecoderService
+} from "@here/harp-vectortile-datasource/index-worker";
 
-import { OmvTileDecoderService, OmvTilerService } from "@here/harp-omv-datasource/index-worker";
-
-OmvTileDecoderService.start();
-OmvTilerService.start();
+VectorTileDecoderService.start();
+GeoJsonTilerService.start();

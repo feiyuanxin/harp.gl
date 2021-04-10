@@ -1,14 +1,18 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-// tslint:disable:only-arrow-functions
-//    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
-
-import { DecodedTile, Geometry, ITileDecoder, TileInfo } from "@here/harp-datasource-protocol";
 import "@here/harp-fetch";
+
+import {
+    DecodedTile,
+    DecoderOptions,
+    Geometry,
+    ITileDecoder,
+    StyleSet,
+    TileInfo
+} from "@here/harp-datasource-protocol";
 import {
     Projection,
     TileKey,
@@ -16,27 +20,30 @@ import {
     webMercatorTilingScheme
 } from "@here/harp-geoutils";
 import { DataSource, MapView, Statistics, Tile, TileLoaderState } from "@here/harp-mapview";
-import { assert } from "chai";
+import { silenceLoggingAroundFunction } from "@here/harp-test-utils";
+import { assert, expect } from "chai";
 import * as sinon from "sinon";
+
 import { DataProvider, TileDataSource, TileFactory } from "../index";
 
-function createMockDataProvider() {
-    const mockTemplate: DataProvider = {
-        async connect() {
-            // empty implementation
-        },
-        ready(): boolean {
-            return true;
-        },
-        async getTile(): Promise<ArrayBuffer> {
-            return Promise.resolve(new ArrayBuffer(5));
-        }
-    };
-    const mock = sinon.stub(mockTemplate);
-    mock.getTile.callsFake(() => {
-        return Promise.resolve(new ArrayBuffer(5));
-    });
-    return mock;
+//    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
+
+class MockDataProvider extends DataProvider {
+    /** @override */ async connect() {
+        // empty implementation
+    }
+
+    ready(): boolean {
+        return true;
+    }
+
+    async getTile(tileKey: TileKey, abortSignal?: AbortSignal): Promise<ArrayBuffer> {
+        return await Promise.resolve(new ArrayBuffer(5));
+    }
+
+    /** @override */ dispose() {
+        // Nothing to be done here.
+    }
 }
 
 const fakeGeometry = {};
@@ -56,16 +63,16 @@ function createMockTileDecoder() {
             // dispose is not used
         },
         async decodeTile(): Promise<DecodedTile> {
-            return Promise.resolve(fakeEmptyGeometry);
+            return await Promise.resolve(fakeEmptyGeometry);
         },
         async getTileInfo(
             _data: ArrayBufferLike,
             _tileKey: TileKey,
             _projection: Projection
         ): Promise<TileInfo | undefined> {
-            return Promise.resolve(undefined);
+            return await Promise.resolve(undefined);
         },
-        configure() {
+        configure(options: DecoderOptions) {
             // no configuration needed for mock
         }
     };
@@ -77,20 +84,20 @@ function createMockTileDecoder() {
 function createMockMapView() {
     return ({
         projection: webMercatorProjection,
-        // tslint:disable-next-line:no-empty
         getDataSourceByName() {},
         statistics: new Statistics(),
-        frameNumber: 0
+        frameNumber: 0,
+        clearTileCache: () => {}
     } as any) as MapView;
 }
 
-describe("TileDataSource", function() {
-    it("#dispose cascades to decoder", function() {
+describe("TileDataSource", function () {
+    it("#dispose cascades to decoder", function () {
         const decoder = createMockTileDecoder();
         const testedDataSource = new TileDataSource(new TileFactory(Tile), {
             styleSetName: "",
             tilingScheme: webMercatorTilingScheme,
-            dataProvider: createMockDataProvider(),
+            dataProvider: new MockDataProvider(),
             decoder
         });
 
@@ -98,7 +105,7 @@ describe("TileDataSource", function() {
         testedDataSource.dispose();
         assert.equal(decoder.dispose.callCount, 1);
     });
-    it("uses tileFactory to construct tiles with custom type", function() {
+    it("uses tileFactory to construct tiles with custom type", function () {
         class CustomTile extends Tile {
             constructor(dataSource: DataSource, tileKey: TileKey) {
                 super(dataSource, tileKey);
@@ -108,7 +115,7 @@ describe("TileDataSource", function() {
         const testedDataSource = new TileDataSource(new TileFactory(CustomTile), {
             styleSetName: "",
             tilingScheme: webMercatorTilingScheme,
-            dataProvider: createMockDataProvider(),
+            dataProvider: new MockDataProvider(),
             decoder: createMockTileDecoder()
         });
         testedDataSource.attach(createMockMapView());
@@ -118,12 +125,13 @@ describe("TileDataSource", function() {
         assert(mockTile instanceof CustomTile);
     });
 
-    it("#updateTile: tile disposing cancels load, skips decode and tile update", async function() {
-        const mockDataProvider = createMockDataProvider();
+    it("#updateTile: tile disposing cancels load, skips decode and tile update", async function () {
+        const mockDataProvider = new MockDataProvider();
 
         const abortController = new AbortController();
         let getTileToken = abortController.signal;
-        mockDataProvider.getTile.callsFake((_tileKey: any, cancellationToken: any) => {
+        const getTileStub = sinon.stub(mockDataProvider, "getTile");
+        getTileStub.callsFake((_tileKey: any, cancellationToken: any) => {
             assert(cancellationToken !== undefined);
             assert(cancellationToken instanceof AbortSignal);
             getTileToken = cancellationToken;
@@ -159,14 +167,15 @@ describe("TileDataSource", function() {
 
         assert.notExists(tile.tileLoader);
 
-        assert.equal(mockDataProvider.getTile.callCount, 1);
+        assert.equal(getTileStub.callCount, 1);
         assert.equal(getTileToken.aborted, true);
         assert.equal(mockDecoder.decodeTile.callCount, 0);
         assert.equal(spyTileSetDecodedTile.set.callCount, 0);
     });
 
-    it("subsequent, overlapping #updateTile calls load & decode tile once", async function() {
-        const mockDataProvider = createMockDataProvider();
+    it("subsequent, overlapping #updateTile calls load & decode tile once", async function () {
+        const mockDataProvider = new MockDataProvider();
+        const getTileSpy = sinon.spy(mockDataProvider, "getTile");
         const mockDecoder = createMockTileDecoder();
 
         mockDecoder.decodeTile.resolves(fakeEmptyGeometry);
@@ -193,13 +202,13 @@ describe("TileDataSource", function() {
         await tile.tileLoader!.waitSettled();
 
         // assert
-        assert.equal(mockDataProvider.getTile.callCount, 1);
+        assert.equal(getTileSpy.callCount, 1);
         assert.equal(mockDecoder.decodeTile.callCount, 1);
         assert(spyTileSetDecodedTile.set.calledWith(fakeEmptyGeometry));
     });
 
     function getDataSource() {
-        const mockDataProvider = createMockDataProvider();
+        const mockDataProvider = new MockDataProvider();
         const mockDecoder = createMockTileDecoder();
 
         mockDecoder.decodeTile.resolves(fakeEmptyGeometry);
@@ -215,8 +224,9 @@ describe("TileDataSource", function() {
         return { testedDataSource, mockDataProvider, mockDecoder };
     }
 
-    it("subsequent, overlapping #getTile calls don't share TileLoader", async function() {
+    it("subsequent, overlapping #getTile calls don't share TileLoader", async function () {
         const mockedDataSource = getDataSource();
+        const getTileSpy = sinon.spy(mockedDataSource.mockDataProvider, "getTile");
         const tile1 = mockedDataSource.testedDataSource.getTile(
             TileKey.fromRowColumnLevel(0, 0, 0)
         )!;
@@ -232,7 +242,7 @@ describe("TileDataSource", function() {
         // Waiting on the first tileloader doesn't influence the second one.
         await tile1.tileLoader!.waitSettled();
         await tile2.tileLoader!.waitSettled();
-        assert.equal(mockedDataSource.mockDataProvider.getTile.callCount, 2);
+        assert.equal(getTileSpy.callCount, 2);
         // Check that two tiles are decoded.
         assert.equal(mockedDataSource.mockDecoder.decodeTile.callCount, 2);
         assert.equal(spyTileSetDecodedTile1.set.callCount, 1);
@@ -241,8 +251,8 @@ describe("TileDataSource", function() {
         assert(spyTileSetDecodedTile2.set.calledWith(fakeEmptyGeometry));
     });
 
-    it("Empty decoded tiles are ignored", async function() {
-        const mockDataProvider = createMockDataProvider();
+    it("Empty decoded tiles are ignored", async function () {
+        const mockDataProvider = new MockDataProvider();
         const mockDecoder = createMockTileDecoder();
 
         fakeEmptyGeometry.geometries = [];
@@ -270,7 +280,7 @@ describe("TileDataSource", function() {
         assert.equal(tile.hasGeometry, true);
     });
 
-    it("Currently used tile loaders aren't canceled", async function() {
+    it("Currently used tile loaders aren't canceled", async function () {
         const mockedDataSource = getDataSource();
         const { testedDataSource } = mockedDataSource;
         const numTiles = 32;
@@ -291,21 +301,79 @@ describe("TileDataSource", function() {
         }
     });
 
-    it("supports deprecated minZoomLevel and maxZoomLevel in constructor", function() {
-        const testedDataSource = new TileDataSource(new TileFactory(Tile), {
-            styleSetName: "",
-            tilingScheme: webMercatorTilingScheme,
-            dataProvider: createMockDataProvider(),
-            decoder: createMockTileDecoder(),
-            minZoomLevel: 3,
-            maxZoomLevel: 17
-        });
+    it("supports deprecated minZoomLevel and maxZoomLevel in constructor", function () {
+        silenceLoggingAroundFunction("DataSource", () => {
+            const testedDataSource = new TileDataSource(new TileFactory(Tile), {
+                styleSetName: "",
+                tilingScheme: webMercatorTilingScheme,
+                dataProvider: new MockDataProvider(),
+                decoder: createMockTileDecoder(),
+                minZoomLevel: 3,
+                maxZoomLevel: 17
+            });
 
-        // tslint:disable-next-line: deprecation
-        assert.equal(testedDataSource.minZoomLevel, 3);
-        assert.equal(testedDataSource.minDataLevel, 3);
-        // tslint:disable-next-line: deprecation
-        assert.equal(testedDataSource.maxZoomLevel, 17);
-        assert.equal(testedDataSource.maxDataLevel, 17);
+            assert.equal(testedDataSource.minZoomLevel, 3);
+            assert.equal(testedDataSource.minDataLevel, 3);
+            assert.equal(testedDataSource.maxZoomLevel, 17);
+            assert.equal(testedDataSource.maxDataLevel, 17);
+        });
+    });
+
+    it("supports setting of theme", async function () {
+        const mockDecoder = createMockTileDecoder();
+        silenceLoggingAroundFunction("DataSource", async () => {
+            const testedDataSource = new TileDataSource(new TileFactory(Tile), {
+                styleSetName: "tilezen",
+                tilingScheme: webMercatorTilingScheme,
+                dataProvider: new MockDataProvider(),
+                decoder: mockDecoder,
+                minZoomLevel: 3,
+                maxZoomLevel: 17
+            });
+
+            testedDataSource.attach(createMockMapView());
+
+            const styles: StyleSet = [
+                {
+                    styleSet: "tilezen",
+                    technique: "none"
+                }
+            ];
+
+            await testedDataSource.setTheme({
+                styles
+            });
+
+            assert(mockDecoder.configure.calledOnce);
+            assert(mockDecoder.configure.calledWith(sinon.match({ styleSet: styles })));
+        });
+    });
+
+    it("supports setting of languages", async function () {
+        const mockDecoder = createMockTileDecoder();
+        silenceLoggingAroundFunction("DataSource", async () => {
+            const testedDataSource = new TileDataSource(new TileFactory(Tile), {
+                styleSetName: "tilezen",
+                tilingScheme: webMercatorTilingScheme,
+                dataProvider: new MockDataProvider(),
+                decoder: mockDecoder,
+                minZoomLevel: 3,
+                maxZoomLevel: 17,
+                languages: ["de"]
+            });
+
+            await testedDataSource.connect();
+
+            expect(mockDecoder.configure.calledOnce).to.be.true;
+            expect(mockDecoder.configure.calledWith(sinon.match({ languages: ["de"] }))).to.be.true;
+
+            testedDataSource.attach(createMockMapView());
+
+            testedDataSource.setLanguages(["de", "en"]);
+
+            expect(mockDecoder.configure.calledTwice).to.be.true;
+            expect(mockDecoder.configure.calledWith(sinon.match({ languages: ["de", "en"] }))).to.be
+                .true;
+        });
     });
 });

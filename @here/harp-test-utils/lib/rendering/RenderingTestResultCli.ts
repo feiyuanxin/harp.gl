@@ -1,16 +1,15 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 // @here:check-imports:environment:node
-// tslint:disable:only-arrow-functions
 
+import { LoggerManager } from "@here/harp-utils";
 import * as program from "commander";
 import * as fs from "fs";
 
-import { LoggerManager } from "@here/harp-utils";
 import { genHtmlReport } from "./HtmlReport";
 import { ImageTestResultLocal } from "./Interface";
 import { getOutputImagePath, loadSavedResults } from "./RenderingTestResultCommon";
@@ -32,7 +31,7 @@ async function genConsoleReport(results: ImageTestResultLocal[]): Promise<boolea
             logger.log(`${referencePath}: establishing reference image`);
             fs.copyFileSync(info.actualImagePath, referencePath);
         } else if (info.mismatchedPixels) {
-            if ((info.approveDifference || forceApprovals) && info.actualImagePath) {
+            if ((info.approveDifference === true || forceApprovals) && info.actualImagePath) {
                 logger.log(
                     `${referencePath}: difference explicitly approved, establishing reference image`
                 );
@@ -67,7 +66,7 @@ async function main() {
         .command("html-report")
         .description("generate HTML report from all IBCT test results")
         .alias("r")
-        .action(async function() {
+        .action(async function () {
             const results = await loadSavedResults(baseResultsPath);
             const r = await genHtmlReport(results, {}, baseResultsPath);
             const overallTestsResult = r[0];
@@ -86,7 +85,7 @@ async function main() {
         .command("approve")
         .description("approve current results locally")
         .alias("a")
-        .action(async function() {
+        .action(async function () {
             logger.info("approving all actual images");
 
             const results = await loadSavedResults(baseResultsPath);
@@ -99,7 +98,7 @@ async function main() {
         .command("save-reference")
         .description("establish missing reference images")
         .alias("s")
-        .action(async function() {
+        .action(async function () {
             logger.info("saving actual images as reference");
             const results = await loadSavedResults(baseResultsPath);
             createMissingReferences = true;

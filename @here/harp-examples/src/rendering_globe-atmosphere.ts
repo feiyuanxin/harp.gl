@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { EarthConstants, GeoCoordinates, sphereProjection } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import {
@@ -12,8 +11,13 @@ import {
     MapView,
     MapViewAtmosphere
 } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
-import { WebTileDataSource } from "@here/harp-webtile-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+import { HereTileProvider, HereWebTileDataSource } from "@here/harp-webtile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 export namespace GlobeAtmosphereExample {
@@ -49,7 +53,7 @@ export namespace GlobeAtmosphereExample {
 
         let dataSource;
         if (dataSourceVariant === DataSourceVariant.Omv) {
-            dataSource = new OmvDataSource({
+            dataSource = new VectorTileDataSource({
                 baseUrl: "https://xyz.api.here.com/tiles/herebase.02",
                 apiFormat: APIFormat.XYZOMV,
                 styleSetName: "tilezen",
@@ -62,9 +66,9 @@ export namespace GlobeAtmosphereExample {
                 copyrightInfo
             });
         } else {
-            dataSource = new WebTileDataSource({
+            dataSource = new HereWebTileDataSource({
                 apikey,
-                tileBaseAddress: WebTileDataSource.TILE_AERIAL_SATELLITE
+                tileBaseAddress: HereTileProvider.TILE_AERIAL_SATELLITE
             });
         }
         map.addDataSource(dataSource);
@@ -74,9 +78,15 @@ export namespace GlobeAtmosphereExample {
         const ui = new MapControlsUI(mapControls, { zoomLevel: "input" });
         map.canvas.parentElement!.appendChild(ui.domElement);
 
-        const { camera, projection, worldAnchors } = map;
+        const { camera, projection, mapAnchors } = map;
         const updateCallback = () => map.update();
-        const atmosphere = new MapViewAtmosphere(worldAnchors, camera, projection, updateCallback);
+        const atmosphere = new MapViewAtmosphere(
+            mapAnchors,
+            camera,
+            projection,
+            map.renderer.capabilities,
+            updateCallback
+        );
         atmosphere.lightMode = AtmosphereLightMode.LightDynamic;
 
         const coords = new GeoCoordinates(10.0, -10.0);

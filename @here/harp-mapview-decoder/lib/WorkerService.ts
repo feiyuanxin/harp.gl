@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,7 +12,7 @@ const logger = LoggerManager.instance.create("WorkerService", { enabled: true })
 declare let self: Worker;
 
 /**
- * Response for [[WorkerService]] procession results.
+ * Response for {@link WorkerService} procession results.
  */
 export interface WorkerServiceResponse {
     /**
@@ -21,7 +21,7 @@ export interface WorkerServiceResponse {
     response: any;
 
     /**
-     * Transfer list containing a list of [[ArrayBuffer]] which transfer ownership from web worker
+     * Transfer list containing a list of `ArrayBuffer` which transfer ownership from web worker
      * to UI thread.
      */
     transferList?: ArrayBuffer[];
@@ -50,22 +50,23 @@ interface RequestEntry {
 /**
  * Worker Service communication helper.
  *
- * Listens to Web Worker messages from [[ConcurrentWorkerSet]] and implements:
+ * @remarks
+ * Listens to Web Worker messages from `entWorkerSet` and implements:
  *  - worker service initialization
  *  - request/response scheme
  *  - error handling.
  *
- * This class should be subclassed to provide concrete like [[TileDecoderService]].
+ * This class should be subclassed to provide concrete like `TileDecoderService`.
  *
- * Communication peer for [[ConcurrentWorkerSet]].
+ * Communication peer for `ConcurrentWorkerSet`.
  */
 export abstract class WorkerService {
-    private m_pendingRequests: Map<number, RequestEntry> = new Map();
+    private readonly m_pendingRequests: Map<number, RequestEntry> = new Map();
 
     /**
      * Sets up the `WorkerService` with the specified name, and starts processing messages.
      *
-     * @param serviceId The service id.
+     * @param serviceId - The service id.
      */
     constructor(readonly serviceId: string) {
         self.addEventListener("message", this.onMessage);
@@ -90,7 +91,7 @@ export abstract class WorkerService {
     /**
      * Message handler to be overridden by implementation.
      *
-     * @param message `MessageEvent.data` as received by `WorkerService`.
+     * @param message - `MessageEvent.data` as received by `WorkerService`.
      */
     protected handleMessage(message: any): void {
         logger.error(`[${this.serviceId}]: Invalid message ${message.type}`);
@@ -99,7 +100,7 @@ export abstract class WorkerService {
     /**
      * Call request handler to be overridden by implementation.
      *
-     * @param request [[RequestMessage.request]] as received by `WorkerService`.
+     * @param request - `RequestMessage.request` as received by `WorkerService`.
      */
     protected handleRequest(request: any): Promise<WorkerServiceResponse> {
         throw new Error(`ServiceAdapter[${this.serviceId}]: Invalid request '${request.type}'`);
@@ -110,9 +111,9 @@ export abstract class WorkerService {
      *
      * Responsible for filtering message target and managing request/response sequence.
      *
-     * @param message Message to be dispatched.
+     * @param message - Message to be dispatched.
      */
-    private onMessage = (message: MessageEvent) => {
+    private readonly onMessage = (message: MessageEvent) => {
         if (typeof message.data.service !== "string" || message.data.service !== this.serviceId) {
             return;
         }
@@ -157,7 +158,7 @@ export abstract class WorkerService {
     };
 
     /**
-     * Safety belt over [[handleMessage]] for correct exception handling & logging.
+     * Safety belt over `handleMessage` for correct exception handling & logging.
      */
     private tryHandleMessage(message: any): void {
         try {
@@ -168,7 +169,7 @@ export abstract class WorkerService {
     }
 
     /**
-     * Safety belt over [[handleRequest]] for correct exception handling in promise chain.
+     * Safety belt over `handleRequest` for correct exception handling in promise chain.
      */
     private tryHandleRequest(request: any): Promise<WorkerServiceResponse> {
         try {

@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+/* eslint-disable no-console */
 
 import * as fs from "fs";
 
@@ -11,7 +13,6 @@ import * as fs from "fs";
 // from `perf_hooks` in node env.
 //
 if (typeof window === "undefined") {
-    // tslint:disable-next-line:no-var-requires
     const perfHooks = require("perf_hooks");
 
     (global as any).performance = perfHooks.performance;
@@ -119,9 +120,9 @@ export const getCurrentTime = getNowFunc();
  *
  *     #performance: Array/grow: min=1 med=2 avg=1.8 sum=72 (50 repeats)
  *
- * @param name name of performance test
- * @param repeats number of test repeats
- * @param test tested code
+ * @param name - name of performance test
+ * @param repeats - number of test repeats
+ * @param test - tested code
  */
 
 export async function measurePerformanceSync(name: string, repeats: number, test: () => void) {
@@ -177,9 +178,9 @@ export async function measurePerformanceSync(name: string, repeats: number, test
  *
  *     #performance: Array/grow: min=1 med=2 avg=1.8 sum=72 repeats=123 throughput=1242/s
  *
- * @param name name of performance test
- * @param repeats number of test repeats
- * @param test tested code
+ * @param name - name of performance test
+ * @param repeats - number of test repeats
+ * @param test - tested code
  */
 export async function measureThroughputSync(name: string, testDuration: number, test: () => void) {
     if (testDuration < 10) {
@@ -234,13 +235,12 @@ async function runAndMeasureGc(testFun: () => void): Promise<{ gcTime: number | 
         return { gcTime: undefined };
     }
     let gcTime = 0;
-    let obs: PerformanceObserver;
 
     let perfStartEntry: PerformanceEntry | undefined;
     let perfEndEntry: PerformanceEntry | undefined;
 
     let perfCountersCollected = false;
-    obs = new PerformanceObserver((list, observer) => {
+    const obs = new PerformanceObserver((list, observer) => {
         if (perfStartEntry === undefined || perfEndEntry === undefined) {
             const markedEntries = list.getEntriesByType("mark");
             if (perfStartEntry === undefined) {
@@ -277,7 +277,7 @@ async function runAndMeasureGc(testFun: () => void): Promise<{ gcTime: number | 
     // For some reason, in order to get `gc` entries, we need to force async flow before
     // disconnecting ...
     // ... and doesn't work with manually created promises, so we need to poll.
-    await new Promise(resolve => {
+    await new Promise<void>(resolve => {
         const poll = () => {
             if (perfCountersCollected) {
                 resolve();
@@ -349,9 +349,7 @@ export function reportPerformanceEntry(entry: PerformanceTestResultEntry) {
         throughput: readableNum(calculateThroughPutPerSeconds(stats.repeats, stats.sum), "/s"),
         repeats: stats.repeats
     };
-    // tslint:disable-next-line:no-console
     console.log(`#performance ${name}`);
-    // tslint:disable-next-line:no-console
     console.log(`  ${tagsToString(mainTags)}`);
     const averages = {
         avg: readableNum(stats.avg),
@@ -359,7 +357,6 @@ export function reportPerformanceEntry(entry: PerformanceTestResultEntry) {
         med: readableNum(stats.med),
         med95: readableNum(stats.med95)
     };
-    // tslint:disable-next-line:no-console
     console.log(`  ${tagsToString(averages)}`);
     if (stats.gcTime !== undefined) {
         const gcAdjusted = {
@@ -369,10 +366,8 @@ export function reportPerformanceEntry(entry: PerformanceTestResultEntry) {
                 calculateThroughPutPerSeconds(stats.repeats, stats.sum - stats.gcTime)
             )
         };
-        // tslint:disable-next-line:no-console
         console.log(`  ${tagsToString(gcAdjusted)}`);
     }
-    // tslint:disable-next-line:no-console
     console.log(``);
 }
 
@@ -414,11 +409,8 @@ export function reportPerformanceEntryWithBaseline(
         med95: compare(currentStats.med95, baseseLineStats.med95)
     };
 
-    // tslint:disable-next-line:no-console
     console.log(`#performance ${name}`);
-    // tslint:disable-next-line:no-console
     console.log(`  ${tagsToString(mainTags)}`);
-    // tslint:disable-next-line:no-console
     console.log(`  ${tagsToString(averages)}`);
 
     if (currentStats.gcTime !== undefined && baseseLineStats.gcTime !== undefined) {
@@ -440,10 +432,8 @@ export function reportPerformanceEntryWithBaseline(
                 "/s"
             )
         };
-        // tslint:disable-next-line:no-console
         console.log(`  ${tagsToString(gcAdjusted)}`);
     }
-    // tslint:disable-next-line:no-console
     console.log("");
 }
 
@@ -495,11 +485,10 @@ export function reportPerformanceAndReset() {
 function saveBaselineIfRequested(results: PerformanceTestResults) {
     if (typeof window === "undefined" && process.env.PROFILEHELPER_COMMAND === "baseline") {
         const baselineFileName =
-            process.env.PROFILEHELPER_OUTPUT || ".profile-helper-baseline.json";
+            process.env.PROFILEHELPER_OUTPUT ?? ".profile-helper-baseline.json";
         if (!baselineFileName) {
             return;
         }
-        // tslint:disable-next-line:no-console
         console.log(`#performance saving baseline to ${baselineFileName}`);
         fs.writeFileSync(baselineFileName, JSON.stringify(results, null, 2), "utf-8");
     }
@@ -508,11 +497,10 @@ function saveBaselineIfRequested(results: PerformanceTestResults) {
 function loadBaseLineIfAvailable() {
     if (typeof window === "undefined") {
         const baselineFileName =
-            process.env.PROFILEHELPER_OUTPUT || ".profile-helper-baseline.json";
+            process.env.PROFILEHELPER_OUTPUT ?? ".profile-helper-baseline.json";
         if (!baselineFileName || !fs.existsSync(baselineFileName)) {
             return undefined;
         }
-        // tslint:disable-next-line:no-console
         console.log(`#performance loading baseline from ${baselineFileName}`);
         return JSON.parse(fs.readFileSync(baselineFileName, "utf-8"));
     }
@@ -546,7 +534,7 @@ function sleepPromised(time: number = 1): Promise<void> {
  *     #countCall: Foo#push called=123
  */
 export function countCall(name: string, delta = 1) {
-    let current = occurenceResults.get(name) || 0;
+    let current = occurenceResults.get(name) ?? 0;
     current += delta;
     occurenceResults.set(name, current);
 }
@@ -598,14 +586,14 @@ export function countCalls(): any {
     if (fun !== undefined) {
         // classic functional composition
         // const foo = countCalls(function foo() { })
-        return function(this: any, ...args: any[]) {
+        return function (this: any, ...args: any[]) {
             countCall(name);
             return fun!.call(this, args);
         };
     }
 
     // typescript member function decorator
-    return function(this: any, target: any, key: string, descriptor: PropertyDescriptor) {
+    return function (this: any, target: any, key: string, descriptor: PropertyDescriptor) {
         if (descriptor === undefined) {
             descriptor = Object.getOwnPropertyDescriptor(target, key)!;
         }
@@ -628,7 +616,6 @@ export function countCalls(): any {
  */
 export function reportCallCountsAndReset() {
     occurenceResults.forEach((value, name) => {
-        // tslint:disable-next-line:no-console
         console.log(`#countCall ${name}: called=${value}`);
     });
     occurenceResults.clear();

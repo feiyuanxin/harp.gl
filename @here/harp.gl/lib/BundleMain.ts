@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -71,9 +71,9 @@ let bundleScriptUrl: string | undefined | null;
  */
 export function getScriptUrl(name: string): string | undefined | null {
     const scriptElement =
-        document.querySelector(`script[src*='/${name}.min.js']`) ||
-        document.querySelector(`script[src='${name}.min.js']`) ||
-        document.querySelector(`script[src*='/${name}.js']`) ||
+        document.querySelector(`script[src*='/${name}.min.js']`) ??
+        document.querySelector(`script[src='${name}.min.js']`) ??
+        document.querySelector(`script[src*='/${name}.js']`) ??
         document.querySelector(`script[src='${name}.js']`);
 
     if (scriptElement) {
@@ -116,23 +116,24 @@ const bundledUriResolver = new BundledUriResolver();
 const getActualDecoderScriptUrl = () => {
     const baseScriptUrl = getBundleScriptUrl();
     if (!baseScriptUrl) {
-        // tslint:disable-next-line:no-console
+        // eslint-disable-next-line no-console
         console.error(
             `harp.js: Unable to determine default location of 'harp-decoders(min).js'. ` +
                 `See https://github.com/heremaps/harp.gl/@here/harp.gl.`
         );
     }
     if (!WorkerLoader.dependencyUrlMapping.three) {
-        // tslint:disable-next-line:no-console
+        // eslint-disable-next-line no-console
         console.error(
             `harp.js: Unable to determine location of 'three(.min).js'. ` +
                 "`See https://github.com/heremaps/harp.gl/@here/harp.gl.`"
         );
     }
     const isMinified = baseScriptUrl && baseScriptUrl.endsWith(".min.js");
+
     const decoderScriptName = !isMinified
         ? DEFAULT_DECODER_SCRIPT_URL
-        : DEFAULT_DECODER_SCRIPT_URL.replace(".js$", ".min.js");
+        : DEFAULT_DECODER_SCRIPT_URL.replace(/\.js$/, ".min.js");
     return bundledUriResolver.resolveUri(decoderScriptName);
 };
 

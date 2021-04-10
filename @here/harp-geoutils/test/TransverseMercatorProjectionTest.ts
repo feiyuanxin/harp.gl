@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
+
 import { GeoBox } from "../lib/coordinates/GeoBox";
 import { GeoCoordinates } from "../lib/coordinates/GeoCoordinates";
 import { GeoCoordinatesLike } from "../lib/coordinates/GeoCoordinatesLike";
@@ -33,7 +33,7 @@ function contains(obb: OrientedBox3Like, point: Vector3Like) {
     return true;
 }
 
-describe("TransverseMercatorProjection", function() {
+describe("TransverseMercatorProjection", function () {
     const C = transverseMercatorProjection.unitScale;
     const edge = TransverseMercatorUtils.POLE_EDGE_DEG;
     const pole = TransverseMercatorUtils.POLE_RADIUS;
@@ -56,7 +56,7 @@ describe("TransverseMercatorProjection", function() {
         // [new GeoCoordinates(0,  180, 0), { x: 1/2 * C + epsilon, y: 0, z: 0 }],
     ];
 
-    it("ProjectUnprojectPoint", function() {
+    it("ProjectUnprojectPoint", function () {
         const geoPoint = new GeoCoordinates(37.8178183439856, -122.4410209359072, 12.0);
         const worldPoint = transverseMercatorProjection.projectPoint(geoPoint);
         const geoPoint2 = transverseMercatorProjection.unprojectPoint(worldPoint);
@@ -65,7 +65,7 @@ describe("TransverseMercatorProjection", function() {
         assert.approximately(geoPoint.altitude!, geoPoint2.altitude!, epsilon);
     });
 
-    it("GroundDistance", function() {
+    it("GroundDistance", function () {
         const geoPoint = new GeoCoordinates(37.8178183439856, -122.4410209359072, 12.0);
         const worldPoint = transverseMercatorProjection.projectPoint(geoPoint);
         assert.approximately(
@@ -75,7 +75,7 @@ describe("TransverseMercatorProjection", function() {
         );
     });
 
-    it("ScalePointToSurface", function() {
+    it("ScalePointToSurface", function () {
         const geoPoint = new GeoCoordinates(37.8178183439856, -122.4410209359072, 12.0);
         const worldPoint = transverseMercatorProjection.projectPoint(geoPoint);
         transverseMercatorProjection.scalePointToSurface(worldPoint);
@@ -83,8 +83,8 @@ describe("TransverseMercatorProjection", function() {
     });
 
     samples.forEach(([geoPoint, expectedWorldPoint]) => {
-        // tslint:disable-next-line: max-line-length
-        it(`ProjectPoint (${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude})`, function() {
+        // eslint-disable-next-line max-len
+        it(`ProjectPoint (${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude})`, function () {
             const worldPoint = transverseMercatorProjection.projectPoint(geoPoint);
 
             assert.approximately(expectedWorldPoint.x, worldPoint.x, epsilon);
@@ -99,7 +99,7 @@ describe("TransverseMercatorProjection", function() {
         });
     });
 
-    (function() {
+    (function () {
         const position = { x: 0, y: 0, z: 0 };
         const xAxis = { x: 1, y: 0, z: 0 };
         const yAxis = { x: 0, y: 1, z: 0 };
@@ -134,23 +134,23 @@ describe("TransverseMercatorProjection", function() {
         ];
 
         insidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            // eslint-disable-next-line max-len
+            it(`ProjectBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = transverseMercatorProjection.projectPoint(geoPoint);
                 assert.isTrue(contains(worldBox, p));
             });
         });
 
         outsidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            // eslint-disable-next-line max-len
+            it(`ProjectBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = transverseMercatorProjection.projectPoint(geoPoint);
                 assert.isFalse(contains(worldBox, p));
             });
         });
     })();
 
-    (function() {
+    (function () {
         const position = { x: 0, y: 0, z: 0 };
         const xAxis = { x: 1, y: 0, z: 0 };
         const yAxis = { x: 0, y: 1, z: 0 };
@@ -178,16 +178,16 @@ describe("TransverseMercatorProjection", function() {
         ];
 
         insidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBigBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            // eslint-disable-next-line max-len
+            it(`ProjectBigBox contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = transverseMercatorProjection.projectPoint(geoPoint);
                 assert.isTrue(contains(worldBox, p));
             });
         });
 
         outsidePoints.forEach(geoPoint => {
-            // tslint:disable-next-line: max-line-length
-            it(`ProjectBigBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function() {
+            // eslint-disable-next-line max-len
+            it(`ProjectBigBox !contains ${geoPoint.latitude}, ${geoPoint.longitude}, ${geoPoint.altitude}`, function () {
                 const p = transverseMercatorProjection.projectPoint(geoPoint);
                 assert.isFalse(contains(worldBox, p));
             });

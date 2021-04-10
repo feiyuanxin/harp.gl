@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -40,38 +40,38 @@ export interface GlyphCacheEntry {
  * Implemented as an abstraction layer on top of an LRUCache and WebGLRenderTarget.
  */
 export class GlyphTextureCache {
-    private m_cacheWidth: number;
-    private m_cacheHeight: number;
-    private m_textureSize: THREE.Vector2;
-    private m_entryCache: LRUCache<string, GlyphCacheEntry>;
+    private readonly m_cacheWidth: number;
+    private readonly m_cacheHeight: number;
+    private readonly m_textureSize: THREE.Vector2;
+    private readonly m_entryCache: LRUCache<string, GlyphCacheEntry>;
 
-    private m_scene: THREE.Scene;
-    private m_camera: THREE.OrthographicCamera;
-    private m_rt: THREE.WebGLRenderTarget;
+    private readonly m_scene: THREE.Scene;
+    private readonly m_camera: THREE.OrthographicCamera;
+    private readonly m_rt: THREE.WebGLRenderTarget;
 
-    private m_copyTextureSet: Set<THREE.Texture>;
-    private m_copyTransform: THREE.Matrix3;
-    private m_copyPositions: THREE.Vector2[];
-    private m_copyMaterial: GlyphCopyMaterial;
+    private readonly m_copyTextureSet: Set<THREE.Texture>;
+    private readonly m_copyTransform: THREE.Matrix3;
+    private readonly m_copyPositions: THREE.Vector2[];
+    private m_copyMaterial?: GlyphCopyMaterial;
     private m_copyVertexBuffer: THREE.InterleavedBuffer;
-    private m_copyPositionAttribute: THREE.InterleavedBufferAttribute;
-    private m_copyUVAttribute: THREE.InterleavedBufferAttribute;
-    private m_copyGeometry: THREE.BufferGeometry;
+    private readonly m_copyPositionAttribute: THREE.InterleavedBufferAttribute;
+    private readonly m_copyUVAttribute: THREE.InterleavedBufferAttribute;
+    private readonly m_copyGeometry: THREE.BufferGeometry;
     private m_copyMesh: THREE.Mesh;
     private m_copyGeometryDrawCount: number;
 
-    private m_clearMaterial: GlyphClearMaterial;
+    private m_clearMaterial?: GlyphClearMaterial;
     private m_clearPositionAttribute: THREE.BufferAttribute;
-    private m_clearGeometry: THREE.BufferGeometry;
+    private readonly m_clearGeometry: THREE.BufferGeometry;
     private m_clearMesh: THREE.Mesh;
     private m_clearGeometryDrawCount: number;
 
     /**
      * Creates a `GlyphTextureCache` object.
      *
-     * @param capacity Cache's maximum glyph capacity.
-     * @param entryWidth Maximum entry width.
-     * @param entryHeight Maximum entry height.
+     * @param capacity - Cache's maximum glyph capacity.
+     * @param entryWidth - Maximum entry width.
+     * @param entryHeight - Maximum entry height.
      *
      * @returns New `GlyphTextureCache`.
      */
@@ -89,7 +89,7 @@ export class GlyphTextureCache {
             this.m_cacheHeight * entryHeight
         );
         if (this.m_textureSize.y > MAX_TEXTURE_SIZE || this.m_textureSize.x > MAX_TEXTURE_SIZE) {
-            // tslint:disable-next-line:no-console
+            // eslint-disable-next-line no-console
             console.warn(
                 "GlyphTextureCache texture size (" +
                     this.m_textureSize.x +
@@ -132,7 +132,6 @@ export class GlyphTextureCache {
             new THREE.Vector2()
         );
 
-        this.m_copyMaterial = new GlyphCopyMaterial();
         this.m_copyVertexBuffer = new THREE.InterleavedBuffer(new Float32Array(capacity * 20), 5);
         this.m_copyVertexBuffer.setUsage(THREE.DynamicDrawUsage);
 
@@ -153,11 +152,10 @@ export class GlyphTextureCache {
         const copyIndexBuffer = new THREE.BufferAttribute(new Uint32Array(capacity * 6), 1);
         copyIndexBuffer.setUsage(THREE.DynamicDrawUsage);
         this.m_copyGeometry.setIndex(copyIndexBuffer);
-        this.m_copyMesh = new THREE.Mesh(this.m_copyGeometry, this.m_copyMaterial);
+        this.m_copyMesh = new THREE.Mesh(this.m_copyGeometry);
         this.m_copyMesh.frustumCulled = false;
         this.m_copyGeometryDrawCount = 0;
 
-        this.m_clearMaterial = new GlyphClearMaterial();
         this.m_clearPositionAttribute = new THREE.BufferAttribute(
             new Float32Array(capacity * 8),
             2
@@ -169,7 +167,7 @@ export class GlyphTextureCache {
         clearIndexBuffer.setUsage(THREE.DynamicDrawUsage);
 
         this.m_clearGeometry.setIndex(clearIndexBuffer);
-        this.m_clearMesh = new THREE.Mesh(this.m_clearGeometry, this.m_clearMaterial);
+        this.m_clearMesh = new THREE.Mesh(this.m_clearGeometry);
         this.m_clearMesh.frustumCulled = false;
         this.m_clearGeometryDrawCount = 0;
 
@@ -183,8 +181,8 @@ export class GlyphTextureCache {
         this.m_entryCache.clear();
         this.m_scene.remove(this.m_clearMesh, this.m_copyMesh);
         this.m_rt.dispose();
-        this.m_clearMaterial.dispose();
-        this.m_copyMaterial.dispose();
+        this.m_clearMaterial?.dispose();
+        this.m_copyMaterial?.dispose();
         this.m_copyTextureSet.clear();
         this.m_clearGeometry.dispose();
         this.m_copyGeometry.dispose();
@@ -208,8 +206,8 @@ export class GlyphTextureCache {
      * Add a new entry to the GlyphTextureCache. If the limit of entries is hit, the least requested
      * entry will be replaced.
      *
-     * @param hash Entry's hash.
-     * @param glyph Entry's glyph data.
+     * @param hash - Entry's hash.
+     * @param glyph - Entry's glyph data.
      */
     add(hash: string, glyph: GlyphData): void {
         const entry = this.m_entryCache.get(hash);
@@ -228,7 +226,7 @@ export class GlyphTextureCache {
     /**
      * Checks if an entry is in the cache.
      *
-     * @param hash Entry's hash.
+     * @param hash - Entry's hash.
      *
      * @returns Test result.
      */
@@ -239,7 +237,7 @@ export class GlyphTextureCache {
     /**
      * Retrieves an entry from the cache.
      *
-     * @param hash Entry's hash.
+     * @param hash - Entry's hash.
      *
      * @returns Retrieval result.
      */
@@ -262,7 +260,7 @@ export class GlyphTextureCache {
      * Updates the internal WebGLRenderTarget.
      * The update will copy the newly introduced glyphs since the previous update.
      *
-     * @param renderer WebGLRenderer.
+     * @param renderer - WebGLRenderer.
      */
     update(renderer: THREE.WebGLRenderer): void {
         let oldRenderTarget: THREE.RenderTarget | null = null;
@@ -276,6 +274,13 @@ export class GlyphTextureCache {
         }
 
         if (willClearGeometry) {
+            if (!this.m_clearMaterial) {
+                this.m_clearMaterial = new GlyphClearMaterial({
+                    rendererCapabilities: renderer.capabilities
+                });
+                this.m_clearMesh.material = this.m_clearMaterial;
+            }
+
             if (this.m_clearGeometry.index === null) {
                 throw new Error("GlyphTextureCache clear geometry index is uninitialized!");
             }
@@ -296,6 +301,13 @@ export class GlyphTextureCache {
         }
 
         if (willCopyGeometry) {
+            if (!this.m_copyMaterial) {
+                this.m_copyMaterial = new GlyphCopyMaterial({
+                    rendererCapabilities: renderer.capabilities
+                });
+                this.m_copyMesh.material = this.m_copyMaterial;
+            }
+
             if (this.m_copyGeometry.index === null) {
                 throw new Error("GlyphTextureCache copy geometry index is uninitialized!");
             }

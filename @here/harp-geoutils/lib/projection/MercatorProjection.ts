@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { GeoBox } from "../coordinates/GeoBox";
 import { GeoCoordinates } from "../coordinates/GeoCoordinates";
@@ -14,8 +16,6 @@ import { TransformLike } from "../math/TransformLike";
 import { Vector3Like } from "../math/Vector3Like";
 import { EarthConstants } from "./EarthConstants";
 import { Projection, ProjectionType } from "./Projection";
-
-import * as THREE from "three";
 
 class MercatorProjection extends Projection {
     protected static clamp(val: number, min: number, max: number): number {
@@ -86,14 +86,13 @@ class MercatorProjection extends Projection {
         }
 
         if (!result) {
-            // tslint:disable-next-line:no-object-literal-type-assertion
             result = { x: 0, y: 0, z: 0 } as WorldCoordinates;
         }
         result.x = ((geoPoint.longitude + 180) / 360) * this.unitScale;
         result.y =
             (MercatorProjection.latitudeClampProject(geoPoint.latitudeInRadians) * 0.5 + 0.5) *
             this.unitScale;
-        result.z = geoPoint.altitude || 0;
+        result.z = geoPoint.altitude ?? 0;
         return result;
     }
 
@@ -157,7 +156,7 @@ class MercatorProjection extends Projection {
             result.position.z = worldCenter.z;
             result.extents.x = longitudeSpan * 0.5;
             result.extents.y = latitudeSpan * 0.5;
-            result.extents.z = Math.max(Number.EPSILON, (geoBox.altitudeSpan || 0) * 0.5);
+            result.extents.z = Math.max(Number.EPSILON, (geoBox.altitudeSpan ?? 0) * 0.5);
         } else {
             throw new Error("invalid bounding box");
         }
@@ -211,7 +210,6 @@ class MercatorProjection extends Projection {
             (sourceProjection === webMercatorProjection || sourceProjection === mercatorProjection)
         ) {
             if (result === undefined) {
-                // tslint:disable-next-line: no-object-literal-type-assertion
                 result = {} as Vector3Like;
             }
 
@@ -255,14 +253,13 @@ class WebMercatorProjection extends MercatorProjection {
          * Note: type of `result` is Vector3Like and not as expected: THREE.Vector3!
          */
         if (!result) {
-            // tslint:disable-next-line:no-object-literal-type-assertion
             result = { x: 0, y: 0, z: 0 } as WorldCoordinates;
         }
 
         result.x = ((geoPoint.longitude + 180) / 360) * this.unitScale;
         const sy = Math.sin(MercatorProjection.latitudeClamp(geoPoint.latitudeInRadians));
         result.y = (0.5 - Math.log((1 + sy) / (1 - sy)) / (4 * Math.PI)) * this.unitScale;
-        result.z = geoPoint.altitude || 0;
+        result.z = geoPoint.altitude ?? 0;
         return result;
     }
 
@@ -343,14 +340,15 @@ export class MercatorConstants {
 }
 
 /**
- * Mercator [[Projection]] used to convert geo coordinates to world coordinates and vice versa.
+ * Mercator {@link Projection} used to convert geo coordinates to world coordinates and vice versa.
  */
 export const mercatorProjection: Projection = new MercatorProjection(
     EarthConstants.EQUATORIAL_CIRCUMFERENCE
 );
 
 /**
- * Web Mercator [[Projection]] used to convert geo coordinates to world coordinates and vice versa.
+ * Web Mercator {@link Projection} used to convert geo coordinates to world coordinates
+ * and vice versa.
  */
 export const webMercatorProjection: Projection = new WebMercatorProjection(
     EarthConstants.EQUATORIAL_CIRCUMFERENCE

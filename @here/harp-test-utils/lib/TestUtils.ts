@@ -1,9 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LoggerManager, LogLevel } from "@here/harp-utils";
 import { assert } from "chai";
 import * as sinon from "sinon";
 
@@ -13,7 +14,7 @@ import * as sinon from "sinon";
  * https://stackoverflow.com/questions/17575790/environment-detection-node-js-or-browser
  */
 export function inBrowserContext() {
-    return function(this: any) {
+    return function (this: any) {
         return typeof window !== "undefined" && this === window;
     }.call(undefined);
 }
@@ -29,7 +30,7 @@ export function inWebWorkerContext() {
  * Define a suite that is executed only in Node.JS environment.
  */
 export function inNodeContext() {
-    return function(this: any) {
+    return function (this: any) {
         return typeof global !== "undefined" && this === global;
     }.call(undefined);
 }
@@ -44,8 +45,8 @@ declare const global: any;
  *
  * Use to stub global constructors like `Worker` or `XMLHttpRequest`.
  *
- * @param sandbox `sinon.Sandbox` instance, required for proper cleanup after test
- * @param name name of global symbol to be constructor
+ * @param sandbox - `sinon.Sandbox` instance, required for proper cleanup after test
+ * @param name - name of global symbol to be constructor
  */
 export function stubGlobalConstructor(sandbox: sinon.SinonSandbox, name: string) {
     const theGlobal: any = typeof window !== "undefined" ? window : global;
@@ -102,7 +103,7 @@ let mochaCurrentTest: any; // any is used to skip import of whole 'Mocha' for on
  *       assert.equals(foo.readyCount, 6);
  *   });
  *
- * @param test closure with assertions that must pass
+ * @param test - closure with assertions that must pass
  * @returns promise that resolves when `test` passes without any error
  */
 export function willEventually<T = void>(test: () => T): Promise<T> {
@@ -186,10 +187,10 @@ type IConsoleLike = Pick<Console, "error" | "info" | "log" | "warn">;
  *   );
  * ```
  *
- * @param fn test function that shall provoke certain log output
- * @param channel `Console` like object
- * @param type type of console message i.e `"log" | "error" | "warn" | "info`
- * @param errorMessagePattern string or regular expression that we look for in logs
+ * @param fn - test function that shall provoke certain log output
+ * @param channel - `Console` like object
+ * @param type - type of console message i.e `"log" | "error" | "warn" | "info`
+ * @param errorMessagePattern - string or regular expression that we look for in logs
  */
 export function assertLogsSync(
     fn: () => void,
@@ -236,9 +237,9 @@ export interface EventSource<T> {
  *
  * Automatically unregisters itself receiving the event.
  *
- * @param source event source or target that has add/removeEventListener(type, listener) method.
+ * @param source - event source or target that has add/removeEventListener(type, listener) method.
  *     protocol
- * @param eventType type of event
+ * @param eventType - type of event
  * @returns promise that resolves to first event that is received
  */
 export function waitForEvent<T>(source: EventSource<T>, eventType: string): Promise<T> {
@@ -310,9 +311,41 @@ function reportAsyncFailuresAfterTestEnd(this: any) {
 }
 
 if (typeof beforeEach !== "undefined") {
-    beforeEach(function(this: Mocha.Context) {
+    beforeEach(function (this: Mocha.Context) {
         // Save current test so willEventually && waitForEvent can check that current test is still
         // executing.
         mochaCurrentTest = this.currentTest;
     });
+}
+
+/**
+ * Sets the specified loggers to only log at the given minLogLevel. Only use this function when you
+ * know that you can safely ignore a warning, otherwise you should consider to fix the issue. All
+ * previous logging levels are reset after the function is executed.
+ * @param loggerName The loggerName, or array of names to set to error
+ * @param func The function to execute with the changed logging
+ * @param minLogLevel The minimum log level that is shown, defaults to LogLevel.Error
+ */
+export async function silenceLoggingAroundFunction(
+    loggerName: string | string[],
+    func: () => void,
+    minLogLevel: LogLevel = LogLevel.Error
+) {
+    const previousLogLevels: Array<{ level: LogLevel; loggerName: string }> = [];
+    const loggers = !Array.isArray(loggerName) ? [loggerName] : loggerName;
+    for (const loggerName of loggers) {
+        const logger = LoggerManager.instance.getLogger(loggerName);
+        if (logger) {
+            previousLogLevels.push({ loggerName, level: logger.level });
+            LoggerManager.instance.setLogLevel(loggerName, minLogLevel);
+        }
+    }
+
+    try {
+        await func();
+    } finally {
+        for (const logger of previousLogLevels) {
+            LoggerManager.instance.setLogLevel(logger.loggerName, logger.level);
+        }
+    }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,6 +7,7 @@
 import { LongPressHandler } from "@here/harp-map-controls";
 import { MapAnchor, MapView } from "@here/harp-mapview";
 import * as THREE from "three";
+
 import { HelloWorldExample } from "./getting-started_hello-world_npm";
 
 /**
@@ -75,7 +76,6 @@ export namespace ThreejsAddSimpleObject {
         const canvas = mapView.canvas;
         mapView.zoomLevel = 15.5;
 
-        // tslint:disable:no-unused-expression
         new LongPressHandler(canvas, event => {
             // snippet:harp_gl_threejs_add_simple_object_1.ts
             // Get the position of the mouse in geo space.
@@ -89,7 +89,7 @@ export namespace ThreejsAddSimpleObject {
 
             // snippet:harp_gl_threejs_add_simple_object_2.ts
             const cube = createPinkCube();
-            cube.geoPosition = geoPosition;
+            cube.anchor = geoPosition;
             mapView.mapAnchors.add(cube);
             // end:harp_gl_threejs_add_simple_object_2.ts
 

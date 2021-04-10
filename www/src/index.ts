@@ -1,17 +1,20 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable-next-line:no-implicit-dependencies
 import { Theme } from "@here/harp-datasource-protocol";
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapView, MapViewEventNames, MapViewUtils } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../../@here/harp-examples/config";
 
-// tslint:disable-next-line:no-var-requires
 const theme = require("../resources/theme.json");
 
 import "../css/index.css";
@@ -87,7 +90,7 @@ function main() {
     });
     map.animatedExtrusionHandler.enabled = false;
 
-    const omvDataSource = new OmvDataSource({
+    const omvDataSource = new VectorTileDataSource({
         baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
         apiFormat: APIFormat.XYZOMV,
         styleSetName: "tilezen",
@@ -108,7 +111,10 @@ function main() {
     const options = { target: Boston, zoomLevel, tilt: 34.3, heading: 135 };
     map.lookAt(options);
 
-    map.addEventListener(MapViewEventNames.FrameComplete, () => {
+    const onFrameComplete = () => {
+        // FrameComplete is fired multiple times (each time the camera changes and the tiles are
+        // loaded), hence we just set the Render event listener once below.
+        map.removeEventListener(MapViewEventNames.FrameComplete, onFrameComplete);
         canvas.style.opacity = "1";
 
         map.addEventListener(MapViewEventNames.Render, () =>
@@ -117,7 +123,8 @@ function main() {
         setTimeout(() => {
             map.beginAnimation();
         }, 0.5);
-    });
+    };
+    map.addEventListener(MapViewEventNames.FrameComplete, onFrameComplete);
 }
 
 main();

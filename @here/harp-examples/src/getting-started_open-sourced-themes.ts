@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
-import { CopyrightElementHandler, MapView, ThemeLoader } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
 import { GUI } from "dat.gui";
-import { apikey, copyrightInfo } from "../config";
+
+import { apikey } from "../config";
 
 /**
  * This example copies the base example and adds a GUI allowing to switch between all the open-
@@ -46,16 +46,9 @@ export namespace ThemesExample {
 
     const mapView = initializeMapView();
 
-    const omvDataSource = new OmvDataSource({
+    const omvDataSource = new VectorTileDataSource({
         baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-        apiFormat: APIFormat.XYZOMV,
-        styleSetName: "tilezen",
-        authenticationCode: apikey,
-        authenticationMethod: {
-            method: AuthenticationMethod.QueryString,
-            name: "apikey"
-        },
-        copyrightInfo
+        authenticationCode: apikey
     });
 
     mapView.addDataSource(omvDataSource);
@@ -71,10 +64,8 @@ export namespace ThemesExample {
         }
     };
     gui.add(options, "theme", options.theme)
-        .onChange((value: string) => {
-            ThemeLoader.load(value).then(theme => {
-                mapView.theme = theme;
-            });
+        .onChange(async (value: string) => {
+            await mapView.setTheme(value);
         })
         .setValue("resources/berlin_tilezen_base.json");
 }

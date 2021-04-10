@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+/* eslint-disable no-console */
 
 import { execSync } from "child_process";
 import * as fs from "fs";
@@ -46,7 +48,6 @@ function reindented(spaces: number, lines: string[]): string[] {
     return lines.map(line => (line.startsWith(prefix) ? line.substring(spaces) : line));
 }
 
-// tslint:disable-next-line:no-var-requires
 const mkpath = require("mkpath");
 
 const sdkDir = path.resolve(__dirname, "..");
@@ -59,7 +60,6 @@ mkpath.sync(distOutDir);
 mkpath.sync(distDocsOutDir);
 
 function extractCodeSnippets() {
-    // tslint:disable-next-line:no-console
     console.log("Extracting code snippets...");
 
     const sourceFiles = glob.sync(sdkDir + "/@here/verity-examples/**/*.{ts,tsx,html}");
@@ -70,7 +70,6 @@ function extractCodeSnippets() {
         const contents = fs.readFileSync(sourceFile, { encoding: "utf8" });
 
         let match;
-        // tslint:disable-next-line:no-conditional-assignment
         while ((match = snippetRegex.exec(contents)) !== null) {
             const fileName = match[1];
             const snippet = match[2];
@@ -79,7 +78,6 @@ function extractCodeSnippets() {
             chop(lines);
 
             if (lines.length === 0) {
-                // tslint:disable-next-line:no-console
                 console.error("ERROR: snippet", snippet, "in", fileName, "too short");
                 continue;
             }
@@ -89,14 +87,12 @@ function extractCodeSnippets() {
             const result = reindented(leadingSpaces, lines).join("\n");
 
             fs.writeFileSync(path.resolve(outDir, fileName), result, { encoding: "utf8" });
-            // tslint:disable-next-line:no-console
             console.log("generated", fileName, path.resolve(outDir, fileName));
         }
     }
 }
 
 function renderDiagrams() {
-    // tslint:disable-next-line:no-console
     console.log("Rendering diagrams...");
 
     const inputExt = ".mmd";
@@ -111,7 +107,6 @@ function renderDiagrams() {
         mkpath.sync(outSubDir);
         const outFile = path.resolve(outSubDir, path.basename(sourceFile, inputExt)) + outputExt;
         const cmd = `yarn run mmdc -p ${configFile} -i ${sourceFile} -o ${outFile}`;
-        // tslint:disable-next-line:no-console
         console.log(cmd);
         execSync(cmd);
     }
@@ -123,6 +118,29 @@ function copyLandingPageFiles() {
     fse.copySync(path.join(sdkDir, "docs"), distDocsOutDir);
 }
 
+function copyImages() {
+    console.log("Copy across images...");
+
+    const inputExts = [".svg", ".gif", ".png"];
+    const mediaOutDir = path.resolve(sdkDir, "dist/media");
+
+    for (const inputExt of inputExts) {
+        const sourceFiles = glob.sync(sdkDir + `/{docs,coresdk/docs}/@docs/**/*${inputExt}`);
+        console.log("source files with ext: " + inputExt);
+        console.log(sourceFiles);
+
+        for (const sourceFile of sourceFiles) {
+            const outSubDir = path.join(mediaOutDir, path.basename(path.dirname(sourceFile)));
+            mkpath.sync(outSubDir);
+            const outFile = path.resolve(outSubDir, path.basename(sourceFile));
+            const cmd = `cp ${sourceFile} ${outFile}`;
+            console.log(cmd);
+            execSync(cmd);
+        }
+    }
+}
+
 extractCodeSnippets();
 renderDiagrams();
 copyLandingPageFiles();
+copyImages();

@@ -1,12 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { MathUtils } from "three";
+
 import { ColorUtils } from "./ColorUtils";
-import { StringEncodedColorFormats } from "./StringEncodedNumeral";
+import { parseStringEncodedColor } from "./StringEncodedNumeral";
 
 /**
  * A class representing RGBA colors.
@@ -18,17 +19,16 @@ export class RGBA {
     /**
      * Parses a string describing a color.
      *
-     * @param text The string color literal
+     * @param text - The string color literal
      */
     static parse(text: string) {
-        const format = StringEncodedColorFormats.find(f => f.regExp.test(text));
-        if (format === undefined) {
+        const color = parseStringEncodedColor(text);
+
+        if (color === undefined) {
             return undefined;
         }
 
-        const components = [1, 1, 1, 1];
-        format.decoder(text, components);
-        return new RGBA(...components);
+        return ColorUtils.getRgbaFromHex(color);
     }
 
     /**
@@ -70,7 +70,6 @@ export class RGBA {
      * Returns this color encoded as JSON literal.
      */
     toJSON() {
-        // tslint:disable-next-line: no-bitwise
         return `rgba(${(this.r * 255) << 0}, ${(this.g * 255) << 0}, ${(this.b * 255) << 0}, ${
             this.a
         })`;

@@ -1,16 +1,15 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 import {
     DecodedTile,
-    Definitions,
+    DecoderOptions,
     getProjectionName,
     ITileDecoder,
     OptionsMap,
     RequestController,
-    StyleSet,
     TileInfo,
     WorkerDecoderProtocol,
     WorkerServiceProtocol
@@ -34,14 +33,14 @@ let nextUniqueServiceId = 0;
  * - configuration.
  */
 export class WorkerBasedDecoder implements ITileDecoder {
-    private serviceId: string;
+    private readonly serviceId: string;
     private m_serviceCreated: boolean = false;
 
     /**
      * Creates a new `WorkerBasedDecoder`.
      *
-     * @param workerSet [[ConcurrentWorkerSet]] this tiler will live in.
-     * @param decoderServiceType Service type identifier.
+     * @param workerSet - [[ConcurrentWorkerSet]] this tiler will live in.
+     * @param decoderServiceType - Service type identifier.
      */
     constructor(
         private readonly workerSet: ConcurrentWorkerSet,
@@ -90,9 +89,11 @@ export class WorkerBasedDecoder implements ITileDecoder {
     }
 
     /**
-     * Get [[Tile]] from tile decoder service in worker.
+     * Get {@link Tile} from tile decoder service in worker.
      *
-     * Invokes [[DecodeTileRequest]] on [[TileDecoderService]] running in worker pool.
+     * @remarks
+     * Invokes {@link @here/harp-datasource-protocol#DecodeTileRequest} on
+     * [[TileDecoderService]] running in worker pool.
      */
     decodeTile(
         data: ArrayBufferLike,
@@ -120,9 +121,11 @@ export class WorkerBasedDecoder implements ITileDecoder {
     }
 
     /**
-     * Get [[TileInfo]] from tile decoder service in worker.
+     * Get {@link @here/harp-datasource-protocol#TileInfo} from tile decoder service in worker.
      *
-     * Invokes [[TileInfoRequest]] on [[TileDecoderService]] running in worker pool.
+     * @remarks
+     * Invokes {@link @here/harp-datasource-protocol#TileInfoRequest}
+     * on [[TileDecoderService]] running in worker pool.
      */
     getTileInfo(
         data: ArrayBufferLike,
@@ -151,25 +154,19 @@ export class WorkerBasedDecoder implements ITileDecoder {
     /**
      * Configure tile decoder service in workers.
      *
-     * Broadcasts [[ConfigurationMessage]] to all [[TileDecoderService]]s running in worker pool.
+     * @remarks
+     * Broadcasts {@link @here/harp-datasource-protocol#ConfigurationMessage}
+     * to all [[TileDecoderService]]s running in worker pool.
      *
-     * @param styleSet  new [[StyleSet]], undefined means no change
-     * @param languages new list of languages
-     * @param options   new options, undefined options are not changed
+     * @param options - Options that will be applied to the styles
+     * @param customOptions -   new options, undefined options are not changed
      */
-    configure(
-        styleSet?: StyleSet,
-        definitions?: Definitions,
-        languages?: string[],
-        options?: OptionsMap
-    ): void {
+    configure(options?: DecoderOptions, customOptions?: OptionsMap): void {
         const message: WorkerDecoderProtocol.ConfigurationMessage = {
             service: this.serviceId,
             type: WorkerDecoderProtocol.DecoderMessageName.Configuration,
-            styleSet,
-            definitions,
-            options,
-            languages
+            ...options,
+            options: customOptions
         };
 
         this.workerSet.broadcastMessage(message);

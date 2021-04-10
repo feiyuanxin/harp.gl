@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { GeoCoordinates, mercatorTilingScheme, TileKey, TilingScheme } from "@here/harp-geoutils";
 import * as THREE from "three";
+
 import { DisplacementMap, TileDisplacementMap } from "../lib/DisplacementMap";
 import { ElevationProvider } from "../lib/ElevationProvider";
 
@@ -39,7 +40,7 @@ export type ElevationProviderStub = sinon.SinonStubbedInstance<ElevationProvider
 
 /**
  * Creates an ElevationProvider stub.
- * @param sandbox Sinon sandbox to keep track of created stubs.
+ * @param sandbox - Sinon sandbox to keep track of created stubs.
  * @returns ElevationProvider stub.
  */
 export function stubElevationProvider(sandbox: sinon.SinonSandbox): ElevationProviderStub {
@@ -53,7 +54,8 @@ export function stubElevationProvider(sandbox: sinon.SinonSandbox): ElevationPro
     return stub;
 }
 
-const dummyTexture = new THREE.Texture();
+const empty: Float32Array = new Float32Array();
+const dummyTexture = new THREE.DataTexture(empty, 32, 32);
 const dummyDisplacementMap: DisplacementMap = {
     xCountVertices: 32,
     yCountVertices: 32,
@@ -62,7 +64,7 @@ const dummyDisplacementMap: DisplacementMap = {
 
 /**
  * Creates a fake TileDisplacementMap with no data.
- * @param tileKey The key corresponding to the tile to which this map belongs.
+ * @param tileKey - The key corresponding to the tile to which this map belongs.
  * @returns The fake map.
  */
 export function fakeTileDisplacementMap(tileKey: TileKey): TileDisplacementMap {

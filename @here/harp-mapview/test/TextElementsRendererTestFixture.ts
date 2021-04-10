@@ -1,18 +1,21 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { MapEnv, Theme } from "@here/harp-datasource-protocol";
 import { identityProjection, TileKey } from "@here/harp-geoutils";
-import { TextCanvas } from "@here/harp-text-canvas";
+import { silenceLoggingAroundFunction } from "@here/harp-test-utils";
+import { FontCatalog, TextCanvas } from "@here/harp-text-canvas";
 import { assert, expect } from "chai";
 import * as sinon from "sinon";
 import * as THREE from "three";
+
 import { PoiRenderer } from "../lib/poi/PoiRenderer";
 import { ScreenCollisions } from "../lib/ScreenCollisions";
 import { ScreenProjector } from "../lib/ScreenProjector";
+import * as FontCatalogLoader from "../lib/text/FontCatalogLoader";
+import { TextCanvasFactory } from "../lib/text/TextCanvasFactory";
 import { TextElement } from "../lib/text/TextElement";
 import { TextElementsRenderer } from "../lib/text/TextElementsRenderer";
 import { TextElementsRendererOptions } from "../lib/text/TextElementsRendererOptions";
@@ -28,19 +31,15 @@ import {
     stubElevationProvider
 } from "./stubElevationProvider";
 import { stubFontCatalog } from "./stubFontCatalog";
-import { stubFontCatalogLoader } from "./stubFontCatalogLoader";
 import { stubPoiManager } from "./stubPoiManager";
-import { stubPoiRenderer, stubPoiRendererFactory } from "./stubPoiRenderer";
+import { stubPoiRenderer } from "./stubPoiRenderer";
 import { stubTextCanvas, stubTextCanvasFactory } from "./stubTextCanvas";
 import { FadeState } from "./TextElementsRendererTestUtils";
 
-// tslint:disable:no-unused-expression
 //    expect-type assertions are unused expressions and are perfectly valid
 
-// tslint:disable:no-empty
 //    lots of stubs are needed which are just placeholders and are empty
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 function createViewState(worldCenter: THREE.Vector3, sandbox: sinon.SinonSandbox): ViewState {
@@ -52,8 +51,8 @@ function createViewState(worldCenter: THREE.Vector3, sandbox: sinon.SinonSandbox
         zoomLevel: 20,
         env: new MapEnv({ $zoom: 20 }),
         frameNumber: 0,
-        lookAtVector: new THREE.Vector3(0, 0, -1),
-        lookAtDistance: 0,
+        lookAtVector: new THREE.Vector3(0, 0, 1),
+        lookAtDistance: 10,
         isDynamic: false,
         hiddenGeometryKinds: undefined,
         renderedTilesChanged: false,
@@ -66,7 +65,8 @@ type OpacityMatcher = (opacity: number) => boolean;
 
 export const SCREEN_WIDTH = 1920;
 export const SCREEN_HEIGHT = 1080;
-export const DEF_TEXT_WIDTH_HEIGHT = 10;
+export const DEF_TEXT_WIDTH = 30;
+export const DEF_TEXT_HEIGHT = 10;
 export const WORLD_SCALE = 100;
 
 const TILE_LEVEL = 5; // dummy tile level.
@@ -104,18 +104,20 @@ export class TestFixture {
     private readonly m_renderPoiSpy: sinon.SinonSpy;
     private readonly m_addTextSpy: sinon.SinonSpy;
     private readonly m_addTextBufferObjSpy: sinon.SinonSpy;
-    private readonly m_dataSource: FakeOmvDataSource = new FakeOmvDataSource();
+    private readonly m_dataSource: FakeOmvDataSource = new FakeOmvDataSource({ name: "omv" });
     private readonly m_screenProjector: ScreenProjector;
-    private readonly m_camera: THREE.PerspectiveCamera = new THREE.PerspectiveCamera();
     private readonly m_theme: Theme = {};
     private m_viewState: ViewState;
     private m_options: TextElementsRendererOptions = {};
     private m_screenCollisionTestStub: sinon.SinonStub | undefined;
     private m_textCanvasStub: TextCanvas | undefined;
     private m_textRenderer: TextElementsRenderer | undefined;
+    private m_loadCatalogStub: sinon.SinonStub | undefined;
+    private m_textCanvasFactoryStub: sinon.SinonStubbedInstance<TextCanvasFactory> | undefined;
+    private m_fontCatalog: FontCatalog | undefined;
     private m_defaultTile: Tile | undefined;
     private m_allTiles: Tile[] = [];
-    private m_allTextElements: TextElement[][] = [];
+    private readonly m_allTextElements: TextElement[][] = [];
 
     constructor(readonly sandbox: sinon.SinonSandbox) {
         this.m_screenCollisions = new ScreenCollisions();
@@ -131,10 +133,8 @@ export class TestFixture {
 
     /**
      * Sets up required before every test case.
-     * @returns A promise that resolves to true once the setup is finished, to false if there was an
-     * error.
      */
-    setUp(): Promise<boolean> {
+    async setUp(): Promise<void> {
         this.m_defaultTile = this.m_dataSource.getTile(new TileKey(0, 0, TILE_LEVEL));
         this.m_defaultTile.textElementsChanged = true;
         this.m_allTiles = [];
@@ -149,77 +149,130 @@ export class TestFixture {
         });
         this.m_options = {
             labelDistanceScaleMin: 1,
-            labelDistanceScaleMax: 1
+            labelDistanceScaleMax: 1,
+            fontCatalog: "./resources/fonts/Default_FontCatalog.json"
         };
-        const fontCatalog = stubFontCatalog(this.sandbox);
+        this.m_fontCatalog = stubFontCatalog(this.sandbox);
         this.m_textCanvasStub = stubTextCanvas(
             this.sandbox,
             this.m_addTextSpy,
             this.m_addTextBufferObjSpy,
-            fontCatalog,
-            DEF_TEXT_WIDTH_HEIGHT
+            this.m_fontCatalog,
+            DEF_TEXT_WIDTH,
+            DEF_TEXT_HEIGHT
         );
         const dummyUpdateCall = () => {};
+        this.m_loadCatalogStub = this.sandbox.stub(FontCatalogLoader, "loadFontCatalog").resolves();
+
+        this.m_textCanvasFactoryStub = stubTextCanvasFactory(this.sandbox, this.m_textCanvasStub);
         this.m_textRenderer = new TextElementsRenderer(
             this.m_viewState,
-            this.m_camera,
             dummyUpdateCall,
-            this.m_screenCollisions,
             this.m_screenProjector,
-            stubTextCanvasFactory(this.sandbox, this.m_textCanvasStub),
             stubPoiManager(this.sandbox),
-            stubPoiRendererFactory(this.sandbox, this.m_poiRendererStub),
-            stubFontCatalogLoader(this.sandbox, fontCatalog),
-            this.m_theme,
-            this.m_options
+            sinon.createStubInstance(THREE.WebGLRenderer),
+            [],
+            this.m_options,
+            (this.m_textCanvasFactoryStub as unknown) as TextCanvasFactory,
+            (this.m_poiRendererStub as unknown) as PoiRenderer,
+            this.m_screenCollisions
         );
-        // Force renderer initialization by calling render with changed text elements.
-        const time = 0;
-        this.m_textRenderer.placeText(this.tileLists, time);
-        this.clearVisibleTiles();
-        return this.m_textRenderer.waitInitialized();
+        this.m_textRenderer.updateTextStyles(this.m_theme.textStyles);
+        this.m_loadCatalogStub.yieldOn("onSuccess", "default", this.m_fontCatalog);
+        return this.m_textRenderer.waitLoaded();
     }
 
     /**
      * Checks that the fading state of a given text element has the specified expected value.
-     * @param textElement The text element to verify.
-     * @param expectedState The expected fading state of the text element.
-     * @param prevOpacity The text element opacity in the previous frame.
-     * @returns The text element opacity in the current frame.
+     * @param textElement - The text element to verify.
+     * @param expectedState - The expected fading state of the text element.
+     * @param expectedIconState - The expected fading state of the icon.
+     * @param prevOpacities - The text and icon opacities in the previous frame.
+     * @param lineMarkerIndex - Line marker index if the text element contains line markers.
+     * @returns The text and icon opacity in the current frame.
      */
     checkTextElementState(
         textElement: TextElement,
         expectedState: FadeState,
-        prevOpacity: number
-    ): number {
-        let newOpacity = 0;
+        expectedIconState: FadeState | undefined,
+        prevOpacities: [number, number],
+        lineMarkerIndex?: number
+    ): [number, number] {
+        let iconOpacityMatcher: ((arg0: number) => boolean) | undefined;
+        let iconRendered = true;
+
+        if (expectedIconState !== undefined) {
+            switch (expectedIconState) {
+                case FadeState.FadingIn:
+                    iconOpacityMatcher = (opacity: number) => {
+                        return opacity > prevOpacities[1];
+                    };
+                    break;
+                case FadeState.FadingOut:
+                    iconOpacityMatcher = (opacity: number) => {
+                        return opacity < prevOpacities[1];
+                    };
+                    break;
+                case FadeState.FadedIn:
+                    iconOpacityMatcher = (opacity: number) => {
+                        return opacity === 1;
+                    };
+                    break;
+                case FadeState.FadedOut:
+                    iconOpacityMatcher = (opacity: number) => {
+                        return opacity === 0;
+                    };
+                    iconRendered = false;
+                    break;
+            }
+        }
+
+        let newOpacities: [number, number] = [0, 0];
         switch (expectedState) {
             case FadeState.FadingIn:
-                newOpacity = this.checkTextElementRendered(textElement, (opacity: number) => {
-                    return opacity > prevOpacity;
-                });
+                newOpacities = this.checkTextElementRendered(
+                    textElement,
+                    (opacity: number) => {
+                        return opacity > prevOpacities[0];
+                    },
+                    iconRendered,
+                    iconOpacityMatcher,
+                    lineMarkerIndex
+                );
                 break;
             case FadeState.FadingOut:
-                newOpacity = this.checkTextElementRendered(textElement, (opacity: number) => {
-                    return opacity < prevOpacity;
-                });
+                newOpacities = this.checkTextElementRendered(
+                    textElement,
+                    (opacity: number) => {
+                        return opacity < prevOpacities[0];
+                    },
+                    iconRendered,
+                    iconOpacityMatcher,
+                    lineMarkerIndex
+                );
                 break;
             case FadeState.FadedIn:
-                newOpacity = this.checkTextElementRendered(textElement, (opacity: number) => {
-                    return opacity === 1;
-                });
+                newOpacities = this.checkTextElementRendered(
+                    textElement,
+                    (opacity: number) => {
+                        return opacity === 1;
+                    },
+                    iconRendered,
+                    iconOpacityMatcher,
+                    lineMarkerIndex
+                );
                 break;
             case FadeState.FadedOut:
-                this.checkTextElementNotRendered(textElement);
+                this.checkTextElementNotRendered(textElement, lineMarkerIndex);
                 break;
         }
-        return newOpacity;
+        return newOpacities;
     }
 
     /**
      * Adds a tile for testing that will contain the specified text elements. Tiles added this way
      * can later be referenced by index when rendering a frame. See [[renderFrame]].
-     * @param elements The text elements the new tile will contain.
+     * @param elements - The text elements the new tile will contain.
      */
     addTile(elements: TextElement[]) {
         const tile =
@@ -248,8 +301,8 @@ export class TestFixture {
         for (let i = 0; i < allElements.length; ++i) {
             const element = allElements[i];
             const addElement = elementEnabled[i];
-            const elementPresent = [...tileElementGroups.groups.values()].find(
-                group => group.elements.indexOf(element) !== -1
+            const elementPresent = [...tileElementGroups.groups.values()].find(group =>
+                group.elements.includes(element)
             );
             if (addElement && !elementPresent) {
                 tile.addTextElement(element);
@@ -261,10 +314,11 @@ export class TestFixture {
 
     /**
      * Renders text elements for a given frame.
-     * @param time The time when the frame takes place.
-     * @param tileIndices The indices of the tiles that will be visible in this frame.
-     * @param terrainTileIndices The indices of the terrain tiles that will be ready in this frame.
-     * @param collisionEnabled Whether label collision will be enabled in this frame.
+     * @param time - The time when the frame takes place.
+     * @param tileIndices - The indices of the tiles that will be visible in this frame.
+     * @param terrainTileIndices - The indices of the terrain tiles that will be ready in
+     *                             this frame.
+     * @param collisionEnabled - Whether label collision will be enabled in this frame.
      */
     async renderFrame(
         time: number,
@@ -294,50 +348,78 @@ export class TestFixture {
         }
 
         this.m_viewState.frameNumber++;
-        this.textRenderer.placeText(this.tileLists, time);
+        silenceLoggingAroundFunction(["TextElementsRenderer", "TextElementsStateCache"], () => {
+            this.textRenderer.placeText(this.tileLists, time);
+        });
     }
 
-    private get textRenderer(): TextElementsRenderer {
+    get textRenderer(): TextElementsRenderer {
         assert(this.m_textRenderer !== undefined);
         return this.m_textRenderer!;
+    }
+
+    get loadCatalogStub(): sinon.SinonStub {
+        assert(this.m_loadCatalogStub !== undefined);
+        return this.m_loadCatalogStub!;
+    }
+
+    get fontCatalog(): FontCatalog {
+        assert(this.m_fontCatalog !== undefined);
+        return this.m_fontCatalog!;
+    }
+
+    get textCanvasFactoryStub(): sinon.SinonStubbedInstance<TextCanvasFactory> {
+        assert(this.m_textCanvasFactoryStub !== undefined);
+        return this.m_textCanvasFactoryStub!;
     }
 
     setElevationProvider(enabled: boolean) {
         this.m_viewState.elevationProvider = enabled ? this.m_elevationProviderStub : undefined;
     }
+
     private checkTextElementRendered(
         textElement: TextElement,
-        opacityMatcher: OpacityMatcher | undefined
-    ): number {
+        opacityMatcher: OpacityMatcher | undefined,
+        iconRendered: boolean,
+        iconOpacityMatcher: OpacityMatcher | undefined,
+        lineMarkerIndex?: number
+    ): [number, number] {
         if (this.m_viewState.elevationProvider) {
-            assert(textElement.elevated, this.getErrorHeading(textElement) + " was NOT elevated.");
+            assert(
+                textElement.elevated,
+                this.getErrorHeading(textElement, lineMarkerIndex) + " was NOT elevated."
+            );
         }
-        switch (textElement.type) {
-            case TextElementType.PoiLabel:
-                if (textElement.poiInfo !== undefined) {
-                    return this.checkPoiRendered(textElement, opacityMatcher);
-                } else {
-                    return this.checkPointTextRendered(textElement, opacityMatcher);
-                }
-            case TextElementType.PathLabel:
-                return this.checkPathTextRendered(textElement, opacityMatcher);
-            case TextElementType.LineMarker:
-                return this.checkLineMarkerRendered(textElement, opacityMatcher);
+        if (textElement.type === TextElementType.PathLabel) {
+            return [this.checkPathTextRendered(textElement, opacityMatcher), 0];
+        } else {
+            if (textElement.poiInfo !== undefined) {
+                return this.checkPoiRendered(
+                    textElement,
+                    opacityMatcher,
+                    iconRendered,
+                    iconOpacityMatcher,
+                    lineMarkerIndex
+                );
+            } else {
+                return [
+                    this.checkPointTextRendered(textElement, opacityMatcher, lineMarkerIndex),
+                    0
+                ];
+            }
         }
     }
 
-    private checkTextElementNotRendered(textElement: TextElement) {
-        switch (textElement.type) {
-            case TextElementType.PoiLabel:
-                if (textElement.poiInfo !== undefined) {
-                    return this.checkPoiNotRendered(textElement);
-                } else {
-                    return this.checkPointTextNotRendered(textElement);
-                }
-            case TextElementType.PathLabel:
-                return this.checkPathTextNotRendered(textElement);
-            case TextElementType.LineMarker:
-                return this.checkLineMarkerNotRendered(textElement);
+    private checkTextElementNotRendered(textElement: TextElement, lineMarkerIndex?: number) {
+        if (textElement.type === TextElementType.PathLabel) {
+            return this.checkPathTextNotRendered(textElement);
+        } else {
+            // PathLabel or LineMarker
+            if (textElement.poiInfo !== undefined) {
+                return this.checkPoiNotRendered(textElement, lineMarkerIndex);
+            } else {
+                return this.checkPointTextNotRendered(textElement, lineMarkerIndex);
+            }
         }
     }
 
@@ -381,11 +463,6 @@ export class TestFixture {
         }
     }
 
-    private clearVisibleTiles() {
-        this.tileLists[0].visibleTiles.length = 0;
-        this.tileLists[0].renderedTiles.clear();
-    }
-
     private get visibleTiles(): Tile[] {
         return this.tileLists[0].visibleTiles;
     }
@@ -403,37 +480,64 @@ export class TestFixture {
 
     private checkPointTextRendered(
         textElement: TextElement,
-        opacityMatcher: OpacityMatcher | undefined
+        opacityMatcher: OpacityMatcher | undefined,
+        posIdx?: number
     ): number {
+        const screenCoords = this.computeScreenCoordinates(
+            textElement,
+            textElement.xOffset,
+            textElement.yOffset,
+            posIdx
+        );
+        expect(screenCoords).to.exist;
+        assert(
+            this.m_addTextBufferObjSpy.calledWith(
+                sinon.match.same(textElement),
+                sinon.match.any,
+                sinon.match.any
+            ),
+            this.getErrorHeading(textElement, posIdx) + "point text was NOT rendered."
+        );
+
         const addBufferObjSpy = this.m_addTextBufferObjSpy.withArgs(
-            sinon.match.same(textElement.textBufferObject),
-            sinon.match.any
+            sinon.match.same(textElement),
+            sinon.match.any,
+            sinon.match.array.deepEquals(screenCoords!.toArray())
         );
         assert(
             addBufferObjSpy.calledOnce,
-            this.getErrorHeading(textElement) + "point text was NOT rendered."
+            this.getErrorHeading(textElement, posIdx) +
+                "point text was NOT in expected position " +
+                JSON.stringify(screenCoords)
         );
         const actualOpacity = addBufferObjSpy.firstCall.args[1];
         this.checkOpacity(actualOpacity, textElement, "text", opacityMatcher);
         return actualOpacity;
     }
 
-    private checkPointTextNotRendered(textElement: TextElement) {
+    private checkPointTextNotRendered(textElement: TextElement, posIdx?: number) {
+        const screenCoords = this.computeScreenCoordinates(
+            textElement,
+            textElement.xOffset,
+            textElement.yOffset,
+            posIdx
+        );
         assert(
             this.m_addTextBufferObjSpy.neverCalledWith(
-                sinon.match.same(textElement.textBufferObject),
-                sinon.match.any
+                sinon.match.same(textElement),
+                sinon.match.any,
+                sinon.match.array.deepEquals(screenCoords!.toArray())
             ),
-            this.getErrorHeading(textElement) + "point text was rendered."
+            this.getErrorHeading(textElement, posIdx) + "point text was rendered."
         );
     }
 
     private checkIconRendered(
         textElement: TextElement,
         opacityMatcher: OpacityMatcher | undefined,
-        positionIndex?: number
+        posIdx?: number
     ): number {
-        const screenCoords = this.computeScreenCoordinates(textElement, positionIndex);
+        const screenCoords = this.computeScreenCoordinates(textElement, 0, 0, posIdx);
         expect(screenCoords).to.exist;
         assert(
             this.m_renderPoiSpy.calledWith(
@@ -441,7 +545,7 @@ export class TestFixture {
                 sinon.match.any,
                 sinon.match.any
             ),
-            this.getErrorHeading(textElement) + "icon was NOT rendered."
+            this.getErrorHeading(textElement, posIdx) + "icon was NOT rendered."
         );
         const renderPoiSpy = this.m_renderPoiSpy.withArgs(
             sinon.match.same(textElement.poiInfo),
@@ -450,21 +554,21 @@ export class TestFixture {
         );
         assert(
             renderPoiSpy.called,
-            this.getErrorHeading(textElement) +
+            this.getErrorHeading(textElement, posIdx) +
                 "icon was NOT rendered in expected position " +
                 JSON.stringify(screenCoords)
         );
         const actualOpacity = renderPoiSpy.firstCall.args[2];
         let labelPartDescription: string = "icon";
-        if (positionIndex !== undefined) {
-            labelPartDescription += " " + positionIndex;
+        if (posIdx !== undefined) {
+            labelPartDescription += " " + posIdx;
         }
         this.checkOpacity(actualOpacity, textElement, labelPartDescription, opacityMatcher);
         return actualOpacity;
     }
 
-    private checkIconNotRendered(textElement: TextElement, positionIndex?: number) {
-        const screenCoords = this.computeScreenCoordinates(textElement, positionIndex);
+    private checkIconNotRendered(textElement: TextElement, posIdx?: number) {
+        const screenCoords = this.computeScreenCoordinates(textElement, 0, 0, posIdx);
         assert(
             this.m_renderPoiSpy.neverCalledWith(
                 sinon.match.same(textElement.poiInfo),
@@ -473,38 +577,34 @@ export class TestFixture {
                     .or(sinon.match.array.deepEquals(screenCoords!.toArray())),
                 sinon.match.any
             ),
-            this.getErrorHeading(textElement) + "icon was rendered."
+            this.getErrorHeading(textElement, posIdx) + "icon was rendered."
         );
     }
 
     private checkPoiRendered(
         textElement: TextElement,
-        opacityMatcher: OpacityMatcher | undefined
-    ): number {
-        this.checkPointTextRendered(textElement, opacityMatcher);
-        return this.checkIconRendered(textElement, opacityMatcher);
-    }
-
-    private checkPoiNotRendered(textElement: TextElement) {
-        this.checkPointTextNotRendered(textElement);
-        this.checkIconNotRendered(textElement);
-    }
-
-    private checkLineMarkerRendered(
-        textElement: TextElement,
-        opacityMatcher: OpacityMatcher | undefined
-    ): number {
-        let actualOpacity: number = 0;
-        for (let i = 0; i < textElement.path!.length; ++i) {
-            actualOpacity = this.checkIconRendered(textElement, opacityMatcher, i);
+        opacityMatcher: OpacityMatcher | undefined,
+        iconRendered: boolean,
+        iconOpacityMatcher: OpacityMatcher | undefined,
+        lineMarkerIndex?: number
+    ): [number, number] {
+        const textOpacity = this.checkPointTextRendered(
+            textElement,
+            opacityMatcher,
+            lineMarkerIndex
+        );
+        let iconOpacity = 0;
+        if (iconRendered) {
+            iconOpacity = this.checkIconRendered(textElement, iconOpacityMatcher, lineMarkerIndex);
+        } else {
+            this.checkIconNotRendered(textElement, lineMarkerIndex);
         }
-        return actualOpacity;
+        return [textOpacity, iconOpacity];
     }
 
-    private checkLineMarkerNotRendered(textElement: TextElement) {
-        for (let i = 0; i < textElement.path!.length; ++i) {
-            this.checkIconNotRendered(textElement, i);
-        }
+    private checkPoiNotRendered(textElement: TextElement, lineMarkerIndex?: number) {
+        this.checkPointTextNotRendered(textElement, lineMarkerIndex);
+        this.checkIconNotRendered(textElement, lineMarkerIndex);
     }
 
     private checkPathTextRendered(
@@ -533,6 +633,8 @@ export class TestFixture {
 
     private computeScreenCoordinates(
         textElement: TextElement,
+        xOffset: number,
+        yOffset: number,
         positionIndex?: number
     ): THREE.Vector2 | undefined {
         if (positionIndex !== undefined) {
@@ -540,7 +642,9 @@ export class TestFixture {
         }
         const worldCoords =
             positionIndex !== undefined ? textElement.path![positionIndex] : textElement.position;
-        return this.m_screenProjector!.project(worldCoords);
+        return this.m_screenProjector!.project(worldCoords)?.add(
+            new THREE.Vector2(xOffset, yOffset)
+        );
     }
 
     private checkOpacity(
@@ -555,18 +659,17 @@ export class TestFixture {
             labelPartDescription +
             " opacity " +
             actualOpacity;
-        expect(actualOpacity, errorMessage)
-            .gte(0)
-            .and.lte(1);
+        expect(actualOpacity, errorMessage).gte(0).and.lte(1);
         if (opacityMatcher !== undefined) {
             assert(opacityMatcher(actualOpacity), errorMessage);
         }
     }
 
-    private getErrorHeading(textElement: TextElement): string {
-        // Substract first initialization frame and 1 more because the view state holds the number
+    private getErrorHeading(textElement: TextElement, posIdx?: number): string {
+        // Subtract first initialization frame and 1 more because the view state holds the number
         // of the next frame.
         const currentFrame = this.m_viewState.frameNumber - 2;
-        return "Frame " + currentFrame + ", label '" + textElement.text + "': ";
+        const posIdxStr = posIdx !== undefined ? `(pIdx ${posIdx})` : "";
+        return `Frame ${currentFrame}, label '${textElement.text}' ${posIdxStr}: `;
     }
 }

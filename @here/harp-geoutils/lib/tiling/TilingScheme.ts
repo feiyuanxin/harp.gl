@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,8 +24,8 @@ export class TilingScheme {
     /**
      * Constructs a new `TilingScheme` with the given subdivision scheme and projection.
      *
-     * @param subdivisionScheme The subdivision scheme used by this `TilingScheme`.
-     * @param projection The projection used by this `TilingScheme`.
+     * @param subdivisionScheme - The subdivision scheme used by this `TilingScheme`.
+     * @param projection - The projection used by this `TilingScheme`.
      */
     constructor(readonly subdivisionScheme: SubdivisionScheme, readonly projection: Projection) {
         this.boundingBoxGenerator = new FlatTileBoundingBoxGenerator(this);
@@ -35,7 +35,7 @@ export class TilingScheme {
     /**
      * Returns the sub tile keys of the given tile.
      *
-     * @param tileKey The [[TileKey]].
+     * @param tileKey - The {@link TileKey}.
      * @returns The list of the sub tile keys.
      */
     getSubTileKeys(tileKey: TileKey): Iterable<TileKey> {
@@ -43,29 +43,29 @@ export class TilingScheme {
     }
 
     /**
-     * Gets the [[TileKey]] from the given geo position and level.
+     * Gets the {@link TileKey} from the given geo position and level.
      *
-     * @param geoPoint The position in geo coordinates.
-     * @param level The level of the resulting `TileKey`.
+     * @param geoPoint - The position in geo coordinates.
+     * @param level - The level of the resulting `TileKey`.
      */
     getTileKey(geoPoint: GeoCoordinatesLike, level: number): TileKey | null {
         return TileKeyUtils.geoCoordinatesToTileKey(this, geoPoint, level);
     }
 
     /**
-     * Gets the list of [[TileKey]]s contained in the given [[GeoBox]].
+     * Gets the list of {@link TileKey}s contained in the given {@link GeoBox}.
      *
-     * @param geoBox The bounding box in geo coordinates.
-     * @param level The level of the resulting `TileKey`.
+     * @param geoBox - The bounding box in geo coordinates.
+     * @param level - The level of the resulting `TileKey`.
      */
     getTileKeys(geoBox: GeoBox, level: number): TileKey[] {
         return TileKeyUtils.geoRectangleToTileKeys(this, geoBox, level);
     }
 
     /**
-     * Returns the bounding box in geo coordinates for the given [[TileKey]].
+     * Returns the bounding box in geo coordinates for the given {@link TileKey}.
      *
-     * @param tileKey The `TileKey`.
+     * @param tileKey - The `TileKey`.
      */
     getGeoBox(tileKey: TileKey): GeoBox {
         return this.boundingBoxGenerator.getGeoBox(tileKey);
@@ -74,8 +74,8 @@ export class TilingScheme {
     /**
      * Returns the bounding box in world coordinates.
      *
-     * @param tileKey The `TileKey`.
-     * @param result The optional object that will contain the resulting bounding box.
+     * @param tileKey - The `TileKey`.
+     * @param result - The optional object that will contain the resulting bounding box.
      */
     getWorldBox(tileKey: TileKey, result?: Box3Like): Box3Like {
         return this.boundingBoxGenerator.getWorldBox(tileKey, result);

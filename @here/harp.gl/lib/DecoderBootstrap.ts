@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,7 +26,6 @@ function asyncWorkerBootstrap(dependencies: string[]): Promise<void> {
 
         let timeoutHit = false;
         const warnTimeout = setTimeout(() => {
-            // tslint:disable-next-line:no-console
             timeoutHit = true;
             reject(
                 new Error("#asyncWorkerBootstrap: Timeout waiting for `worker-bootstrap-response`.")
@@ -68,7 +67,7 @@ if ((self as any).THREE) {
             import("./DecoderBundleMain");
         })
         .catch(error => {
-            // tslint:disable-next-line:no-console
+            // eslint-disable-next-line no-console
             console.error(`harp-decoders.js: failed to bootstrap: ${error}`, error);
         });
 }

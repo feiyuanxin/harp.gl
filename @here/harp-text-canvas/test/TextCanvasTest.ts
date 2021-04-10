@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getTestResourceUrl } from "@here/harp-test-utils";
 import { assert } from "chai";
 import * as sinon from "sinon";
 import * as THREE from "three";
 
-import { getTestResourceUrl } from "@here/harp-test-utils";
 import {
     DefaultTextStyle,
     FontCatalog,
@@ -19,9 +19,9 @@ import {
 } from "../index";
 
 async function loadTexture(url: string): Promise<THREE.Texture> {
-    return new Promise(resolve => {
+    return await new Promise(resolve => {
         new THREE.TextureLoader().load(url, resolve);
-    }) as Promise<THREE.Texture>;
+    });
 }
 
 async function loadJSON(url: string): Promise<any> {
@@ -123,6 +123,7 @@ const individualBounds: THREE.Box2[] = [];
 
 describe("TextCanvas", () => {
     let sandbox: sinon.SinonSandbox;
+    let webglRenderer = {};
     beforeEach(() => {
         sandbox = sinon.createSandbox();
         sandbox.stub(THREE, "TextureLoader").returns({
@@ -132,7 +133,7 @@ describe("TextCanvas", () => {
                 onProgress?: (event: ProgressEvent) => void,
                 onError?: (event: ErrorEvent) => void
             ) => {
-                return new Promise(resolve => {
+                return new Promise<void>(resolve => {
                     if (onLoad !== undefined) {
                         const image = { width: 1, height: 1 };
                         onLoad(new THREE.Texture(image as HTMLImageElement));
@@ -141,56 +142,68 @@ describe("TextCanvas", () => {
                 });
             }
         });
+        webglRenderer = { capabilities: { isWebGL2: false } };
     });
     afterEach(() => {
         sandbox.restore();
     });
 
-    const webglRenderer = {};
     const textRenderStyle = new TextRenderStyle();
     let textCanvas: TextCanvas;
-    it("Creates an instance successfully.", async () => {
-        const catalogJson = await loadJSON(
-            getTestResourceUrl("@here/harp-fontcatalog", "resources/Default_FontCatalog.json")
-        );
-        const replacementJson = await loadJSON(
-            getTestResourceUrl(
-                "@here/harp-fontcatalog",
-                "resources/Default_Assets/Extra/Specials.json"
-            )
-        );
-        const replacementTexture = await loadTexture(
-            getTestResourceUrl(
-                "@here/harp-fontcatalog",
-                "resources/Default_Assets/Extra/Specials.png"
-            )
-        );
 
-        const loadedFontCatalog = createFontCatalogStub(
-            getTestResourceUrl("@here/harp-fontcatalog", "resources"),
-            catalogJson.name,
-            catalogJson.type,
-            catalogJson.size,
-            catalogJson.maxWidth,
-            catalogJson.maxHeight,
-            catalogJson.distanceRange,
-            catalogJson.fonts,
-            catalogJson.supportedBlocks,
-            256,
-            replacementJson,
-            replacementTexture
-        );
-        await loadedFontCatalog.loadCharset(textSample, textRenderStyle);
-        textCanvas = new TextCanvas({
-            renderer: webglRenderer as THREE.WebGLRenderer,
-            fontCatalog: loadedFontCatalog,
-            minGlyphCount: 16,
-            maxGlyphCount: 16
+    for (const isWebGL2 of [false, true]) {
+        const webGLVersion = isWebGL2 ? "WebGL2" : "WebGL1";
+        it(`Creates an instance successfully for ${webGLVersion}`, async () => {
+            (webglRenderer as any).capabilities.isWebGL2 = isWebGL2;
+
+            const catalogJson = await loadJSON(
+                getTestResourceUrl("@here/harp-fontcatalog", "resources/Default_FontCatalog.json")
+            );
+            const replacementJson = await loadJSON(
+                getTestResourceUrl(
+                    "@here/harp-fontcatalog",
+                    "resources/Default_Assets/Extra/Specials.json"
+                )
+            );
+            const replacementTexture = await loadTexture(
+                getTestResourceUrl(
+                    "@here/harp-fontcatalog",
+                    "resources/Default_Assets/Extra/Specials.png"
+                )
+            );
+
+            const loadedFontCatalog = createFontCatalogStub(
+                getTestResourceUrl("@here/harp-fontcatalog", "resources"),
+                catalogJson.name,
+                catalogJson.type,
+                catalogJson.size,
+                catalogJson.maxWidth,
+                catalogJson.maxHeight,
+                catalogJson.distanceRange,
+                catalogJson.fonts,
+                catalogJson.supportedBlocks,
+                256,
+                replacementJson,
+                replacementTexture
+            );
+            await loadedFontCatalog.loadCharset(textSample, textRenderStyle);
+            textCanvas = new TextCanvas({
+                renderer: webglRenderer as THREE.WebGLRenderer,
+                fontCatalog: loadedFontCatalog,
+                minGlyphCount: 16,
+                maxGlyphCount: 16
+            });
+
+            assert.strictEqual(textCanvas.maxGlyphCount, 16);
+            assert.deepEqual(
+                textCanvas.textRenderStyle.fontSize,
+                DefaultTextStyle.DEFAULT_FONT_SIZE
+            );
+            const expectedGLSLVersion = isWebGL2 ? THREE.GLSL3 : THREE.GLSL1;
+            assert.equal((textCanvas.material as any).glslVersion, expectedGLSLVersion);
+            assert.equal((textCanvas.backgroundMaterial as any).glslVersion, expectedGLSLVersion);
         });
-
-        assert.strictEqual(textCanvas.maxGlyphCount, 16);
-        assert.deepEqual(textCanvas.textRenderStyle.fontSize, DefaultTextStyle.DEFAULT_FONT_SIZE);
-    });
+    }
     it("Successfully measures text.", () => {
         const result = textCanvas.measureText("Hello World!", bounds, {
             outputCharacterBounds: individualBounds

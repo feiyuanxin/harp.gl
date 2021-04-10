@@ -1,16 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 // @here:check-imports:environment:node
 
-// tslint:disable-next-line:no-var-requires
-const node_fetch = require("node-fetch");
-
 import * as fs from "fs";
 import { URL } from "url";
+const node_fetch = require("node-fetch");
 
 declare const global: any;
 

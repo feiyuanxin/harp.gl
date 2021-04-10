@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { Theme } from "@here/harp-datasource-protocol";
 import { DebugTileDataSource } from "@here/harp-debug-datasource";
 import { GeoCoordinates, TileKey, webMercatorTilingScheme } from "@here/harp-geoutils";
@@ -18,14 +17,14 @@ import {
 
 import { CUSTOM_DECODER_SERVICE_TYPE } from "../decoder/custom_decoder_defs";
 
-// tslint:disable: max-line-length
 /**
  * This example shows how to create your own datasource with following features:
  * 1. Decoding and processing in a web-worker
  * 2. Usage of the styling engine in a custom datasource
  * 3. Creation of three.js objects in a web-worker
+ * 4. Creating data that appears above and below ground level
  *
- * To achive all this we have to implement a custom decoder:
+ * To achieve all this we have to implement a custom decoder:
  * ```typescript
  * [[include:custom_datasource_example_custom_decoder.ts]]
  * ```
@@ -36,16 +35,16 @@ import { CUSTOM_DECODER_SERVICE_TYPE } from "../decoder/custom_decoder_defs";
  * the styling capabilities of harp.gl. If styling is not needed one could also
  * derive from [[ITileDecoder]] directly.
  *
- * The main entrypoint for the decoder is the [[ThemedTileDecoder.decodeThemedTile]]
+ * The main entry point for the decoder is the [[ThemedTileDecoder.decodeThemedTile]]
  * method (or [[ITileDecoder.decodeTile]] if no styling is needed). All CPU intensive
  * work, like decoding and processing, should go here, because this method is executed
- * in a web-worker. The input to this method (`data`) is comming from the main-thread
+ * in a web-worker. The input to this method (`data`) is coming from the main-thread
  * and is the result of the [[DataProvider.getTile]] method.
  *
  * The [[DataProvider]] is the component that is telling harp.gl where to get the data from.
  * The main method that has to be implemented is the [[DataProvider.getTile]] method.
  * This method is executed in the main thread and should not do any CPU intense work.
- * Normaly you would just do a fetch here. The result is passed to a web-worker and gets
+ * Normally you would just do a fetch here. The result is passed to a web-worker and gets
  * processed further. In this example we don't fetch any data, but just create some data on the
  * fly.
  * ```typescript
@@ -94,13 +93,23 @@ import { CUSTOM_DECODER_SERVICE_TYPE } from "../decoder/custom_decoder_defs";
  * ```typescript
  * [[include:custom_datasource_example_custom_decoder_service_start.ts]]
  * ```
+ *
+ * To properly geometry that is considerable higher or lower than the ground level, the bounding
+ * boxes of the [[Tile]]s have to be enlarged to contain that geometry. If that is not done, the
+ * tile may not be rendered at all, or the geometry may be clipped in some circumstances.
+ *
+ * In this example, the line is rendered at an altitude of -100m, making the line appear on
+ * ground level when zoomed out, but increasingly far below ground level when zoomed in.
+ *
  **/
 
 export namespace CustomDatasourceExample {
+    const MAX_GEOMETRY_HEIGHT = 100;
+    const MIN_GEOMETRY_HEIGHT = -100;
+
     // snippet:custom_datasource_example_custom_data_provider.ts
-    class CustomDataProvider implements DataProvider
-    // end:custom_datasource_example_custom_data_provider.ts
-    {
+    class CustomDataProvider extends DataProvider {
+        // end:custom_datasource_example_custom_data_provider.ts
         connect() {
             // Here you could connect to the service.
             return Promise.resolve();
@@ -112,13 +121,12 @@ export namespace CustomDatasourceExample {
         }
 
         getTile(tileKey: TileKey, abortSignal?: AbortSignal): Promise<ArrayBufferLike | {}> {
-            // Generate some artifical data. Normally you would do a fetch here.
+            // Generate some artificial data. Normally you would do a fetch here.
             // In this example we create some geometry in geo space that will be converted to
             // local world space by [[CustomDecoder.convertToLocalWorldCoordinates]]
 
             const data = new Array<number>();
             // Do some scaling so that the data fits into the tile.
-            // tslint:disable-next-line: no-bitwise
             const scale = 10.0 / (1 << tileKey.level);
             data.push(0.0, 0.0);
             for (let t = 0.0; t < Math.PI * 4; t += 0.1) {
@@ -126,7 +134,11 @@ export namespace CustomDatasourceExample {
                 const y = Math.sin(t) * t * scale;
                 data.push(x, y);
             }
-            return Promise.resolve(new Float32Array(data));
+            return Promise.resolve(new Float32Array([data.length, ...data]));
+        }
+
+        /** @override */ dispose() {
+            // Nothing to be done here.
         }
     }
 
@@ -135,9 +147,8 @@ export namespace CustomDatasourceExample {
     class CustomTile extends Tile {}
 
     // snippet:custom_datasource_example_custom_data_source.ts
-    class CustomDataSource extends TileDataSource<CustomTile>
-    // end:custom_datasource_example_custom_data_source.ts
-    {
+    class CustomDataSource extends TileDataSource<CustomTile> {
+        // end:custom_datasource_example_custom_data_source.ts
         constructor(options: TileDataSourceOptions) {
             super(new TileFactory<CustomTile>(CustomTile), options);
         }
@@ -218,12 +229,15 @@ export namespace CustomDatasourceExample {
     }
 
     // Create a new MapView for the HTMLCanvasElement of the given id.
-    function initializeMapView(id: string): MapView {
+    async function initializeMapView(id: string): Promise<MapView> {
         const canvas = document.getElementById(id) as HTMLCanvasElement;
 
         const map = new MapView({
             canvas,
             theme: customTheme(),
+            // The geometry below ground can create a large number of tiles at lower levels.
+            // Increasing number of visible tiles to minimize gaps.
+            maxVisibleDataSourceTiles: 300,
             // snippet:custom_datasource_example_map_view_decoder_bundle.ts
             decoderUrl: "decoder.bundle.js"
             // end:custom_datasource_example_map_view_decoder_bundle.ts
@@ -257,7 +271,9 @@ export namespace CustomDatasourceExample {
             // possible.
             // decoder: new CustomDecoder(),
             concurrentDecoderServiceName: CUSTOM_DECODER_SERVICE_TYPE,
-            storageLevelOffset: -1
+            storageLevelOffset: -1,
+            minGeometryHeight: MIN_GEOMETRY_HEIGHT,
+            maxGeometryHeight: MAX_GEOMETRY_HEIGHT
         });
         map.addDataSource(customDatasource);
         // end:custom_datasource_example_custom_data_source_create.ts

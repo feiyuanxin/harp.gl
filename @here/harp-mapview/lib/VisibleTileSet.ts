@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,14 +13,16 @@ import {
     TilingScheme
 } from "@here/harp-geoutils";
 import { LRUCache } from "@here/harp-lrucache";
-import { assert, MathUtils } from "@here/harp-utils";
+import { assert, MathUtils, TaskQueue } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { BackgroundDataSource } from "./BackgroundDataSource";
 import { ClipPlanesEvaluator } from "./ClipPlanesEvaluator";
 import { DataSource } from "./DataSource";
 import { ElevationRangeSource } from "./ElevationRangeSource";
 import { FrustumIntersection, TileKeyEntry } from "./FrustumIntersection";
 import { TileGeometryManager } from "./geometry/TileGeometryManager";
+import { TileTaskGroups } from "./MapView";
 import { Tile } from "./Tile";
 import { TileOffsetUtils } from "./Utils";
 
@@ -42,7 +44,7 @@ enum SearchDirection {
 }
 
 /**
- * Limited set of [[MapViewOptions]] used for [[VisibleTileSet]].
+ * Limited set of {@link MapViewOptions} used for {@link VisibleTileSet}.
  */
 export interface VisibleTileSetOptions {
     /**
@@ -84,6 +86,15 @@ export interface VisibleTileSetOptions {
      * Number of levels to go down when searching for fallback tiles.
      */
     quadTreeSearchDistanceDown: number;
+
+    /**
+     * Maximal number of new tiles, that can be added to the scene per frame.
+     * if set to `0`the limit will be ignored and all available tiles be uploaded.
+     * @beta
+     * @internal
+     * @defaultValue 0
+     */
+    maxTilesPerFrame: number;
 }
 
 const MB_FACTOR = 1.0 / (1024.0 * 1024.0);
@@ -91,23 +102,23 @@ const MB_FACTOR = 1.0 / (1024.0 * 1024.0);
 type TileCacheId = string;
 
 /**
- * Wrapper for LRU cache that encapsulates tiles caching for any [[DataSource]] used.
+ * Wrapper for LRU cache that encapsulates tiles caching for any {@link DataSource} used.
  *
  * Provides LRU based caching mechanism where each tile is identified by its tile key
  * (morton code) and data source name.
  * Tiles are kept in the cache based on last recently used policy, cached tile may be evicted
  * only when cache reaches full saturation and tile is no longer visible.
  * @note Currently cached entries (tiles) are identified by unique tile code (morton code) and
- * data source name, thus it is required that each [[DataSource]] used should have unique
+ * data source name, thus it is required that each {@link DataSource} used should have unique
  * name, but implementation could be improved to omit this limitation.
  */
 class DataSourceCache {
     /**
      * Creates unique tile key for caching based on morton code, tile offset and its data source.
      *
-     * @param mortonCode The tile morton code.
-     * @param offset The tile offset.
-     * @param dataSource The [[DataSource]] from which tile was loaded.
+     * @param mortonCode - The tile morton code.
+     * @param offset - The tile offset.
+     * @param dataSource - The {@link DataSource} from which tile was loaded.
      */
     static getKey(mortonCode: number, offset: number, dataSource: DataSource): TileCacheId {
         return `${dataSource.name}_${mortonCode}_${offset}`;
@@ -116,7 +127,7 @@ class DataSourceCache {
     /**
      * Create unique tile identifier for caching, based on tile object passed in.
      *
-     * @param tile The tile for which key is generated.
+     * @param tile - The tile for which key is generated.
      */
     static getKeyForTile(tile: Tile): TileCacheId {
         return DataSourceCache.getKey(tile.tileKey.mortonCode(), tile.offset, tile.dataSource);
@@ -199,8 +210,8 @@ class DataSourceCache {
      *
      * @see capacity.
      * @see resourceComputationType.
-     * @param size The new capacity declared in megabytes or number of entires.
-     * @param rct The enum value that determines how size and capacity are evaluated.
+     * @param size - The new capacity declared in megabytes or number of entires.
+     * @param rct - The enum value that determines how size and capacity are evaluated.
      */
     setCapacity(size: number, rct: ResourceComputationType) {
         this.m_resourceComputationType = rct;
@@ -217,9 +228,9 @@ class DataSourceCache {
     /**
      * Get tile cached or __undefined__ if tile is not yet in cache.
      *
-     * @param mortonCode An unique tile morton code.
-     * @param offset Tile offset.
-     * @param dataSource A [[DataSource]] the tile comes from.
+     * @param mortonCode - An unique tile morton code.
+     * @param offset - Tile offset.
+     * @param dataSource - A {@link DataSource} the tile comes from.
      */
     get(mortonCode: number, offset: number, dataSource: DataSource): Tile | undefined {
         return this.m_tileCache.get(DataSourceCache.getKey(mortonCode, offset, dataSource));
@@ -228,10 +239,10 @@ class DataSourceCache {
     /**
      * Add new tile to the cache.
      *
-     * @param mortonCode En unique tile code (morton code).
-     * @param offset The tile offset.
-     * @param dataSource A [[DataSource]] the tile comes from.
-     * @param tile The tile reference.
+     * @param mortonCode - En unique tile code (morton code).
+     * @param offset - The tile offset.
+     * @param dataSource - A {@link DataSource} the tile comes from.
+     * @param tile - The tile reference.
      */
     set(mortonCode: number, offset: number, dataSource: DataSource, tile: Tile) {
         this.m_tileCache.set(DataSourceCache.getKey(mortonCode, offset, dataSource), tile);
@@ -241,7 +252,7 @@ class DataSourceCache {
      * Delete tile from cache.
      *
      * @note This method will not call eviction callback.
-     * @param tile The tile reference to be removed from cache.
+     * @param tile - The tile reference to be removed from cache.
      */
     delete(tile: Tile) {
         const tileKey = DataSourceCache.getKeyForTile(tile);
@@ -252,10 +263,10 @@ class DataSourceCache {
      * Delete tile using its unique identifier.
      *
      * @note Tile identifier its constructed using information about tile code (morton code) and its
-     * [[DataSource]].
+     * {@link DataSource}.
      * @note This is explicit removal thus eviction callback will not be processed.
      * @see DataSourceCache.getKey.
-     * @param tileKey The unique tile identifier.
+     * @param tileKey - The unique tile identifier.
      */
     deleteByKey(tileKey: TileCacheId) {
         this.m_tileCache.delete(tileKey);
@@ -294,7 +305,7 @@ class DataSourceCache {
     /**
      * Evict selected tiles implicitly.
      *
-     * @param selector The callback used to determine if tile should be evicted.
+     * @param selector - The callback used to determine if tile should be evicted.
      */
     evictSelected(selector: (tile: Tile, key: TileCacheId) => boolean) {
         this.m_tileCache.evictSelected(selector);
@@ -303,10 +314,10 @@ class DataSourceCache {
     /**
      * Call functor (callback) on each tile store in cache.
      *
-     * Optionally you may specify from which [[DataSource]] tiles should be processed.
-     * This limits the tiles visited to a sub-set originating from single [[DataSource]].
-     * @param callback The function to be called for each visited tile.
-     * @param inDataSource The optional [[DataSource]] to which tiles should belong.
+     * Optionally you may specify from which {@link DataSource} tiles should be processed.
+     * This limits the tiles visited to a sub-set originating from single {@link DataSource}.
+     * @param callback - The function to be called for each visited tile.
+     * @param inDataSource - The optional {@link DataSource} to which tiles should belong.
      */
     forEach(callback: (tile: Tile, key: TileCacheId) => void, inDataSource?: DataSource): void {
         this.m_tileCache.forEach((entry: Tile, key: TileCacheId) => {
@@ -318,7 +329,7 @@ class DataSourceCache {
 }
 
 /**
- * List of visible tiles for a [[DataSource]].
+ * List of visible tiles for a {@link DataSource}.
  */
 export interface DataSourceTileList {
     /**
@@ -327,7 +338,7 @@ export interface DataSourceTileList {
     dataSource: DataSource;
 
     /**
-     * The current [[MapView]] zoom level.
+     * The current {@link MapView} zoom level.
      */
     zoomLevel: number;
 
@@ -362,8 +373,25 @@ export interface DataSourceTileList {
     renderedTiles: Map<number, Tile>;
 }
 
+// Sort by distance to camera, now the tiles that are further away are at the end
+// of the list.
+//
+// Sort is unstable if distance is equal, which happens a lot when looking top-down.
+// Unstable sorting makes label placement unstable at tile borders, leading to
+// flickering.
+const compareDistances = (a: TileKeyEntry, b: TileKeyEntry) => {
+    const distanceDiff = a.distance - b.distance;
+
+    // Take care or numerical precision issues
+    const minDiff = (a.distance + b.distance) * 0.000001;
+
+    return Math.abs(distanceDiff) < minDiff
+        ? a.tileKey.mortonCode() - b.tileKey.mortonCode()
+        : distanceDiff;
+};
+
 /**
- * Manages visible [[Tile]]s for [[MapView]].
+ * Manages visible {@link Tile}s for {@link MapView}.
  *
  * Responsible for election of rendered tiles:
  *  - quad-tree traversal
@@ -377,14 +405,19 @@ export interface DataSourceTileList {
 export class VisibleTileSet {
     dataSourceTileList: DataSourceTileList[] = [];
     allVisibleTilesLoaded: boolean = false;
-    options: VisibleTileSetOptions;
 
     private readonly m_cameraOverride = new THREE.PerspectiveCamera();
-    private m_dataSourceCache: DataSourceCache;
-    private m_viewRange: ViewRanges = { near: 0.1, far: Infinity, minimum: 0.1, maximum: Infinity };
+    private readonly m_dataSourceCache: DataSourceCache;
+    private m_viewRange: ViewRanges = {
+        near: 0.1,
+        far: Infinity,
+        minimum: 0.1,
+        maximum: Infinity
+    };
+
     // Maps morton codes to a given Tile, used to find overlapping Tiles. We only need to have this
     // for a single TilingScheme, i.e. that of the BackgroundDataSource.
-    private m_coveringMap = new Map<number, Tile>();
+    private readonly m_coveringMap = new Map<number, Tile>();
 
     private m_resourceComputationType: ResourceComputationType =
         ResourceComputationType.EstimationInMb;
@@ -392,9 +425,11 @@ export class VisibleTileSet {
     constructor(
         private readonly m_frustumIntersection: FrustumIntersection,
         private readonly m_tileGeometryManager: TileGeometryManager,
-        options: VisibleTileSetOptions
+        public options: VisibleTileSetOptions,
+        private readonly m_taskQueue: TaskQueue
     ) {
         this.options = options;
+        this.options.maxTilesPerFrame = Math.floor(this.options.maxTilesPerFrame ?? 0);
         this.m_resourceComputationType =
             options.resourceComputationType === undefined
                 ? ResourceComputationType.EstimationInMb
@@ -415,9 +450,9 @@ export class VisibleTileSet {
     /**
      * Sets cache size.
      *
-     * @param size cache size
-     * @param computationType Optional value specifying the way a [[Tile]]s cache usage is computed,
-     *      either based on size in MB (mega bytes) or in number of tiles. Defaults to
+     * @param size - cache size
+     * @param computationType - Optional value specifying the way a {@link Tile}s cache usage is
+     *      computed, either based on size in MB (mega bytes) or in number of tiles. Defaults to
      *      `ResourceComputationType.EstimationInMb`.
      */
     setDataSourceCacheSize(
@@ -439,10 +474,32 @@ export class VisibleTileSet {
     /**
      * Sets maximum number of visible tiles.
      *
-     * @param size size of visible tiles array
+     * @param size - size of visible tiles array
      */
     setNumberOfVisibleTiles(size: number) {
         this.options.maxVisibleDataSourceTiles = size;
+    }
+
+    /**
+     * Gets the maximum number of tiles that can be added to the scene per frame
+     * @beta
+     * @internal
+     */
+    get maxTilesPerFrame(): number {
+        return this.options.maxTilesPerFrame;
+    }
+
+    /**
+     * Gets the maximum number of tiles that can be added to the scene per frame
+     * @beta
+     * @internal
+     * @param value
+     */
+    set maxTilesPerFrame(value: number) {
+        if (value < 0) {
+            throw new Error("Invalid value, this will result in no tiles ever showing");
+        }
+        this.options.maxTilesPerFrame = Math.floor(value);
     }
 
     /**
@@ -458,7 +515,7 @@ export class VisibleTileSet {
      *
      * Cache may be either keeping number of elements stored or the memory consumed by them.
      *
-     * @param computationType Type of algorith used in cache for checking full saturation,
+     * @param computationType - Type of algorith used in cache for checking full saturation,
      * may be counting number of elements or memory consumed by them.
      */
     set resourceComputationType(computationType: ResourceComputationType) {
@@ -487,19 +544,22 @@ export class VisibleTileSet {
 
     /**
      * Calculates a new set of visible tiles.
-     * @param storageLevel The camera storage level, see [[MapView.storageLevel]].
-     * @param zoomLevel The camera zoom level.
-     * @param dataSources The data sources for which the visible tiles will be calculated.
-     * @param elevationRangeSource Source of elevation range data if any.
+     * @param storageLevel - The camera storage level, see {@link MapView.storageLevel}.
+     * @param zoomLevel - The camera zoom level.
+     * @param dataSources - The data sources for which the visible tiles will be calculated.
+     * @param elevationRangeSource - Source of elevation range data if any.
      * @returns view ranges and their status since last update (changed or not).
      */
     updateRenderList(
         storageLevel: number,
         zoomLevel: number,
         dataSources: DataSource[],
+        frameNumber: number,
         elevationRangeSource?: ElevationRangeSource
     ): { viewRanges: ViewRanges; viewRangesChanged: boolean } {
         let allVisibleTilesLoaded: boolean = true;
+        // This isn't really const, because we pass by ref to the methods below.
+        const newTilesPerFrame = 0;
 
         const visibleTileKeysResult = this.getVisibleTileKeysForDataSources(
             zoomLevel,
@@ -509,75 +569,45 @@ export class VisibleTileSet {
         this.dataSourceTileList = [];
         this.m_coveringMap.clear();
         for (const { dataSource, visibleTileKeys } of visibleTileKeysResult.tileKeys) {
-            // Sort by distance to camera, now the tiles that are further away are at the end
-            // of the list.
-            //
-            // Sort is unstable if distance is equal, which happens a lot when looking top-down.
-            // Unstable sorting makes label placement unstable at tile borders, leading to
-            // flickering.
-            visibleTileKeys.sort((a: TileKeyEntry, b: TileKeyEntry) => {
-                const distanceDiff = a.distance - b.distance;
+            visibleTileKeys.sort(compareDistances);
 
-                // Take care or numerical precision issues
-                const minDiff = (a.distance + b.distance) * 0.000001;
-
-                return Math.abs(distanceDiff) < minDiff
-                    ? a.tileKey.mortonCode() - b.tileKey.mortonCode()
-                    : distanceDiff;
-            });
-
-            const actuallyVisibleTiles: Tile[] = [];
-            let allDataSourceTilesLoaded = true;
-            let numTilesLoading = 0;
             // Create actual tiles only for the allowed number of visible tiles
             const dataZoomLevel = dataSource.getDataZoomLevel(zoomLevel);
-            for (
-                let i = 0;
-                i < visibleTileKeys.length &&
-                actuallyVisibleTiles.length < this.options.maxVisibleDataSourceTiles;
-                i++
-            ) {
-                const tileEntry = visibleTileKeys[i];
 
-                const tile = this.getTile(dataSource, tileEntry.tileKey, tileEntry.offset);
-                if (tile === undefined) {
-                    continue;
-                }
-
-                allDataSourceTilesLoaded = allDataSourceTilesLoaded && tile.allGeometryLoaded;
-                if (!tile.allGeometryLoaded) {
-                    numTilesLoading++;
-                } else {
-                    tile.numFramesVisible++;
-                    // If this tile's data source is "covering" then other tiles beneath it have
-                    // their rendering skipped, see [[Tile.willRender]].
-                    this.skipOverlappedTiles(dataSource, tile);
-
-                    if (tile.frameNumVisible < 0) {
-                        // Store the fist frame the tile became visible.
-                        tile.frameNumVisible = dataSource.mapView.frameNumber;
-                    }
-                }
-                // Update the visible area of the tile. This is used for those tiles that are
-                // currently loaded and are waiting to be decoded to sort the jobs by area.
-                tile.visibleArea = tileEntry.area;
-                tile.elevationRange = tileEntry;
-
-                actuallyVisibleTiles.push(tile);
-            }
-
-            this.m_tileGeometryManager.updateTiles(actuallyVisibleTiles);
-
+            const visibleResult = this.processVisibleTiles(
+                visibleTileKeys,
+                dataSource,
+                frameNumber,
+                {
+                    newTilesPerFrame
+                },
+                true
+            );
+            const dependentResult = this.processVisibleTiles(
+                visibleResult.dependentTiles,
+                dataSource,
+                frameNumber,
+                {
+                    newTilesPerFrame
+                },
+                false
+            );
+            // creates geometry if not yet available
+            this.m_tileGeometryManager.updateTiles(visibleResult.visibleTiles);
+            this.m_tileGeometryManager.updateTiles(dependentResult.visibleTiles);
+            // used to actually render the tiles or find alternatives for incomplete tiles
             this.dataSourceTileList.push({
                 dataSource,
                 storageLevel,
                 zoomLevel: dataZoomLevel,
-                allVisibleTileLoaded: allDataSourceTilesLoaded,
-                numTilesLoading,
-                visibleTiles: actuallyVisibleTiles,
+                allVisibleTileLoaded:
+                    visibleResult.allDataSourceTilesLoaded &&
+                    dependentResult.allDataSourceTilesLoaded,
+                numTilesLoading: visibleResult.numTilesLoading + dependentResult.numTilesLoading,
+                visibleTiles: [...visibleResult.visibleTiles, ...dependentResult.visibleTiles],
                 renderedTiles: new Map<number, Tile>()
             });
-            allVisibleTilesLoaded = allVisibleTilesLoaded && allDataSourceTilesLoaded;
+            allVisibleTilesLoaded = allVisibleTilesLoaded && visibleResult.allDataSourceTilesLoaded;
         }
 
         this.allVisibleTilesLoaded =
@@ -589,7 +619,7 @@ export class VisibleTileSet {
             // Remove all tiles that are still being loaded, but are no longer visible. They have to
             // be reloaded when they become visible again. Hopefully, they are still in the browser
             // cache by then.
-            if (!tile.isVisible && tile.tileLoader !== undefined && !tile.tileLoader.isFinished) {
+            if (!tile.isVisible && !tile.allGeometryLoaded) {
                 // The internal TileLoader is cancelled automatically when the Tile is disposed.
                 this.disposeTile(tile);
             }
@@ -634,36 +664,48 @@ export class VisibleTileSet {
      * Gets the tile corresponding to the given data source, key and offset, creating it if
      * necessary.
      *
-     * @param dataSource The data source the tile belongs to.
-     * @param tileKey The key identifying the tile.
-     * @param offset Tile offset.
+     * @param dataSource - The data source the tile belongs to.
+     * @param tileKey - The key identifying the tile.
+     * @param offset - Tile offset.
+     * @param frameNumber - Frame in which the tile was requested
      * @return The tile if it was found or created, undefined otherwise.
      */
-    getTile(dataSource: DataSource, tileKey: TileKey, offset: number = 0): Tile | undefined {
+    getTile(
+        dataSource: DataSource,
+        tileKey: TileKey,
+        offset: number,
+        frameNumber: number
+    ): Tile | undefined {
         const cacheOnly = false;
-        return this.getTileImpl(dataSource, tileKey, offset, cacheOnly);
+        return this.getTileImpl(dataSource, tileKey, offset, cacheOnly, frameNumber);
     }
 
     /**
      * Gets the tile corresponding to the given data source, key and offset from the cache.
      *
-     * @param dataSource The data source the tile belongs to.
-     * @param tileKey The key identifying the tile.
-     * @param offset Tile offset.
+     * @param dataSource - The data source the tile belongs to.
+     * @param tileKey - The key identifying the tile.
+     * @param offset - Tile offset.
+     * @param frameNumber - Frame in which the tile was requested
      * @return The tile if found in cache, undefined otherwise.
      */
-    getCachedTile(dataSource: DataSource, tileKey: TileKey, offset: number = 0): Tile | undefined {
+    getCachedTile(
+        dataSource: DataSource,
+        tileKey: TileKey,
+        offset: number,
+        frameNumber: number
+    ): Tile | undefined {
         assert(dataSource.cacheable);
         const cacheOnly = true;
-        return this.getTileImpl(dataSource, tileKey, offset, cacheOnly);
+        return this.getTileImpl(dataSource, tileKey, offset, cacheOnly, frameNumber);
     }
 
     /**
      * Gets the tile corresponding to the given data source, key and offset from the rendered tiles.
      *
-     * @param dataSource The data source the tile belongs to.
-     * @param tileKey The key identifying the tile.
-     * @param offset Tile offset.
+     * @param dataSource - The data source the tile belongs to.
+     * @param tileKey - The key identifying the tile.
+     * @param offset - Tile offset.
      * @return The tile if found among the rendered tiles, undefined otherwise.
      */
     getRenderedTile(
@@ -687,8 +729,8 @@ export class VisibleTileSet {
     /**
      * Gets the tile corresponding to the given data source and location from the rendered tiles.
      *
-     * @param dataSource The data source the tile belongs to.
-     * @param geoPoint The geolocation included within the tile.
+     * @param dataSource - The data source the tile belongs to.
+     * @param geoPoint - The geolocation included within the tile.
      * @return The tile if found among the rendered tiles, undefined otherwise.
      */
     getRenderedTileAtLocation(
@@ -762,7 +804,7 @@ export class VisibleTileSet {
     /**
      * Removes all internal bookkeeping entries and cache related to specified datasource.
      *
-     * Called by [[MapView]] when [[DataSource]] has been removed from [[MapView]].
+     * Called by {@link MapView} when {@link DataSource} has been removed from {@link MapView}.
      */
     removeDataSource(dataSource: DataSource) {
         this.clearTileCache(dataSource);
@@ -774,16 +816,23 @@ export class VisibleTileSet {
     /**
      * Clear the tile cache.
      *
-     * Remove the [[Tile]] objects created by cacheable [[DataSource]]. If a [[DataSource]] name is
-     * provided, this method restricts the eviction the [[DataSource]] with the given name.
+     * Remove the {@link Tile} objects created by cacheable {@link DataSource}.
+     * If a {@link DataSource} name is
+     * provided, this method restricts the eviction
+     * the {@link DataSource} with the given name.
      *
-     * @param dataSourceName The name of the [[DataSource]].
+     * @param dataSourceName - The name of the {@link DataSource}.
+     * @param filter Optional tile filter
      */
-    clearTileCache(dataSource?: DataSource) {
+    clearTileCache(dataSource?: DataSource, filter?: (tile: Tile) => boolean) {
         if (dataSource !== undefined) {
             this.m_dataSourceCache.evictSelected((tile: Tile, _) => {
-                return tile.dataSource === dataSource;
+                return (
+                    tile.dataSource === dataSource && (filter !== undefined ? filter(tile) : true)
+                );
             });
+        } else if (filter !== undefined) {
+            this.m_dataSourceCache.evictSelected(filter);
         } else {
             this.m_dataSourceCache.evictAll();
         }
@@ -795,25 +844,26 @@ export class VisibleTileSet {
      *  * Visible and temporarily rendered tiles will be marked for update and retained.
      *  * Cached but not rendered/visible will be evicted.
      *
-     * @param dataSource If passed, only the tiles from this [[DataSource]] instance are processed.
-     *     If `undefined`, tiles from all [[DataSource]]s are processed.
+     * @param dataSource - If passed, only the tiles from this {@link DataSource} instance
+     *      are processed. If `undefined`, tiles from all {@link DataSource}s are processed.
+     * @param filter Optional tile filter
      */
-    markTilesDirty(dataSource?: DataSource) {
+    markTilesDirty(dataSource?: DataSource, filter?: (tile: Tile) => boolean) {
         if (dataSource === undefined) {
             this.dataSourceTileList.forEach(renderListEntry => {
-                this.markDataSourceTilesDirty(renderListEntry);
+                this.markDataSourceTilesDirty(renderListEntry, filter);
             });
         } else {
             const renderListEntry = this.dataSourceTileList.find(e => e.dataSource === dataSource);
             if (renderListEntry === undefined) {
                 return;
             }
-            this.markDataSourceTilesDirty(renderListEntry);
+            this.markDataSourceTilesDirty(renderListEntry, filter);
         }
     }
 
     /**
-     * Dispose tiles that are marked for removal by [[LRUCache]] algorithm.
+     * Dispose tiles that are marked for removal by {@link @here/harp-lrucache#LRUCache} algorithm.
      */
     disposePendingTiles() {
         this.m_dataSourceCache.disposeTiles();
@@ -822,7 +872,7 @@ export class VisibleTileSet {
     /**
      * Process callback function [[fun]] with each visible tile in set.
      *
-     * @param fun The callback function to be called.
+     * @param fun - The callback function to be called.
      */
     forEachVisibleTile(fun: (tile: Tile) => void): void {
         for (const listEntry of this.dataSourceTileList) {
@@ -836,8 +886,8 @@ export class VisibleTileSet {
      * Optional [[dataSource]] parameter limits processing to the tiles that belongs to
      * DataSource passed in.
      *
-     * @param fun The callback function to be called.
-     * @param dataSource The optional DataSource reference for tiles selection.
+     * @param fun - The callback function to be called.
+     * @param dataSource - The optional DataSource reference for tiles selection.
      */
     forEachCachedTile(fun: (tile: Tile) => void, dataSource?: DataSource): void {
         this.m_dataSourceCache.forEach((tile, _) => fun(tile), dataSource);
@@ -852,9 +902,114 @@ export class VisibleTileSet {
         tile.dispose();
     }
 
+    // Requests the tiles using the tilekeys from the DataSource and returns them, including whether
+    // all tiles were loaded and how many are loading.
+    private processVisibleTiles(
+        visibleTileKeys: TileKeyEntry[],
+        dataSource: DataSource,
+        frameNumber: number,
+        // Must be passed by reference
+        refs: {
+            newTilesPerFrame: number;
+        },
+        processDependentTiles: boolean
+    ): {
+        allDataSourceTilesLoaded: boolean;
+        numTilesLoading: number;
+        visibleTiles: Tile[];
+        dependentTiles: TileKeyEntry[];
+    } {
+        let allDataSourceTilesLoaded = true;
+        let numTilesLoading = 0;
+        const visibleTiles: Tile[] = [];
+        const dependentTiles: TileKeyEntry[] = [];
+        for (
+            let i = 0;
+            i < visibleTileKeys.length &&
+            visibleTiles.length < this.options.maxVisibleDataSourceTiles;
+            i++
+        ) {
+            const tileEntry = visibleTileKeys[i];
+            const tile = this.getTile(dataSource, tileEntry.tileKey, tileEntry.offset, frameNumber);
+            if (tile === undefined) {
+                continue;
+            }
+            visibleTiles.push(tile);
+
+            allDataSourceTilesLoaded = allDataSourceTilesLoaded && tile.allGeometryLoaded;
+            if (!tile.allGeometryLoaded) {
+                numTilesLoading++;
+            } else {
+                // If this tile's data source is "covering" then other tiles beneath it have
+                // their rendering skipped, see [[Tile.willRender]].
+                this.skipOverlappedTiles(dataSource, tile);
+                if (this.processDelayTileRendering(tile, refs.newTilesPerFrame, frameNumber)) {
+                    refs.newTilesPerFrame++;
+                }
+            }
+            // Update the visible area of the tile. This is used for those tiles that are
+            // currently loaded and are waiting to be decoded to sort the jobs by area.
+            tile.visibleArea = tileEntry.area;
+            tile.elevationRange = tileEntry.elevationRange ?? { minElevation: 0, maxElevation: 0 };
+
+            if (processDependentTiles) {
+                // Add any dependent tileKeys if not already visible. Consider to optimize with a
+                // Set if this proves to be a bottleneck (because of O(n^2) search). Given the fact
+                // that dependencies are rare and used for non tiled data, this shouldn't be a
+                // problem.
+                for (const tileKey of tile.dependencies) {
+                    if (
+                        visibleTileKeys.find(
+                            tileKeyEntry =>
+                                tileKeyEntry.tileKey.mortonCode() === tileKey.mortonCode()
+                        ) === undefined
+                    ) {
+                        dependentTiles.push(new TileKeyEntry(tileKey, 0));
+                    }
+                }
+            }
+        }
+
+        return {
+            allDataSourceTilesLoaded,
+            numTilesLoading,
+            visibleTiles,
+            dependentTiles
+        };
+    }
+
+    // Processes if the tile should delay its rendering, returns if the tile is new, which is needed
+    // to count how many tiles are generated per frame.
+    private processDelayTileRendering(
+        tile: Tile,
+        newTilesPerFrame: number,
+        frameNumber: number
+    ): boolean {
+        let isNewTile: boolean = false;
+        if (
+            // if set to 0, it will ignore the limit and upload all available
+            this.options.maxTilesPerFrame !== 0 &&
+            newTilesPerFrame > this.options.maxTilesPerFrame &&
+            //if the tile was already visible last frame dont delay it
+            !(tile.frameNumLastVisible === frameNumber - 1)
+        ) {
+            tile.delayRendering = true;
+            tile.mapView.update();
+        } else {
+            if (tile.frameNumVisible < 0) {
+                // Store the fist frame the tile became visible.
+                tile.frameNumVisible = frameNumber;
+                isNewTile = true;
+            }
+            tile.numFramesVisible++;
+            tile.delayRendering = false;
+        }
+        return isNewTile;
+    }
+
     /**
-     * Skips rendering of tiles that are overlapped. The overlapping [[Tile]] comes from a
-     * [[DataSource]] which is fully covering, i.e. there it is fully opaque.
+     * Skips rendering of tiles that are overlapped. The overlapping {@link Tile} comes from a
+     * {@link DataSource} which is fully covering, i.e. there it is fully opaque.
      **/
     private skipOverlappedTiles(dataSource: DataSource, tile: Tile) {
         if (this.options.projection.type === ProjectionType.Spherical) {
@@ -871,7 +1026,7 @@ export class VisibleTileSet {
                 tile.skipRendering = false;
                 this.m_coveringMap.set(key, tile);
             } else {
-                // Skip the [[Tile]] if either the stored entry or the tile to consider is from the
+                // Skip the Tile if either the stored entry or the tile to consider is from the
                 // [[BackgroundDataSource]]
                 if (entry.dataSource instanceof BackgroundDataSource) {
                     entry.skipRendering = true;
@@ -886,7 +1041,11 @@ export class VisibleTileSet {
     private getSearchDirection(
         dataSource: DataSource,
         visibleLevel: number
-    ): { searchDirection: SearchDirection; searchLevelsUp: number; searchLevelsDown: number } {
+    ): {
+        searchDirection: SearchDirection;
+        searchLevelsUp: number;
+        searchLevelsDown: number;
+    } {
         const searchLevelsUp = Math.min(
             this.options.quadTreeSearchDistanceUp,
             Math.max(0, visibleLevel - dataSource.minDataLevel)
@@ -913,7 +1072,7 @@ export class VisibleTileSet {
      * to prevent flickering when zooming in / out. The distance to search is based on the options
      * [[quadTreeSearchDistanceDown]] and [[quadTreeSearchDistanceUp]].
      *
-     * Each [[DataSource]] can also switch this behaviour on / off using the
+     * Each {@link DataSource} can also switch this behaviour on / off using the
      * [[allowOverlappingTiles]] flag.
      *
      */
@@ -929,7 +1088,7 @@ export class VisibleTileSet {
             // ("incompleteTiles").
             renderListEntry.visibleTiles.forEach(tile => {
                 tile.levelOffset = 0;
-                if (tile.hasGeometry) {
+                if (tile.hasGeometry && !tile.delayRendering) {
                     renderedTiles.set(tile.uniqueKey, tile);
                 } else {
                     // if dataSource supports cache and it was existing before this render
@@ -1005,8 +1164,9 @@ export class VisibleTileSet {
             );
 
             const nextLevelDiff = Math.abs(childTileKey.level - dataZoomLevel);
-            if (childTile !== undefined && childTile.hasGeometry) {
-                // childTile has geometry, so can be reused as fallback
+            if (childTile !== undefined && childTile.hasGeometry && !childTile.delayRendering) {
+                //childTile has geometry and was/can be uploaded to the GPU,
+                //so we can use it as fallback
                 renderedTiles.set(childTileCode, childTile);
                 childTile.levelOffset = nextLevelDiff;
                 continue;
@@ -1021,12 +1181,12 @@ export class VisibleTileSet {
 
     /**
      * Returns true if a tile was found in the cache which is a parent
-     * @param tileKeyCode Morton code of the current tile that should be searched for.
-     * @param dataZoomLevel The current data zoom level of tiles that are to be displayed.
-     * @param renderedTiles The list of tiles that are shown to the user.
-     * @param checkedTiles Used to map a given code to a boolean which tells us if an ancestor is
+     * @param tileKeyCode - Morton code of the current tile that should be searched for.
+     * @param dataZoomLevel - The current data zoom level of tiles that are to be displayed.
+     * @param renderedTiles - The list of tiles that are shown to the user.
+     * @param checkedTiles - Used to map a given code to a boolean which tells us if an ancestor is
      * displayed or not.
-     * @param dataSource The provider of tiles.
+     * @param dataSource - The provider of tiles.
      * @returns Whether a parent tile exists.
      */
     private findUp(
@@ -1050,7 +1210,7 @@ export class VisibleTileSet {
         const parentTile = this.m_dataSourceCache.get(mortonCode, offset, dataSource);
         const parentTileKey = parentTile ? parentTile.tileKey : TileKey.fromMortonCode(mortonCode);
         const nextLevelDiff = Math.abs(dataZoomLevel - parentTileKey.level);
-        if (parentTile !== undefined && parentTile.hasGeometry) {
+        if (parentTile !== undefined && parentTile.hasGeometry && !parentTile.delayRendering) {
             checkedTiles.set(parentCode, true);
             // parentTile has geometry, so can be reused as fallback
             renderedTiles.set(parentCode, parentTile);
@@ -1086,19 +1246,20 @@ export class VisibleTileSet {
         dataSource: DataSource,
         tileKey: TileKey,
         offset: number,
-        cacheOnly: boolean
+        cacheOnly: boolean,
+        frameNumber: number
     ): Tile | undefined {
-        function updateTile(tileToUpdate?: Tile) {
-            if (tileToUpdate === undefined) {
-                return;
-            }
+        function touchTile(tileToUpdate: Tile) {
             // Keep the tile from being removed from the cache.
-            tileToUpdate.frameNumLastRequested = dataSource.mapView.frameNumber;
+            tileToUpdate.frameNumLastRequested = frameNumber;
         }
 
         if (!dataSource.cacheable && !cacheOnly) {
-            const resultTile = dataSource.getTile(tileKey);
-            updateTile(resultTile);
+            const resultTile = dataSource.getTile(tileKey, true);
+            if (resultTile !== undefined) {
+                this.addToTaskQueue(resultTile);
+                touchTile(resultTile);
+            }
             return resultTile;
         }
 
@@ -1106,7 +1267,7 @@ export class VisibleTileSet {
         let tile = tileCache.get(tileKey.mortonCode(), offset, dataSource);
 
         if (tile !== undefined && tile.offset === offset) {
-            updateTile(tile);
+            touchTile(tile);
             return tile;
         }
 
@@ -1114,46 +1275,61 @@ export class VisibleTileSet {
             return undefined;
         }
 
-        tile = dataSource.getTile(tileKey);
+        tile = dataSource.getTile(tileKey, true);
         // TODO: Update all tile information including area, min/max elevation from TileKeyEntry
         if (tile !== undefined) {
+            this.addToTaskQueue(tile);
             tile.offset = offset;
-            updateTile(tile);
+            touchTile(tile);
             tileCache.set(tileKey.mortonCode(), offset, dataSource, tile);
-            this.m_tileGeometryManager.initTile(tile);
         }
         return tile;
     }
 
-    private markDataSourceTilesDirty(renderListEntry: DataSourceTileList) {
+    private addToTaskQueue(tile: Tile) {
+        this.m_taskQueue.add({
+            execute: tile.load.bind(tile),
+            group: TileTaskGroups.FETCH_AND_DECODE,
+            getPriority: () => {
+                return tile?.tileLoader?.priority ?? 0;
+            },
+            isExpired: () => {
+                return !tile?.isVisible;
+            },
+            estimatedProcessTime: () => {
+                return 1;
+            }
+        });
+    }
+
+    private markDataSourceTilesDirty(
+        renderListEntry: DataSourceTileList,
+        filter?: (tile: Tile) => boolean
+    ) {
         const dataSourceCache = this.m_dataSourceCache;
         const retainedTiles: Set<TileCacheId> = new Set();
 
-        function markTileDirty(tile: Tile, tileGeometryManager: TileGeometryManager) {
+        const markTileDirty = (tile: Tile) => {
             const tileKey = DataSourceCache.getKeyForTile(tile);
             if (!retainedTiles.has(tileKey)) {
                 retainedTiles.add(tileKey);
-                if (tile.tileGeometryLoader !== undefined) {
-                    tile.tileGeometryLoader.reset();
-                }
-
-                // Prevent label rendering issues when the style set is changing. Prevent Text
-                // element rendering that depends on cleaned font catalog data.
-                tile.clearTextElements();
-
-                tile.load();
+                this.addToTaskQueue(tile);
             }
-        }
+        };
 
         renderListEntry.visibleTiles.forEach(tile => {
-            markTileDirty(tile, this.m_tileGeometryManager);
+            if (filter === undefined || filter(tile)) {
+                markTileDirty(tile);
+            }
         });
         renderListEntry.renderedTiles.forEach(tile => {
-            markTileDirty(tile, this.m_tileGeometryManager);
+            if (filter === undefined || filter(tile)) {
+                markTileDirty(tile);
+            }
         });
 
         dataSourceCache.forEach((tile, key) => {
-            if (!retainedTiles.has(key)) {
+            if ((filter === undefined || filter(tile)) && !retainedTiles.has(key)) {
                 dataSourceCache.deleteByKey(key);
                 tile.dispose();
             }
@@ -1169,7 +1345,10 @@ export class VisibleTileSet {
         tileKeys: Array<{ dataSource: DataSource; visibleTileKeys: TileKeyEntry[] }>;
         allBoundingBoxesFinal: boolean;
     } {
-        const tileKeys = Array<{ dataSource: DataSource; visibleTileKeys: TileKeyEntry[] }>();
+        const tileKeys = Array<{
+            dataSource: DataSource;
+            visibleTileKeys: TileKeyEntry[];
+        }>();
         let allBoundingBoxesFinal: boolean = true;
 
         if (dataSources.length === 0) {

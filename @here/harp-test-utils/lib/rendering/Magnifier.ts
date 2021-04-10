@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -13,7 +13,6 @@ function rgbToHex(r: number, g: number, b: number) {
     if (r > 255 || g > 255 || b > 255) {
         throw new Error("Invalid color component");
     }
-    // tslint:disable-next-line:no-bitwise
     return ((r << 16) | (g << 8) | b).toString(16).toUpperCase();
 }
 type RGBColorTuple = [number, number, number];
@@ -25,7 +24,6 @@ function htmlColor(rgb: RGBColorTuple) {
     return "#" + rgbToHex(rgb[0], rgb[1], rgb[2]);
 }
 function colorIndicator(rgb: RGBColorTuple) {
-    // tslint:disable-next-line:max-line-length
     return `<div
         style='
             display: inline-block;
@@ -61,9 +59,9 @@ document.body.appendChild(magnifier);
  * When user hover mouse over any of images, an popup with information given pixel will be shown.
  * If window has focus, one can also move focus point with keyboard.
  *
- * @param actual
- * @param expected
- * @param diff
+ * @param actual -
+ * @param expected -
+ * @param diff -
  */
 export function installMagnifier(
     actual: HTMLImageElement,

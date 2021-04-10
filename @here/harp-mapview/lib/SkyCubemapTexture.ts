@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -36,7 +36,7 @@ export class SkyCubemapTexture {
     /**
      * Constructs a new `SkyCubemapTexture`.
      *
-     * @param sky Initial [[CubemapSky]] configuration.
+     * @param sky - Initial [[CubemapSky]] configuration.
      */
     constructor(sky: CubemapSky) {
         const faces = this.createCubemapFaceArray(sky);
@@ -61,7 +61,7 @@ export class SkyCubemapTexture {
     /**
      * Updates the `SkyCubemapTexture` with new parameters.
      *
-     * @param params New [[CubemapSky]] configuration.
+     * @param params - New [[CubemapSky]] configuration.
      */
     updateTexture(sky: CubemapSky) {
         const faces = this.createCubemapFaceArray(sky);

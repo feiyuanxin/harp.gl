@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,7 +8,6 @@ import { assert } from "chai";
 
 declare const global: any;
 
-// tslint:disable:no-empty
 //    lots of stubs are needed which are just placeholders and are empty
 
 /**
@@ -110,14 +109,14 @@ export interface LimitedWorkerScope {
  * 'microtask' after construction (which indeed can happen in real environment, when worker code is
  * already available and computer is slow).
  *
- * @param workerConstructorStub worker constructor stub to be instrumented
- * @param workerScript  fake worker script to be executed
+ * @param workerConstructorStub - worker constructor stub to be instrumented
+ * @param workerScript -  fake worker script to be executed
  */
 export function willExecuteWorkerScript(
     workerConstructorStub: any,
     workerScript: (self: LimitedWorkerScope, scriptUrl: string) => void
 ) {
-    workerConstructorStub.callsFake(function(this: FakeWorkerData, scriptUrl: string) {
+    workerConstructorStub.callsFake(function (this: FakeWorkerData, scriptUrl: string) {
         const intListeners: ListenerMap = {
             message: new MessageQueue(),
             error: new MessageQueue()
@@ -154,14 +153,14 @@ export function willExecuteWorkerScript(
         setTimeout(workerStartScript, 1);
     });
 
-    workerConstructorStub.prototype.postMessage.callsFake(function(
+    workerConstructorStub.prototype.postMessage.callsFake(function (
         this: FakeWorkerData,
         message: any
     ) {
         this.intListeners.message.dispatchEvent({ type: "message", data: message });
     });
 
-    workerConstructorStub.prototype.addEventListener.callsFake(function(
+    workerConstructorStub.prototype.addEventListener.callsFake(function (
         this: FakeWorkerData,
         type: string,
         listener: Listener
@@ -170,7 +169,7 @@ export function willExecuteWorkerScript(
         this.extListeners[type].addListener(listener);
     });
 
-    workerConstructorStub.prototype.removeEventListener.callsFake(function(
+    workerConstructorStub.prototype.removeEventListener.callsFake(function (
         this: FakeWorkerData,
         type: string,
         listener: Listener
@@ -179,7 +178,7 @@ export function willExecuteWorkerScript(
         this.extListeners[type].removeListener(listener);
     });
 
-    workerConstructorStub.prototype.dispatchEvent.callsFake(function(
+    workerConstructorStub.prototype.dispatchEvent.callsFake(function (
         this: FakeWorkerData,
         event: any
     ) {
@@ -201,7 +200,7 @@ class FakeWorkerSelf {
      *
      * Call to [[restoreSelf]] call is mandatory, otherwise strange things happen.
      *
-     * @param newSelf
+     * @param newSelf -
      */
     static fakeSelf(newSelf: LimitedWorkerScope) {
         if (!this.shouldRestoreSelf) {

@@ -1,8 +1,9 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+import { silenceLoggingAroundFunction } from "@here/harp-test-utils";
 import { assert } from "chai";
 
 import {
@@ -14,15 +15,14 @@ import {
     Statistics
 } from "../lib/Statistics";
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 declare const global: any;
 
 const isNode = typeof window === "undefined";
 
-describe("mapview-statistics", function() {
-    it("Ringbuffer", function() {
+describe("mapview-statistics", function () {
+    it("Ringbuffer", function () {
         const rb = new RingBuffer<number>(10);
 
         assert.equal(rb.size, 0);
@@ -85,11 +85,9 @@ describe("mapview-statistics", function() {
             rb.deq();
         });
         assert.throws(() => {
-            // tslint:disable-next-line:no-unused-expression
             rb.top;
         });
         assert.throws(() => {
-            // tslint:disable-next-line:no-unused-expression
             rb.bottom;
         });
 
@@ -125,7 +123,7 @@ describe("mapview-statistics", function() {
         assert.equal(rb.size, 0);
     });
 
-    it("init", function() {
+    it("init", function () {
         const stats = new Statistics();
         assert.isFalse(stats.enabled);
 
@@ -133,7 +131,7 @@ describe("mapview-statistics", function() {
         assert.isTrue(stats.enabled);
     });
 
-    it("createTimer", function() {
+    it("createTimer", function () {
         const stats = new Statistics();
 
         const startTimer = stats.createTimer("run");
@@ -184,7 +182,9 @@ describe("mapview-statistics", function() {
                 assert.isNumber(tx);
                 assert.isAbove(tx, t);
 
-                stats.log();
+                silenceLoggingAroundFunction("Statistics", () => {
+                    stats.log();
+                });
                 done();
             }, 2);
         }, 2);
@@ -226,7 +226,9 @@ describe("mapview-statistics", function() {
                 assert.isNumber(tx);
                 assert.isAbove(tx, t);
 
-                stats.log();
+                silenceLoggingAroundFunction("Statistics", () => {
+                    stats.log();
+                });
                 done();
             }, 2);
         }, 2);
@@ -263,13 +265,15 @@ describe("mapview-statistics", function() {
                     assert.equal(stagedTimer.stage, undefined);
 
                     assert.isNumber(stats.getTimer("init").value);
-                    assert.isAbove(stats.getTimer("init").value || 0, 0);
+                    assert.isAbove(stats.getTimer("init").value ?? 0, 0);
                     assert.isNumber(stats.getTimer("draw").value);
-                    assert.isAbove(stats.getTimer("draw").value || 0, 0);
+                    assert.isAbove(stats.getTimer("draw").value ?? 0, 0);
                     assert.isNumber(stats.getTimer("post").value);
-                    assert.isAbove(stats.getTimer("post").value || 0, 0);
+                    assert.isAbove(stats.getTimer("post").value ?? 0, 0);
 
-                    stats.log();
+                    silenceLoggingAroundFunction("Statistics", () => {
+                        stats.log();
+                    });
 
                     done();
                 }, 2);
@@ -277,7 +281,7 @@ describe("mapview-statistics", function() {
         }, 2);
     });
 
-    it("computeArrayStats", function() {
+    it("computeArrayStats", function () {
         assert.isUndefined(computeArrayStats([]));
         assert.isDefined(computeArrayStats([0]));
 
@@ -295,7 +299,7 @@ describe("mapview-statistics", function() {
         assert.equal(stats0.median999, 4);
     });
 
-    it("computeArrayStats 2", function() {
+    it("computeArrayStats 2", function () {
         const array0 = [4, 3, 2, 1, 0];
         const stats0 = computeArrayStats(array0)!;
         assert.equal(stats0.min, 0);
@@ -310,7 +314,7 @@ describe("mapview-statistics", function() {
         assert.equal(stats0.median999, 4);
     });
 
-    it("computeArrayStats median", function() {
+    it("computeArrayStats median", function () {
         const array0 = [0, 1, 2, 3];
         const stats0 = computeArrayStats(array0)!;
         assert.equal(stats0.min, 0);
@@ -325,7 +329,7 @@ describe("mapview-statistics", function() {
         assert.equal(stats0.median999, 3);
     });
 
-    it("computeArrayStats 1000", function() {
+    it("computeArrayStats 1000", function () {
         const array0: number[] = [];
 
         let sum = 0;
@@ -369,7 +373,7 @@ describe("mapview-statistics", function() {
         }
     });
 
-    it("create PerformanceStatistics", function() {
+    it("create PerformanceStatistics", function () {
         assert.isDefined(PerformanceStatistics.instance);
 
         assert.instanceOf(PerformanceStatistics.instance, PerformanceStatistics);
@@ -385,7 +389,7 @@ describe("mapview-statistics", function() {
         }
     }
 
-    it("add PerformanceStatistics values", function() {
+    it("add PerformanceStatistics values", function () {
         const stats = PerformanceStatistics.instance;
 
         stats.clear();
@@ -416,7 +420,7 @@ describe("mapview-statistics", function() {
         assert.equal(curFrame.getValue("test100"), 0);
     });
 
-    it("add PerformanceStatistics values 2", function() {
+    it("add PerformanceStatistics values 2", function () {
         const stats = PerformanceStatistics.instance;
         const curFrame = stats.currentFrame;
 
@@ -429,7 +433,7 @@ describe("mapview-statistics", function() {
         assert.equal(curFrame.getValue("b"), 200);
     });
 
-    it("add PerformanceStatistics storeFrameInfo", function() {
+    it("add PerformanceStatistics storeFrameInfo", function () {
         const stats = PerformanceStatistics.instance;
 
         addFrameValues({
@@ -461,7 +465,7 @@ describe("mapview-statistics", function() {
         assert.equal(frameStats.frames.b, 200);
     });
 
-    it("add PerformanceStatistics appResults", function() {
+    it("add PerformanceStatistics appResults", function () {
         const stats = PerformanceStatistics.instance;
 
         stats.appResults.set("numberSetting", 99);
@@ -471,7 +475,7 @@ describe("mapview-statistics", function() {
         assert.equal(stats.appResults.size, 3);
     });
 
-    it("add PerformanceStatistics configs", function() {
+    it("add PerformanceStatistics configs", function () {
         const stats = PerformanceStatistics.instance;
 
         stats.configs.set("string config", "X");
@@ -481,7 +485,7 @@ describe("mapview-statistics", function() {
         assert.equal(stats.configs.size, 3);
     });
 
-    it("add PerformanceStatistics messages", function() {
+    it("add PerformanceStatistics messages", function () {
         const stats = PerformanceStatistics.instance;
         const curFrame = stats.currentFrame;
         assert.isUndefined(curFrame.messages);

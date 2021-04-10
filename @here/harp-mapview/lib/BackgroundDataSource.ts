@@ -1,19 +1,21 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Theme } from "@here/harp-datasource-protocol";
+import { FlatTheme, Theme } from "@here/harp-datasource-protocol";
 import { TileKey, TilingScheme, webMercatorTilingScheme } from "@here/harp-geoutils";
+
 import { DataSource } from "./DataSource";
-import { TileGeometryCreator } from "./geometry/TileGeometryCreator";
+import { addGroundPlane } from "./geometry/AddGroundPlane";
 import { Tile } from "./Tile";
 
 /**
  * Provides background geometry for all tiles.
  */
 export class BackgroundDataSource extends DataSource {
+    static readonly GROUND_RENDER_ORDER = Number.MIN_SAFE_INTEGER;
     private static readonly DEFAULT_TILING_SCHEME = webMercatorTilingScheme;
     private m_tilingScheme: TilingScheme = BackgroundDataSource.DEFAULT_TILING_SCHEME;
 
@@ -21,6 +23,7 @@ export class BackgroundDataSource extends DataSource {
         super({ name: "background" });
         this.cacheable = true;
         this.addGroundPlane = true;
+        this.enablePicking = false;
     }
 
     updateStorageLevelOffset() {
@@ -50,12 +53,12 @@ export class BackgroundDataSource extends DataSource {
     }
 
     /** @override */
-    setTheme(theme: Theme, languages?: string[]) {
+    async setTheme(theme: Theme | FlatTheme, languages?: string[]): Promise<void> {
         this.mapView.clearTileCache(this.name);
     }
 
     setTilingScheme(tilingScheme?: TilingScheme) {
-        const newScheme = tilingScheme || BackgroundDataSource.DEFAULT_TILING_SCHEME;
+        const newScheme = tilingScheme ?? BackgroundDataSource.DEFAULT_TILING_SCHEME;
         if (newScheme === this.m_tilingScheme) {
             return;
         }
@@ -74,8 +77,7 @@ export class BackgroundDataSource extends DataSource {
     getTile(tileKey: TileKey): Tile | undefined {
         const tile = new Tile(this, tileKey);
         tile.forceHasGeometry(true);
-        tile.removeDecodedTile(); // Skip geometry loading.
-        TileGeometryCreator.instance.addGroundPlane(tile, Number.MIN_SAFE_INTEGER);
+        addGroundPlane(tile, BackgroundDataSource.GROUND_RENDER_ORDER);
 
         return tile;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -33,8 +33,8 @@ export class TileDecoderService extends WorkerService {
     /**
      * Start a [[TileDecoderService]] with a given decoder.
      *
-     * @param serviceId Service id. Must be unique.
-     * @param decoder   [[TileDecoder]] instance.
+     * @param serviceId - Service id. Must be unique.
+     * @param decoder -   [[TileDecoder]] instance.
      */
     static start(serviceId: string, decoder: ITileDecoder) {
         return new TileDecoderService(serviceId, decoder);
@@ -43,8 +43,8 @@ export class TileDecoderService extends WorkerService {
     /**
      * Set up the `TileDecoderService`. The name of the service must be unique
      *
-     * @param serviceId Service id. Must be unique.
-     * @param m_decoder Decoder to handle the decoding and info requests.
+     * @param serviceId - Service id. Must be unique.
+     * @param m_decoder - Decoder to handle the decoding and info requests.
      */
     constructor(readonly serviceId: string, private readonly m_decoder: ITileDecoder) {
         super(serviceId);
@@ -54,7 +54,7 @@ export class TileDecoderService extends WorkerService {
     /**
      * Handle incoming request messages. Identifies message type and processes the request.
      *
-     * @param request Message that is either a DecodeTileRequest or a TileInfoRequest.
+     * @param request - Message that is either a DecodeTileRequest or a TileInfoRequest.
      * @returns A promise which resolves to a [[WorkerServiceResponse]].
      * @override
      */
@@ -71,7 +71,7 @@ export class TileDecoderService extends WorkerService {
     /**
      * Handle incoming configuration message. Configuration message is passed on to decoder.
      *
-     * @param request Message of type [[ConfigurationMessage]].
+     * @param request - Message of type [[ConfigurationMessage]].
      * @override
      */
     protected handleMessage(message: any) {
@@ -104,7 +104,7 @@ export class TileDecoderService extends WorkerService {
             }
         };
 
-        decodedTile.geometries.forEach(geom => {
+        decodedTile?.geometries.forEach(geom => {
             geom.vertexAttributes?.forEach(attr => transferBufferAttribute(attr));
             geom.interleavedVertexAttributes?.forEach(attr => transferBufferAttribute(attr));
             transferBufferAttribute(geom.index);
@@ -128,7 +128,7 @@ export class TileDecoderService extends WorkerService {
             }
         });
 
-        decodedTile.techniques.forEach(technique => {
+        decodedTile?.techniques.forEach(technique => {
             addBuffersToTransferList(technique, transferList);
         });
 
@@ -157,11 +157,6 @@ export class TileDecoderService extends WorkerService {
     }
 
     private handleConfigurationMessage(message: WorkerDecoderProtocol.ConfigurationMessage) {
-        this.m_decoder.configure(
-            message.styleSet,
-            message.definitions,
-            message.languages,
-            message.options
-        );
+        this.m_decoder.configure(message, message.options);
     }
 }

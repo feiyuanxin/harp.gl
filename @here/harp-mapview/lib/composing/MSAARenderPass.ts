@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,8 +9,10 @@ import * as THREE from "three";
 import { Pass } from "./Pass";
 
 /**
- * This enum represents the sampling level to apply to a [[MSAARenderPass]] instance. At level 0,
- * only one sample is performed, which is like disabling the MSAA pass.
+ * This enum represents the sampling level to apply to
+ * a {@link MSAARenderPass} instance. At level 0,
+ * only one sample is performed, which is like
+ * disabling the MSAA pass.
  */
 export enum MSAASampling {
     "Level_0",
@@ -22,7 +24,10 @@ export enum MSAASampling {
 }
 
 /**
- * [[MapView]]'s MSAA implementation. MSAA stands for Multi Sampling Anti-Aliasing, and its concept
+ * {@link MapView}'s MSAA implementation.
+ *
+ * @remarks
+ * MSAA stands for Multi Sampling Anti-Aliasing, and its concept
  * is to provide a rendering engine with additional color values for each pixel, so they can include
  * the missing bits between them on a screen. WebGL already comes with a native MSAA implementation
  * with four samples. Because of its native nature, it is more efficient and one may not want to use
@@ -52,21 +57,25 @@ export class MSAARenderPass extends Pass {
         0,
         1
     );
+
     private readonly m_quadScene: THREE.Scene = new THREE.Scene();
     private readonly m_quadUniforms: { [uniformName: string]: THREE.IUniform } =
         CopyShader.uniforms;
+
     private readonly m_quadMaterial: THREE.ShaderMaterial = new MSAAMaterial(this.m_quadUniforms);
     private readonly m_quad: THREE.Mesh = new THREE.Mesh(
         new THREE.PlaneBufferGeometry(2, 2),
         this.m_quadMaterial
     );
 
+    private readonly m_tmpColor = new THREE.Color();
+
     /**
      * The constructor for `MSAARenderPass`. It builds an internal scene with a camera looking at a
      * quad.
      *
-     * @param m_scene The scene to render.
-     * @param m_camera The camera to render the scene through.
+     * @param m_scene - The scene to render.
+     * @param m_camera - The camera to render the scene through.
      */
     constructor() {
         super();
@@ -85,8 +94,11 @@ export class MSAARenderPass extends Pass {
     }
 
     /**
-     * The render function of `MSAARenderPass`. At each call of this method, and for each sample,
-     * the [[MapView]] camera provided in the `render` method is offset within the dimension of a
+     * The render function of `MSAARenderPass`.
+     *
+     * @remarks
+     * At each call of this method, and for each sample the {@link MapView}
+     * camera provided in the `render method is offset within the dimension of a
      * pixel on screen. It then renders the whole scene with this offset to a local
      * `WebGLRenderTarget` instance, via a `WebGLRenderer` instance. Finally the local camera
      * created in the constructor shoots the quad and renders to the write buffer or to the frame
@@ -95,14 +107,14 @@ export class MSAARenderPass extends Pass {
      *
      * The number of samples can be modified at runtime through the enum [[SamplingLevel]].
      *
-     * If there is no further pass, the [[Pass.renderToScreen]] flag can be set to `true` to
+     * If there is no further pass, the {@link Pass.renderToScreen} flag can be set to `true` to
      * output directly to the framebuffer.
      *
-     * @param renderer The ThreeJS WebGLRenderer instance to render the scene with.
-     * @param scene The ThreeJS Scene instance to render the scene with.
-     * @param camera The ThreeJS Camera instance to render the scene with.
-     * @param writeBuffer A ThreeJS WebGLRenderTarget instance to render the scene to.
-     * @param readBuffer A ThreeJS WebGLRenderTarget instance to render the scene.
+     * @param renderer - The ThreeJS WebGLRenderer instance to render the scene with.
+     * @param scene - The ThreeJS Scene instance to render the scene with.
+     * @param camera - The ThreeJS Camera instance to render the scene with.
+     * @param writeBuffer - A ThreeJS WebGLRenderTarget instance to render the scene to.
+     * @param readBuffer - A ThreeJS WebGLRenderTarget instance to render the scene.
      * @override
      */
     render(
@@ -129,7 +141,7 @@ export class MSAARenderPass extends Pass {
 
         const offsets = MSAARenderPass.OffsetVectors[this.samplingLevel];
 
-        const rendererClearColor = renderer.getClearColor();
+        const rendererClearColor = renderer.getClearColor(this.m_tmpColor);
         const oldClearColor = rendererClearColor !== undefined ? rendererClearColor.getHex() : 0;
 
         // The method `camera.setViewOffset` will be called in the next loop. In order to maintain
@@ -211,8 +223,8 @@ export class MSAARenderPass extends Pass {
     /**
      * Resize the internal render target to match the new size specified.
      *
-     * @param width New width to apply to the render target.
-     * @param height New height to apply to the render target.
+     * @param width - New width to apply to the render target.
+     * @param height - New height to apply to the render target.
      * @override
      */
     setSize(width: number, height: number) {
@@ -221,14 +233,11 @@ export class MSAARenderPass extends Pass {
         }
     }
 
-    // tslint:disable:max-line-length
     /**
      * The list of offsets to apply to the camera, per sampling level, adapted from :
      *
      * @see https://msdn.microsoft.com/en-us/library/windows/desktop/ff476218%28v=vs.85%29.aspx?f=255&MSPPError=-2147217396
      */
-    // tslint:enable:max-line-length
-    // tslint:disable-next-line:member-ordering
     static readonly OffsetVectors: number[][][] = [
         [[0, 0]],
         [

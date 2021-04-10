@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import {
-    Definitions,
+    FlatTheme,
     ITileDecoder,
+    OptionsMap,
     StyleSet,
     Theme,
     TileInfo
@@ -21,7 +21,9 @@ import {
     Tile,
     TileLoaderState
 } from "@here/harp-mapview";
-import { LoggerManager } from "@here/harp-utils";
+import { ThemeLoader } from "@here/harp-mapview/lib/ThemeLoader";
+import { ILogger, LoggerManager } from "@here/harp-utils";
+
 import { DataProvider } from "./DataProvider";
 import { TileInfoLoader, TileLoader } from "./TileLoader";
 
@@ -82,21 +84,31 @@ export class TileFactory<TileType extends Tile> {
      * Initialize the factory using the constructor of the element to be called when a [[Tile]] is
      * created.
      *
-     * @param m_modelConstructor Constructor of (subclass of) [[Tile]].
+     * @param m_modelConstructor - Constructor of (subclass of) [[Tile]].
      */
     constructor(
-        private m_modelConstructor: new (dataSource: DataSource, tileKey: TileKey) => TileType
+        private readonly m_modelConstructor: new (
+            dataSource: DataSource,
+            tileKey: TileKey
+        ) => TileType
     ) {}
 
     /**
      * Create an instance of (subclass of) [[Tile]]. The required parameters are passed as arguments
      * to the constructor of [[Tile]].
      *
-     * @param dataSource [[Datasource]] this class belongs to.
-     * @param tileKey Quadtree address of the [[Tile]].
+     * @param dataSource - [[Datasource]] this class belongs to.
+     * @param tileKey - Quadtree address of the [[Tile]].
      */
-    create(dataSource: DataSource, tileKey: TileKey): TileType {
-        return new this.m_modelConstructor(dataSource, tileKey);
+    create(dataSource: TileDataSource<TileType>, tileKey: TileKey): TileType {
+        const tile = new this.m_modelConstructor(dataSource, tileKey);
+        tile.tileLoader = new TileLoader(
+            dataSource,
+            tileKey,
+            dataSource.dataProvider(),
+            dataSource.decoder
+        );
+        return tile;
     }
 }
 
@@ -105,35 +117,23 @@ export class TileFactory<TileType extends Tile> {
  * tile content asynchronously. The decoder can be passed in as an option, or a default
  * asynchronous one is generated.
  */
-export class TileDataSource<TileType extends Tile> extends DataSource {
-    protected readonly logger = LoggerManager.instance.create("TileDataSource");
+export class TileDataSource<TileType extends Tile = Tile> extends DataSource {
+    protected readonly logger: ILogger = LoggerManager.instance.create("TileDataSource");
     protected readonly m_decoder: ITileDecoder;
     private m_isReady: boolean = false;
+    private readonly m_unregisterClearTileCache?: () => void;
 
     /**
      * Set up the `TileDataSource`.
      *
-     * @param m_tileFactory Factory to create the [[Tile]] instances.
-     * @param m_options Options specifying the parameters of the [[DataSource]].
+     * @param m_tileFactory - Factory to create the [[Tile]] instances.
+     * @param m_options - Options specifying the parameters of the [[DataSource]].
      */
     constructor(
         private readonly m_tileFactory: TileFactory<TileType>,
         private readonly m_options: TileDataSourceOptions
     ) {
-        super({
-            name: m_options.name,
-            styleSetName: m_options.styleSetName,
-            // tslint:disable-next-line: deprecation
-            minZoomLevel: m_options.minZoomLevel,
-            // tslint:disable-next-line: deprecation
-            maxZoomLevel: m_options.maxZoomLevel,
-            minDataLevel: m_options.minDataLevel,
-            maxDataLevel: m_options.maxDataLevel,
-            minDisplayLevel: m_options.minDisplayLevel,
-            maxDisplayLevel: m_options.maxDisplayLevel,
-            storageLevelOffset: m_options.storageLevelOffset,
-            allowOverlappingTiles: m_options.allowOverlappingTiles
-        });
+        super(m_options);
         if (m_options.decoder) {
             this.m_decoder = m_options.decoder;
         } else if (m_options.concurrentDecoderServiceName) {
@@ -150,11 +150,17 @@ export class TileDataSource<TileType extends Tile> extends DataSource {
         }
         this.useGeometryLoader = true;
         this.cacheable = true;
+
+        this.m_unregisterClearTileCache = this.dataProvider().onDidInvalidate?.(() =>
+            this.mapView.markTilesDirty(this)
+        );
     }
 
     /** @override */
     dispose() {
+        this.m_unregisterClearTileCache?.();
         this.decoder.dispose();
+        this.dataProvider().unregister(this);
     }
 
     /** @override */
@@ -172,35 +178,58 @@ export class TileDataSource<TileType extends Tile> extends DataSource {
 
     /** @override */
     async connect() {
-        await Promise.all([this.m_options.dataProvider.connect(), this.m_decoder.connect()]);
+        await Promise.all([this.m_options.dataProvider.register(this), this.m_decoder.connect()]);
         this.m_isReady = true;
 
-        this.m_decoder.configure(undefined, undefined, undefined, {
-            storageLevelOffset: this.m_options.storageLevelOffset
-        });
-    }
-
-    /** @override */
-    setStyleSet(styleSet?: StyleSet, definitions?: Definitions, languages?: string[]): void {
-        this.m_decoder.configure(styleSet, definitions, languages);
-        this.mapView.markTilesDirty(this);
+        let customOptions: OptionsMap = {};
+        if (this.m_options.storageLevelOffset !== undefined) {
+            customOptions = {
+                storageLevelOffset: this.m_options.storageLevelOffset
+            };
+        }
+        this.m_decoder.configure({ languages: this.languages }, customOptions);
     }
 
     /**
-     * Apply the [[Theme]] to this data source.
-     *
-     * Applies new [[StyleSet]] and definitions from theme only if matching styleset (see
-     * `styleSetName` property) is found in `theme`.
      * @override
      */
-    setTheme(theme: Theme, languages?: string[]): void {
-        const styleSet =
-            this.styleSetName !== undefined && theme.styles
-                ? theme.styles[this.styleSetName]
-                : undefined;
+    setLanguages(languages: string[]): void {
+        this.languages = languages;
+
+        this.m_decoder.configure({
+            languages: this.languages
+        });
+        this.mapView.clearTileCache(this.name);
+    }
+
+    /**
+     * Apply the {@link @here/harp-datasource-protocol#Theme} to this data source.
+     *
+     * Applies new {@here/harp-datasource-protocol StyleSet} and definitions from theme only
+     * if matching styleset (see `styleSetName` property) is found in `theme`.
+     * @override
+     */
+    async setTheme(theme: Theme | FlatTheme, languages?: string[]): Promise<void> {
+        // Seems superfluent, but the call to  ThemeLoader.load will resolve extends etc.
+        theme = await ThemeLoader.load(theme);
+
+        let styleSet: StyleSet | undefined;
+        if (this.styleSetName !== undefined && theme.styles !== undefined) {
+            styleSet = theme.styles[this.styleSetName];
+        }
+        if (languages !== undefined) {
+            this.languages = languages;
+        }
 
         if (styleSet !== undefined) {
-            this.setStyleSet(styleSet, theme.definitions, languages);
+            this.m_decoder.configure({
+                styleSet,
+                definitions: theme.definitions,
+                priorities: theme.priorities,
+                labelPriorities: theme.labelPriorities,
+                languages
+            });
+            this.mapView.clearTileCache(this.name);
         }
     }
 
@@ -222,18 +251,13 @@ export class TileDataSource<TileType extends Tile> extends DataSource {
      * initialized with default copyrights, concatenated with copyrights from copyright provider of
      * this data source.
      *
-     * @param tileKey Quadtree address of the requested tile.
+     * @param tileKey - Quadtree address of the requested tile.
+     * @param delayLoad - If true, the Tile will be created, but Tile.load will not be called.
+     * @default false.
      * @override
      */
-    getTile(tileKey: TileKey): TileType | undefined {
+    getTile(tileKey: TileKey, delayLoad: boolean = false): TileType | undefined {
         const tile = this.m_tileFactory.create(this, tileKey);
-        tile.tileLoader = new TileLoader(
-            this,
-            tileKey,
-            this.m_options.dataProvider,
-            this.decoder,
-            0
-        );
         tile.copyrightInfo = this.m_options.copyrightInfo;
         if (this.m_options.copyrightProvider !== undefined) {
             this.m_options.copyrightProvider
@@ -246,7 +270,9 @@ export class TileDataSource<TileType extends Tile> extends DataSource {
                     this.requestUpdate();
                 });
         }
-        tile.load();
+        if (!delayLoad) {
+            tile.load();
+        }
 
         return tile;
     }
@@ -254,7 +280,7 @@ export class TileDataSource<TileType extends Tile> extends DataSource {
     /**
      * Get [[TileInfo]] of a tile.
      *
-     * @param tileKey Quadtree address of the requested tile.
+     * @param tileKey - Quadtree address of the requested tile.
      * @returns A promise which will contain the [[TileInfo]] when resolved.
      */
     getTileInfo(tileKey: TileKey): Promise<TileInfo | undefined> {
@@ -263,8 +289,7 @@ export class TileDataSource<TileType extends Tile> extends DataSource {
                 this,
                 tileKey,
                 this.m_options.dataProvider,
-                this.decoder,
-                0
+                this.decoder
             );
 
             tileLoader.loadAndDecode().then(loaderState => {

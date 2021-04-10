@@ -1,17 +1,17 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
+
 import { Expr } from "../lib/Expr";
 import { ExprPool } from "../lib/ExprPool";
 
-describe("ExprPool", function() {
+describe("ExprPool", function () {
     const expressions = [
         1,
         "string",
@@ -36,7 +36,7 @@ describe("ExprPool", function() {
     ];
 
     expressions.forEach(expr => {
-        it(`intern '${JSON.stringify(expr)}'`, function() {
+        it(`intern '${JSON.stringify(expr)}'`, function () {
             const pool = new ExprPool();
             const otherPool = new ExprPool();
 
@@ -51,7 +51,7 @@ describe("ExprPool", function() {
         });
     });
 
-    it("intern 'in' expressions", function() {
+    it("intern 'in' expressions", function () {
         const pool = new ExprPool();
 
         const elements1 = [1, 2];

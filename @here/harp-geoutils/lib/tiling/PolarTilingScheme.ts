@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,7 +9,7 @@ import { quadTreeSubdivisionScheme } from "./QuadTreeSubdivisionScheme";
 import { TilingScheme } from "./TilingScheme";
 
 /**
- * A [[TilingScheme]] featuring quadtree subdivision scheme and
+ * A {@link TilingScheme} featuring quadtree subdivision scheme and
  * transverse Mercator projection.
  */
 export const polarTilingScheme = new TilingScheme(

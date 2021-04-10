@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,12 +21,12 @@ function getSize(): { width: number; height: number } {
 
 /**
  * Helper function to return options required for stub when mocking the WebGLRenderer
- * @param sandbox The sinon sandbox
- * @param clearColorStub The stub for clearing the color
+ * @param sandbox - The sinon sandbox
+ * @param clearColorStub - The stub for clearing the color
  */
 export function getWebGLRendererStub(sandbox: sinon.SinonSandbox, clearColorStub: sinon.SinonStub) {
     return {
-        getClearColor: () => undefined,
+        getClearColor: (target: THREE.Color) => undefined,
         setClearColor: clearColorStub,
         setSize,
         getSize,
@@ -35,7 +35,14 @@ export function getWebGLRendererStub(sandbox: sinon.SinonSandbox, clearColorStub
         clear: () => undefined,
         render: () => undefined,
         dispose: () => undefined,
+        forceContextLoss: () => undefined,
         info: { autoReset: true, reset: () => undefined },
-        debug: { checkShaderErrors: true }
+        debug: { checkShaderErrors: true },
+        capabilities: { isWebGL2: false },
+        setOpaqueSort: (sort: any) => undefined,
+        domElement: {
+            addEventListener: () => {},
+            removeEventListener: () => {}
+        }
     };
 }

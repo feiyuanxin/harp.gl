@@ -1,13 +1,19 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { LineCaps, LineDashes } from "@here/harp-datasource-protocol";
 import * as THREE from "three";
+
 import { DisplacementFeature, DisplacementFeatureParameters } from "./DisplacementFeature";
 import { FadingFeature, FadingFeatureParameters } from "./MapMeshMaterials";
+import {
+    RawShaderMaterial,
+    RawShaderMaterialParameters,
+    RendererMaterialParameters
+} from "./RawShaderMaterial";
 import linesShaderChunk, { LineCapsModes } from "./ShaderChunks/LinesChunks";
 import {
     enforceBlending,
@@ -228,7 +234,17 @@ void main() {
     // Decrease the line opacity by the distToEdge, making the transition steeper when the slope
     // of distToChange increases (i.e. the line is further away).
     float width = fwidth(distToEdge);
-    alpha *= (1.0 - smoothstep(-width, width, distToEdge));
+
+    float s = opacity < 0.98
+        ? clamp((distToEdge + width) / (2.0 * width), 0.0, 1.0) // prefer a boxstep
+        : smoothstep(-width, width, distToEdge);
+
+    if (opacity < 0.98 && 1.0 - s < opacity) {
+        // drop the fragment when the line is using opacity.
+        discard;
+    }
+
+    alpha *= 1.0 - s;
 
     #ifdef USE_DASHED_LINE
     // Compute the distance to the dash origin (0.0: dashOrigin, 1.0: dashEnd, (d+g)/d: gapEnd).
@@ -299,11 +315,12 @@ void main() {
 }`;
 
 /**
- * Parameters used when constructing a new [[SolidLineMaterial]].
+ * Parameters used when constructing a new {@link SolidLineMaterial}.
  */
 export interface SolidLineMaterialParameters
     extends FadingFeatureParameters,
-        DisplacementFeatureParameters {
+        DisplacementFeatureParameters,
+        RendererMaterialParameters {
     /**
      * Line color.
      */
@@ -393,7 +410,8 @@ export interface SolidLineMaterialParameters
 /**
  * Material designed to render solid variable-width lines.
  */
-export class SolidLineMaterial extends THREE.RawShaderMaterial
+export class SolidLineMaterial
+    extends RawShaderMaterial
     implements DisplacementFeature, FadingFeature {
     static DEFAULT_COLOR: number = 0xff0000;
     static DEFAULT_WIDTH: number = 1.0;
@@ -406,16 +424,10 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     static DEFAULT_OFFSET: number = 0.0;
 
     /**
-     * @hidden
-     * Material properties overrides.
-     */
-    private m_fog: boolean;
-    private m_opacity: number;
-
-    /**
      * Constructs a new `SolidLineMaterial`.
      *
-     * @param params `SolidLineMaterial` parameters.
+     * @param params - `SolidLineMaterial` parameters. Always required except when cloning another
+     * material.
      */
     constructor(params?: SolidLineMaterialParameters) {
         Object.assign(THREE.ShaderChunk, linesShaderChunk);
@@ -433,7 +445,9 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
         let fogParam = true;
         let opacityParam = 1.0;
         let displacementMap;
-        if (params !== undefined) {
+
+        let shaderParams: RawShaderMaterialParameters | undefined;
+        if (params) {
             fogParam = params.fog === true;
             if (fogParam) {
                 setShaderDefine(defines, "USE_FOG", true);
@@ -447,60 +461,72 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
             if (hasOutline) {
                 setShaderDefine(defines, "USE_OUTLINE", true);
             }
+            shaderParams = {
+                name: "SolidLineMaterial",
+                vertexShader: vertexSource,
+                fragmentShader: fragmentSource,
+                uniforms: THREE.UniformsUtils.merge([
+                    {
+                        diffuse: new THREE.Uniform(
+                            new THREE.Color(SolidLineMaterial.DEFAULT_COLOR)
+                        ),
+                        dashColor: new THREE.Uniform(
+                            new THREE.Color(SolidLineMaterial.DEFAULT_COLOR)
+                        ),
+                        outlineColor: new THREE.Uniform(
+                            new THREE.Color(SolidLineMaterial.DEFAULT_COLOR)
+                        ),
+                        extrusionWidth: new THREE.Uniform(SolidLineMaterial.DEFAULT_WIDTH),
+                        outlineWidth: new THREE.Uniform(SolidLineMaterial.DEFAULT_OUTLINE_WIDTH),
+                        offset: new THREE.Uniform(SolidLineMaterial.DEFAULT_OFFSET),
+                        opacity: new THREE.Uniform(SolidLineMaterial.DEFAULT_OPACITY),
+                        tileSize: new THREE.Uniform(new THREE.Vector2()),
+                        fadeNear: new THREE.Uniform(FadingFeature.DEFAULT_FADE_NEAR),
+                        fadeFar: new THREE.Uniform(FadingFeature.DEFAULT_FADE_FAR),
+                        displacementMap: new THREE.Uniform(
+                            displacementMap !== undefined ? displacementMap : new THREE.Texture()
+                        ),
+                        drawRange: new THREE.Uniform(
+                            new THREE.Vector2(
+                                SolidLineMaterial.DEFAULT_DRAW_RANGE_START,
+                                SolidLineMaterial.DEFAULT_DRAW_RANGE_END
+                            )
+                        ),
+                        dashSize: new THREE.Uniform(SolidLineMaterial.DEFAULT_DASH_SIZE),
+                        gapSize: new THREE.Uniform(SolidLineMaterial.DEFAULT_GAP_SIZE)
+                    },
+                    // We need the fog uniforms available when we use `fog` setter as the internal
+                    // recompilation cannot add or remove uniforms.
+                    THREE.UniformsLib.fog
+                ]),
+                defines,
+                // No need to pass overridden `fog` and `opacity` params they will be set
+                // after super c-tor call.
+                fog: fogParam,
+                opacity: opacityParam,
+                rendererCapabilities: params.rendererCapabilities
+            };
         }
 
-        const shaderParams: THREE.ShaderMaterialParameters = {
-            name: "SolidLineMaterial",
-            vertexShader: vertexSource,
-            fragmentShader: fragmentSource,
-            uniforms: THREE.UniformsUtils.merge([
-                {
-                    diffuse: new THREE.Uniform(new THREE.Color(SolidLineMaterial.DEFAULT_COLOR)),
-                    dashColor: new THREE.Uniform(new THREE.Color(SolidLineMaterial.DEFAULT_COLOR)),
-                    outlineColor: new THREE.Uniform(
-                        new THREE.Color(SolidLineMaterial.DEFAULT_COLOR)
-                    ),
-                    extrusionWidth: new THREE.Uniform(SolidLineMaterial.DEFAULT_WIDTH),
-                    outlineWidth: new THREE.Uniform(SolidLineMaterial.DEFAULT_OUTLINE_WIDTH),
-                    offset: new THREE.Uniform(SolidLineMaterial.DEFAULT_OFFSET),
-                    opacity: new THREE.Uniform(SolidLineMaterial.DEFAULT_OPACITY),
-                    tileSize: new THREE.Uniform(new THREE.Vector2()),
-                    fadeNear: new THREE.Uniform(FadingFeature.DEFAULT_FADE_NEAR),
-                    fadeFar: new THREE.Uniform(FadingFeature.DEFAULT_FADE_FAR),
-                    displacementMap: new THREE.Uniform(
-                        displacementMap !== undefined ? displacementMap : new THREE.Texture()
-                    ),
-                    drawRange: new THREE.Uniform(
-                        new THREE.Vector2(
-                            SolidLineMaterial.DEFAULT_DRAW_RANGE_START,
-                            SolidLineMaterial.DEFAULT_DRAW_RANGE_END
-                        )
-                    ),
-                    dashSize: new THREE.Uniform(SolidLineMaterial.DEFAULT_DASH_SIZE),
-                    gapSize: new THREE.Uniform(SolidLineMaterial.DEFAULT_GAP_SIZE)
-                },
-                // We need the fog uniforms available when we use `fog` setter as the internal
-                // recompilation cannot add or remove uniforms.
-                THREE.UniformsLib.fog
-            ]),
-            defines,
-            // No need to pass overridden `fog` and `opacity` params they will be set
-            // after super c-tor call.
-            fog: fogParam,
-            opacity: opacityParam
-        };
         super(shaderParams);
+
         // Required to satisfy compiler error if fields has no initializer or are not definitely
         // assigned in the constructor, this also mimics ShaderMaterial set of defaults
         // for overridden props.
-        this.m_fog = fogParam;
-        this.m_opacity = opacityParam;
+        this.fog = fogParam;
+        this.setOpacity(opacityParam);
+
+        // initialize the stencil pass
+        this.stencilFunc = THREE.NotEqualStencilFunc;
+        this.stencilZPass = THREE.ReplaceStencilOp;
+        this.stencilRef = 1;
+        this.stencilWrite = false;
 
         enforceBlending(this);
         this.extensions.derivatives = true;
 
         // Apply initial parameter values.
-        if (params !== undefined) {
+        if (params) {
             if (params.color !== undefined) {
                 tmpColor.set(params.color as any);
                 this.color = tmpColor;
@@ -516,7 +542,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
                 this.outlineWidth = params.outlineWidth;
             }
             if (params.opacity !== undefined) {
-                this.opacity = params.opacity;
+                this.setOpacity(params.opacity);
             }
             if (params.depthTest !== undefined) {
                 this.depthTest = params.depthTest;
@@ -557,35 +583,10 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
             }
             if (params.fog !== undefined) {
                 this.fog = params.fog;
+                this.invalidateFog();
             }
             this.offset = params.offset ?? 0;
         }
-        // ShaderMaterial overrides requires invalidation cause super c-tor may set this
-        // properties before related `defines` and `uniforms` were created.
-        this.invalidateFog();
-        this.invalidateOpacity();
-    }
-
-    /**
-     * Overrides THREE.Material.fog flag to add support for custom shader.
-     *
-     * @param enable Whether we want to enable the fog.
-     */
-    set fog(enable: boolean) {
-        this.m_fog = enable;
-        // Function may be called from THREE.js cause we override setter,
-        // in this case defines are not yet initialized and require late invalidation in
-        // SolidLineMaterial c-tor.
-        if (this.defines !== undefined) {
-            setShaderMaterialDefine(this, "USE_FOG", enable);
-        }
-    }
-
-    /**
-     * Checks if fog is enabled.
-     */
-    get fog(): boolean {
-        return this.m_fog && getShaderMaterialDefine(this, "USE_FOG") === true;
     }
 
     /**
@@ -605,7 +606,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     /**
      * The method to call to recompile a material to enable/disable outline effect
      *
-     * @param enable Whether we want to use outline.
+     * @param enable - Whether we want to use outline.
      */
     set outline(enable: boolean) {
         setShaderMaterialDefine(this, "USE_OUTLINE", enable);
@@ -618,18 +619,11 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
         return getShaderMaterialDefine(this, "USE_OUTLINE") === true;
     }
 
-    /**
-     * Line opacity.
-     */
-    get opacity(): number {
-        return this.m_opacity;
-    }
-    set opacity(value: number) {
-        this.m_opacity = value;
-        // Setting opacity before uniform being created requires late invalidation,
-        // call to invalidateOpacity() is done at the end of c-tor.
-        if (this.uniforms !== undefined) {
-            this.uniforms.opacity.value = value;
+    /** @override */
+    setOpacity(opacity: number) {
+        super.setOpacity(opacity);
+        if (opacity !== undefined) {
+            this.stencilWrite = opacity < 0.98;
         }
     }
 
@@ -639,6 +633,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get color(): THREE.Color {
         return this.uniforms.diffuse.value as THREE.Color;
     }
+
     set color(value: THREE.Color) {
         this.uniforms.diffuse.value.copy(value);
     }
@@ -651,6 +646,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get outlineColor(): THREE.Color {
         return this.uniforms.outlineColor.value as THREE.Color;
     }
+
     set outlineColor(value: THREE.Color) {
         this.uniforms.outlineColor.value.copy(value);
     }
@@ -663,6 +659,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get dashColor(): THREE.Color {
         return this.uniforms.dashColor.value as THREE.Color;
     }
+
     set dashColor(value: THREE.Color) {
         this.uniforms.dashColor.value.copy(value);
         setShaderMaterialDefine(this, "USE_DASH_COLOR", true);
@@ -674,6 +671,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get lineWidth(): number {
         return (this.uniforms.extrusionWidth.value as number) * 2;
     }
+
     set lineWidth(value: number) {
         this.uniforms.extrusionWidth.value = value / 2;
     }
@@ -684,6 +682,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get outlineWidth(): number {
         return this.uniforms.outlineWidth.value as number;
     }
+
     set outlineWidth(value: number) {
         this.uniforms.outlineWidth.value = value;
         this.outline = value > 0.0;
@@ -698,6 +697,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get dashSize(): number {
         return this.uniforms.dashSize.value as number;
     }
+
     set dashSize(value: number) {
         this.uniforms.dashSize.value = value;
     }
@@ -711,9 +711,14 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get gapSize(): number {
         return this.uniforms.gapSize.value as number;
     }
+
     set gapSize(value: number) {
         this.uniforms.gapSize.value = value;
         setShaderMaterialDefine(this, "USE_DASHED_LINE", value > 0.0);
+
+        if (this.uniforms?.gapSize?.value === 0) {
+            this.stencilWrite = this.opacity < 0.98;
+        }
     }
 
     /**
@@ -728,6 +733,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
         }
         return result;
     }
+
     set caps(value: LineCaps) {
         // Line caps mode may be set directly from theme, thus we need to check value
         // for correctness and provide string to define mapping in fragment shader.
@@ -748,6 +754,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
         }
         return result;
     }
+
     set dashes(value: LineDashes) {
         // Line dashes mode may be set directly from theme, thus we need to check value
         // for correctness and provide string to define mapping in fragment shader.
@@ -759,6 +766,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get fadeNear(): number {
         return this.uniforms.fadeNear.value as number;
     }
+
     set fadeNear(value: number) {
         this.uniforms.fadeNear.value = value;
     }
@@ -766,6 +774,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get fadeFar(): number {
         return this.uniforms.fadeFar.value as number;
     }
+
     set fadeFar(value: number) {
         this.uniforms.fadeFar.value = value;
         setShaderMaterialDefine(this, "USE_FADING", value > 0.0);
@@ -774,6 +783,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get displacementMap(): THREE.Texture | null {
         return this.uniforms.displacementMap.value;
     }
+
     set displacementMap(map: THREE.Texture | null) {
         if (this.uniforms.displacementMap.value === map) {
             return;
@@ -789,6 +799,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get drawRangeStart(): number {
         return this.uniforms.drawRange.value.x as number;
     }
+
     set drawRangeStart(value: number) {
         this.uniforms.drawRange.value.x = value;
     }
@@ -796,6 +807,7 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
     get drawRangeEnd(): number {
         return this.uniforms.drawRange.value.y as number;
     }
+
     set drawRangeEnd(value: number) {
         this.uniforms.drawRange.value.y = value;
     }
@@ -805,19 +817,15 @@ export class SolidLineMaterial extends THREE.RawShaderMaterial
         const useTileClip = tileSize.x > 0 && tileSize.y > 0;
         setShaderMaterialDefine(this, "USE_TILE_CLIP", useTileClip);
     }
+
     get clipTileSize(): THREE.Vector2 {
         return this.uniforms.tileSize.value as THREE.Vector2;
     }
 
-    private invalidateFog() {
-        if (this.m_fog !== getShaderMaterialDefine(this, "USE_FOG")) {
-            setShaderMaterialDefine(this, "USE_FOG", this.m_fog);
-        }
-    }
-
-    private invalidateOpacity() {
-        if (this.m_opacity !== this.uniforms.opacity.value) {
-            this.uniforms.opacity.value = this.m_opacity;
-        }
+    copy(other: SolidLineMaterial): this {
+        super.copy(other);
+        this.invalidateFog();
+        this.setOpacity(other.opacity);
+        return this;
     }
 }

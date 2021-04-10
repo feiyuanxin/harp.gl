@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -26,14 +26,17 @@ export class LowResRenderPass extends Pass {
         0,
         1
     );
+
     private readonly m_quadScene: THREE.Scene = new THREE.Scene();
     private readonly m_quadUniforms: { [uniformName: string]: THREE.IUniform } =
         CopyShader.uniforms;
+
     private readonly m_quadMaterial: THREE.ShaderMaterial = new CopyMaterial(this.m_quadUniforms);
     private readonly m_quad: THREE.Mesh = new THREE.Mesh(
         new THREE.PlaneBufferGeometry(2, 2),
         this.m_quadMaterial
     );
+
     private m_pixelRatio: number | undefined;
     private m_savedWidth = 0;
     private m_savedHeight = 0;
@@ -42,7 +45,7 @@ export class LowResRenderPass extends Pass {
      * The constructor for `LowResRenderPass`. It builds an internal scene with a camera looking at
      * a quad.
      *
-     * @param lowResPixelRatio The `pixelRatio` determines the resolution of the internal
+     * @param lowResPixelRatio - The `pixelRatio` determines the resolution of the internal
      *  `WebGLRenderTarget`. Values between 0.5 and `window.devicePixelRatio` can be tried to give
      * good results. A value of `undefined` disables the low res render pass. The value should not
      * be larger than`window.devicePixelRatio`.
@@ -95,11 +98,11 @@ export class LowResRenderPass extends Pass {
      * The low resolution image is then copied to the `writeBuffer`, which is `undefined` in case it
      * is the screen.
      *
-     * @param renderer The ThreeJS WebGLRenderer instance to render the scene with.
-     * @param scene The ThreeJS Scene instance to render the scene with.
-     * @param camera The ThreeJS Camera instance to render the scene with.
-     * @param writeBuffer A ThreeJS WebGLRenderTarget instance to render the scene to.
-     * @param readBuffer A ThreeJS WebGLRenderTarget instance to render the scene.
+     * @param renderer - The ThreeJS WebGLRenderer instance to render the scene with.
+     * @param scene - The ThreeJS Scene instance to render the scene with.
+     * @param camera - The ThreeJS Camera instance to render the scene with.
+     * @param writeBuffer - A ThreeJS WebGLRenderTarget instance to render the scene to.
+     * @param readBuffer - A ThreeJS WebGLRenderTarget instance to render the scene.
      * @override
      */
     render(
@@ -152,8 +155,8 @@ export class LowResRenderPass extends Pass {
      * Resize the internal render target to match the new size specified. The size of internal
      * buffer depends on the `pixelRatio`.
      *
-     * @param width New width to apply to the render target.
-     * @param height New height to apply to the render target.
+     * @param width - New width to apply to the render target.
+     * @param height - New height to apply to the render target.
      * @override
      */
     setSize(width: number, height: number) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -22,9 +22,9 @@ export interface Box3Like {
 }
 
 /**
- * Returns true if the given object implements the [[Box3Like]] interface.
+ * Returns true if the given object implements the {@link Box3Like} interface.
  *
- * @param object A valid object.
+ * @param object - A valid object.
  */
 export function isBox3Like(object: {}): object is Box3Like {
     const box3 = object as Partial<Box3Like>;

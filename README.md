@@ -1,10 +1,10 @@
 # harp.gl
 
-[![Travis CI](https://travis-ci.com/heremaps/harp.gl.svg?branch=master)](https://travis-ci.com/heremaps/harp.gl) [![Github Actions](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fheremaps%2Fharp.gl%2Fbadge%3Fref%3Dmaster&style=flat)](https://actions-badge.atrox.dev/heremaps/harp.gl/goto?ref=master) [![codecov](https://codecov.io/gh/heremaps/harp.gl/branch/master/graph/badge.svg)](https://codecov.io/gh/heremaps/harp.gl)
+[![CI](https://github.com/heremaps/harp.gl/actions/workflows/ci.yaml/badge.svg?branch=master)](https://github.com/heremaps/harp.gl/actions/workflows/ci.yaml?query=branch%3Amaster++) [![codecov](https://codecov.io/gh/heremaps/harp.gl/branch/master/graph/badge.svg)](https://codecov.io/gh/heremaps/harp.gl) [![twitter](https://img.shields.io/badge/tweet-harp.gl-blue)](https://twitter.com/intent/tweet?text=harp.gl)
 
 `harp.gl` is an _experimental and work in progress_ open-source 3D map rendering engine written in [TypeScript](https://github.com/microsoft/TypeScript).
 
-### [harp.gl site](https://heremaps.github.io/harp.gl/)
+### [harp.gl site](https://www.harp.gl/)
 
 ### [harp.gl Slack channel](https://heredev.slack.com/messages/harpgl/) Registration available [here](http://t.her.is/slack).
 
@@ -25,74 +25,17 @@ that can display a map using our default style. You can get results like the one
 
 ## Getting started with harp.gl
 
-You can consume the harp.gl api with two different methods:
+There are three methods to get up and running with harp.gl quickly, in order of difficulty:
 
--   linking a simple bundle as a `<script>` tag in your html
--   installing a set of node modules from npm
+1. Using the [yeoman generator](https://developer.here.com/tutorials/harpgl/#method-1-using-the-harp.gl-yeoman-generator-beginner).
+1. linking a [simple bundle as a `<script>` tag in your html](https://developer.here.com/tutorials/harpgl/#method-2-linking-a-single-script-bundle-to-your-html-intermediate)
+1. installing a [set of node modules from npm](https://github.com/heremaps/harp.gl/blob/master/docs/GettingStartedGuide.md#integrate)
 
 If you want to learn more about the applications you can create, please check the [Getting Started Guide](docs/GettingStartedGuide.md).
 
-### Simple bundle
+## Authentication
 
-Add `three.js` and `harp.gl` to your html and create a canvas with an id `map`:
-
-```html
-<html>
-    <head>
-        <style>
-            body,
-            html {
-                border: 0;
-                margin: 0;
-                padding: 0;
-            }
-            #map {
-                height: 100vh;
-                width: 100vw;
-            }
-        </style>
-        <script src="https://unpkg.com/three/build/three.min.js"></script>
-        <script src="https://unpkg.com/@here/harp.gl/dist/harp.js"></script>
-    </head>
-    <body>
-        <canvas id="map"></canvas>
-        <script src="index.js"></script>
-    </body>
-</html>
-```
-
-Initialize the map:
-
-```javascript
-const map = new harp.MapView({
-    canvas: document.getElementById("map"),
-    theme:
-        "https://unpkg.com/@here/harp-map-theme@latest/resources/berlin_tilezen_night_reduced.json"
-});
-const controls = new harp.MapControls(map);
-const omvDataSource = new harp.OmvDataSource({
-    baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-    apiFormat: harp.APIFormat.XYZOMV,
-    styleSetName: "tilezen",
-    authenticationCode: "YOUR-APIKEY",
-    authenticationMethod: {
-        method: harp.AuthenticationMethod.QueryString,
-        name: "apikey"
-    }
-});
-map.addDataSource(omvDataSource);
-```
-
-> How to get access to the data? How to get your apikey?
-> Please see the [Acquiring credentials section](docs/GettingStartedGuide.md#credentials)
-
-### Node modules
-
-Generate a simple app using the package initializer:
-
-```shell
-npm init @here/harp.gl-app
-```
+Regardless of how you structure your project, you need some means to authenticate, please see the [following guide](https://developer.here.com/tutorials/harpgl/#acquire-credentials) to generate a token.
 
 ## About This Repository
 
@@ -229,7 +172,7 @@ It will output all documentation under `/dist/doc`.
 
 ## License
 
-Copyright (C) 2017-2020 HERE Europe B.V.
+Copyright (C) 2017-2021 HERE Europe B.V.
 
 See the [LICENSE](./LICENSE) file in the root of this project for license details about using `harp.gl`.
 

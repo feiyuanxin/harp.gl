@@ -1,15 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
-// tslint:disable:no-console
-
+import { RenderingTestHelper } from "@here/harp-test-utils";
 import * as THREE from "three";
 
-import { RenderingTestHelper } from "@here/harp-test-utils";
 import {
     FontCatalog,
     FontUnit,
@@ -19,7 +16,7 @@ import {
     TextRenderStyle
 } from "../../index";
 
-describe("TextCanvas", function() {
+describe("TextCanvas", function () {
     let renderer: THREE.WebGLRenderer;
     let camera: THREE.OrthographicCamera;
     let fontCatalog: FontCatalog;
@@ -41,7 +38,8 @@ describe("TextCanvas", function() {
         canvas.width = 100;
         canvas.height = 100;
 
-        renderer = new THREE.WebGLRenderer({ canvas });
+        // Enable backward compatibility with three.js <= 0.117
+        renderer = new ((THREE as any).WebGL1Renderer ?? THREE.WebGLRenderer)({ canvas });
         renderer.autoClear = false;
         renderer.setClearColor(0xffffff);
         renderer.setSize(canvas.width, canvas.height);
@@ -57,7 +55,7 @@ describe("TextCanvas", function() {
         camera.updateProjectionMatrix();
 
         fontCatalog = await FontCatalog.load(
-            "../@here/harp-fontcatalog/resources/Default_FontCatalog.json",
+            "../dist/resources/fonts/Default_FontCatalog.json",
             16
         );
 
@@ -66,7 +64,7 @@ describe("TextCanvas", function() {
         await ibct.assertCanvasMatchesReference(canvas, params.testName);
     }
 
-    it("renders hello world text", async function(this: Mocha.Context) {
+    it("renders hello world text", async function (this: Mocha.Context) {
         await basicRenderTest(
             {
                 test: this,
@@ -99,7 +97,7 @@ describe("TextCanvas", function() {
             }
         );
     });
-    it("renders ß", async function(this: Mocha.Context) {
+    it("renders ß", async function (this: Mocha.Context) {
         await basicRenderTest(
             {
                 test: this,
@@ -132,7 +130,7 @@ describe("TextCanvas", function() {
             }
         );
     });
-    it("renders ß with dashes", async function(this: Mocha.Context) {
+    it("renders ß with dashes", async function (this: Mocha.Context) {
         await basicRenderTest(
             {
                 test: this,
@@ -169,7 +167,7 @@ describe("TextCanvas", function() {
         );
     });
 
-    it("renders rotated hello world text", async function(this: Mocha.Context) {
+    it("renders rotated hello world text", async function (this: Mocha.Context) {
         await basicRenderTest(
             {
                 test: this,
@@ -217,7 +215,7 @@ describe("TextCanvas", function() {
         );
     });
 
-    it("renders hello world on path", async function(this: Mocha.Context) {
+    it("renders hello world on path", async function (this: Mocha.Context) {
         await basicRenderTest(
             {
                 test: this,

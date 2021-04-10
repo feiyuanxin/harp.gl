@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +7,12 @@
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView, MapViewUtils } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 /**
@@ -144,9 +149,9 @@ export namespace TripleViewExample {
         copyrightInfo
     };
     const dataSources = {
-        omvDataSource1: new OmvDataSource(xyzDataSourceParams),
-        omvDataSource2: new OmvDataSource(xyzDataSourceParams),
-        omvDataSource3: new OmvDataSource(xyzDataSourceParams)
+        omvDataSource1: new VectorTileDataSource(xyzDataSourceParams),
+        omvDataSource2: new VectorTileDataSource(xyzDataSourceParams),
+        omvDataSource3: new VectorTileDataSource(xyzDataSourceParams)
     };
 
     mapViews.view1.mapView.addDataSource(dataSources.omvDataSource1);

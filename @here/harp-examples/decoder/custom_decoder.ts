@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -23,12 +23,15 @@ import {
     WorkerServiceManager
 } from "@here/harp-mapview-decoder/index-worker";
 import { BoxBufferGeometry, Matrix4, Vector3 } from "three";
+
 import { CUSTOM_DECODER_SERVICE_TYPE } from "./custom_decoder_defs";
 
+// Height of line geometry in this sample.
+const MIN_GEOMETRY_HEIGHT = -100;
+
 export // snippet:custom_datasource_example_custom_decoder.ts
-class CustomDecoder extends ThemedTileDecoder
-// end:custom_datasource_example_custom_decoder.ts
-{
+class CustomDecoder extends ThemedTileDecoder {
+    // end:custom_datasource_example_custom_decoder.ts
     /** @override */
     connect() {
         return Promise.resolve();
@@ -42,12 +45,34 @@ class CustomDecoder extends ThemedTileDecoder
         projection: Projection
     ): Promise<DecodedTile> {
         const geometries: Geometry[] = [];
-        this.processLineFeatures(data, tileKey, styleSetEvaluator, projection, geometries);
-        this.processMeshFeatures(tileKey, styleSetEvaluator, geometries);
 
-        const decodedTile = {
-            techniques: styleSetEvaluator.techniques,
+        const array = new Float32Array(data as ArrayBuffer);
+        const lineHeightRange = this.processLineFeatures(
+            array,
+            tileKey,
+            styleSetEvaluator,
+            projection,
             geometries
+        );
+        const meshHeightRange = this.processMeshFeatures(tileKey, styleSetEvaluator, geometries);
+        const minGeometryHeight = Math.min(
+            lineHeightRange.minGeometryHeight,
+            meshHeightRange.minGeometryHeight
+        );
+        const maxGeometryHeight = Math.max(
+            lineHeightRange.maxGeometryHeight,
+            meshHeightRange.maxGeometryHeight
+        );
+
+        const dependencies: number[] = [];
+        this.processDependencies(array, dependencies);
+
+        const decodedTile: DecodedTile = {
+            techniques: styleSetEvaluator.techniques,
+            geometries,
+            dependencies,
+            maxGeometryHeight,
+            minGeometryHeight
         };
         return Promise.resolve(decodedTile);
     }
@@ -85,13 +110,13 @@ class CustomDecoder extends ThemedTileDecoder
     }
 
     private processLineFeatures(
-        data: ArrayBufferLike | {},
+        data: Float32Array,
         tileKey: TileKey,
         styleSetEvaluator: StyleSetEvaluator,
         projection: Projection,
         geometries: Geometry[]
-    ) {
-        // Setup an environment for this "layer". This does normaly come from the data and should
+    ): { minGeometryHeight: number; maxGeometryHeight: number } {
+        // Setup an environment for this "layer". This does normally come from the data and should
         // contain all the attributes of a specific feature, so that it can be styled properly.
         const env = new MapEnv({ layer: "line-layer" });
 
@@ -116,26 +141,30 @@ class CustomDecoder extends ThemedTileDecoder
         for (const technique of techniques) {
             geometries.push(this.createLineGeometry(lineGroup, technique._index));
         }
+
+        return { minGeometryHeight: MIN_GEOMETRY_HEIGHT, maxGeometryHeight: 0 };
     }
 
     private convertToLocalWorldCoordinates(
-        data: {} | ArrayBuffer | SharedArrayBuffer,
+        data: Float32Array,
         geoCenter: GeoCoordinates,
         projection: Projection,
         worldCenter: Vector3
     ) {
         // We assume that the input data is in relative-geo-coordinates
-        // (i.e. relative lat/long to the tile center).
+        // (i.e. relative lat/long to the tile center). The first number is the
+        // number of points, the points are after that.
 
-        const points = new Float32Array(data as ArrayBuffer);
+        const numPoints = data[0];
         const tmpGeoPoint = geoCenter.clone();
         const tmpWorldPoint = new Vector3();
-        const worldPoints = new Array<number>((points.length / 2) * 3);
-        for (let i = 0; i < points.length; i += 2) {
+        const worldPoints = new Array<number>((numPoints / 2) * 3);
+        for (let i = 0; i < numPoints; i += 2) {
             tmpGeoPoint.copy(geoCenter);
-            tmpGeoPoint.latitude += points[i];
-            tmpGeoPoint.longitude += points[i + 1];
-            tmpGeoPoint.altitude = 100;
+            // We add +1 to skip the first entry which has the number of points
+            tmpGeoPoint.latitude += data[i + 1];
+            tmpGeoPoint.longitude += data[i + 2];
+            tmpGeoPoint.altitude = MIN_GEOMETRY_HEIGHT;
             projection.projectPoint(tmpGeoPoint, tmpWorldPoint);
             tmpWorldPoint.sub(worldCenter).toArray(worldPoints, (i / 2) * 3);
         }
@@ -146,17 +175,19 @@ class CustomDecoder extends ThemedTileDecoder
         tileKey: TileKey,
         styleSetEvaluator: StyleSetEvaluator,
         geometries: Geometry[]
-    ) {
+    ): { minGeometryHeight: number; maxGeometryHeight: number } {
         const env = new MapEnv({ layer: "mesh-layer" });
         const techniques = styleSetEvaluator.getMatchingTechniques(env);
 
         // Scale the mesh so that its size is relative to the tile size.
-        // tslint:disable-next-line: no-bitwise
         const scale = (1 << 20) / (1 << tileKey.level);
         const boxGeometry = new BoxBufferGeometry(1.0 * scale, 5.0 * scale, 5.0 * scale);
         const matrix = new Matrix4();
         matrix.makeTranslation(2.0 * scale, 1.0 * scale, 0);
         boxGeometry.applyMatrix4(matrix);
+
+        // box is centered vertically.
+        const geometryHeight = 2.5 * scale;
 
         for (const technique of techniques) {
             const geometry = ThreeBufferUtils.fromThreeBufferGeometry(
@@ -164,6 +195,19 @@ class CustomDecoder extends ThemedTileDecoder
                 technique._index
             );
             geometries.push(geometry);
+        }
+
+        return { minGeometryHeight: -geometryHeight, maxGeometryHeight: geometryHeight };
+    }
+
+    private processDependencies(data: Float32Array, dependencies: number[]) {
+        const numberPoints = data[0];
+        const numberDependenciesIndex = numberPoints + 1;
+        // Add 1 because we need to skip the first element
+        const numberDependencies = data[numberDependenciesIndex];
+        for (let i = 0; i < numberDependencies; i++) {
+            // Add 1 to skip the number of dependencies
+            dependencies.push(data[numberDependenciesIndex + i + 1]);
         }
     }
 }

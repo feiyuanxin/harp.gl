@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { StyleSet, Theme } from "@here/harp-datasource-protocol";
 import {
     FeaturesDataSource,
@@ -13,9 +12,10 @@ import {
 } from "@here/harp-features-datasource";
 import { GeoCoordinates, sphereProjection } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
-import { MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
-import { apikey, copyrightInfo } from "../config";
+import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
+
+import { apikey } from "../config";
 import { faults, hotspots } from "../resources/geology";
 
 /**
@@ -115,7 +115,7 @@ export namespace LinesPointsFeaturesExample {
         const featuresList: MapViewFeature[] = [];
         for (const type of Object.keys(features)) {
             for (const featureName of Object.keys(features[type])) {
-                const name = featureName.indexOf("unknown") === -1 ? featureName : undefined;
+                const name = !featureName.includes("unknown") ? featureName : undefined;
                 // snippet:harp_demo_features_linespoints_1.ts
                 const feature = new MapViewLineFeature(features[type][featureName], { name, type });
                 // end:harp_demo_features_linespoints_1.ts
@@ -223,17 +223,11 @@ export namespace LinesPointsFeaturesExample {
 
         window.addEventListener("resize", () => mapView.resize(innerWidth, innerHeight));
 
-        const baseMap = new OmvDataSource({
-            name: "basemap",
+        CopyrightElementHandler.install("copyrightNotice", mapView);
+
+        const baseMap = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-            apiFormat: APIFormat.XYZOMV,
-            styleSetName: "tilezen",
-            authenticationCode: apikey,
-            authenticationMethod: {
-                method: AuthenticationMethod.QueryString,
-                name: "apikey"
-            },
-            copyrightInfo
+            authenticationCode: apikey
         });
         mapView.addDataSource(baseMap);
 

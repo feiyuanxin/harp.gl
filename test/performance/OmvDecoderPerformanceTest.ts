@@ -1,12 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-// tslint:disable:only-arrow-functions
-
-import { assert } from "chai";
 
 import { Theme } from "@here/harp-datasource-protocol";
 import { MapEnv, StyleSetEvaluator } from "@here/harp-datasource-protocol/index-decoder";
@@ -18,22 +14,23 @@ import {
     webMercatorProjection
 } from "@here/harp-geoutils";
 import { ThemeLoader } from "@here/harp-mapview";
+import { getTestResourceUrl } from "@here/harp-test-utils";
+import { measurePerformanceSync } from "@here/harp-test-utils/lib/ProfileHelper";
 import {
     APIFormat,
     AuthenticationMethod,
     OmvRestClient,
     OmvRestClientParameters
-} from "@here/harp-omv-datasource";
-import { DecodeInfo } from "@here/harp-omv-datasource/lib/DecodeInfo";
+} from "@here/harp-vectortile-datasource";
+import { OmvDataAdapter } from "@here/harp-vectortile-datasource/lib/adapters/omv/OmvDataAdapter";
+import { DecodeInfo } from "@here/harp-vectortile-datasource/lib/DecodeInfo";
 import {
     IGeometryProcessor,
     ILineGeometry,
     IPolygonGeometry
-} from "@here/harp-omv-datasource/lib/IGeometryProcessor";
-import { OmvProtobufDataAdapter } from "@here/harp-omv-datasource/lib/OmvData";
-import { OmvDecoder } from "@here/harp-omv-datasource/lib/OmvDecoder";
-import { getTestResourceUrl } from "@here/harp-test-utils";
-import { measurePerformanceSync } from "@here/harp-test-utils/lib/ProfileHelper";
+} from "@here/harp-vectortile-datasource/lib/IGeometryProcessor";
+import { VectorTileDataProcessor } from "@here/harp-vectortile-datasource/lib/VectorTileDecoder";
+import { assert } from "chai";
 
 export interface OMVDecoderPerformanceTestOptions {
     /**
@@ -73,14 +70,14 @@ export function createOMVDecoderPerformanceTest(
     name: string,
     options: OMVDecoderPerformanceTestOptions
 ) {
-    const repeats = options.repeats || 10;
-    const styleSetName = options.styleSetName || "tilezen";
-    describe(`OMVDecoderPerformanceTest - ${name}`, function() {
+    const repeats = options.repeats ?? 10;
+    const styleSetName = options.styleSetName ?? "tilezen";
+    describe(`OMVDecoderPerformanceTest - ${name}`, function () {
         this.timeout(0);
         let omvTiles: Array<[TileKey, ArrayBuffer]>;
         let theme: Theme;
 
-        before(async function() {
+        before(async function () {
             this.timeout(10000);
             const omvDataProvider = new OmvRestClient(options.omvRestClientOptions);
 
@@ -104,10 +101,10 @@ export function createOMVDecoderPerformanceTest(
             const counterName = `OMVDecoderPerformanceTest-${name} styleMatchOnly`;
             this.timeout(0);
 
-            const styleSetEvaluator = new StyleSetEvaluator(
-                theme.styles![styleSetName],
-                theme.definitions
-            );
+            const styleSetEvaluator = new StyleSetEvaluator({
+                styleSet: theme.styles![styleSetName],
+                definitions: theme.definitions
+            });
 
             const geometryProcessor: IGeometryProcessor = {
                 storageLevelOffset: 0,
@@ -115,7 +112,7 @@ export function createOMVDecoderPerformanceTest(
                 processPointFeature(
                     layerName: string,
                     layerExtents: number,
-                    geometry: THREE.Vector2[],
+                    geometry: THREE.Vector3[],
                     env: MapEnv
                 ) {
                     styleSetEvaluator.getMatchingTechniques(env, layerName, "point");
@@ -139,9 +136,9 @@ export function createOMVDecoderPerformanceTest(
                 }
             };
 
-            await measurePerformanceSync(counterName, repeats, function() {
+            await measurePerformanceSync(counterName, repeats, function () {
                 for (const [tileKey, tileData] of omvTiles) {
-                    const decoder = new OmvProtobufDataAdapter(geometryProcessor, undefined);
+                    const decoder = new OmvDataAdapter(geometryProcessor, undefined);
                     const decodeInfo = new DecodeInfo("profiler", mercatorProjection, tileKey, 0);
                     decoder.process(tileData, decodeInfo);
                 }
@@ -154,14 +151,18 @@ export function createOMVDecoderPerformanceTest(
 
             const projection = webMercatorProjection;
 
-            const styleSetEvaluator = new StyleSetEvaluator(
-                theme.styles![styleSetName],
-                theme.definitions
-            );
+            const styleSetEvaluator = new StyleSetEvaluator({
+                styleSet: theme.styles![styleSetName],
+                definitions: theme.definitions
+            });
 
-            await measurePerformanceSync(counterName, repeats, function() {
+            await measurePerformanceSync(counterName, repeats, function () {
                 for (const [tileKey, tileData] of omvTiles) {
-                    const decoder = new OmvDecoder(projection, styleSetEvaluator, false);
+                    const decoder = new VectorTileDataProcessor(
+                        projection,
+                        styleSetEvaluator,
+                        false
+                    );
                     decoder.getDecodedTile(tileKey, tileData);
                 }
             });
@@ -174,14 +175,18 @@ export function createOMVDecoderPerformanceTest(
 
             const projection = sphereProjection;
 
-            const styleSetEvaluator = new StyleSetEvaluator(
-                theme.styles![styleSetName],
-                theme.definitions
-            );
+            const styleSetEvaluator = new StyleSetEvaluator({
+                styleSet: theme.styles![styleSetName],
+                definitions: theme.definitions
+            });
 
-            await measurePerformanceSync(counterName, repeats, function() {
+            await measurePerformanceSync(counterName, repeats, function () {
                 for (const [tileKey, tileData] of omvTiles) {
-                    const decoder = new OmvDecoder(projection, styleSetEvaluator, false);
+                    const decoder = new VectorTileDataProcessor(
+                        projection,
+                        styleSetEvaluator,
+                        false
+                    );
                     decoder.getDecodedTile(tileKey, tileData);
                 }
             });

@@ -1,10 +1,9 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import { StyleDeclaration, StyleSet } from "@here/harp-datasource-protocol";
+import { Style, StyleSet } from "@here/harp-datasource-protocol";
 import {
     FeaturesDataSource,
     MapViewFeature,
@@ -12,10 +11,11 @@ import {
 } from "@here/harp-features-datasource";
 import { GeoCoordinates, sphereProjection } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
-import { MapView } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import { CopyrightElementHandler, MapView } from "@here/harp-mapview";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
 import * as THREE from "three";
-import { apikey, copyrightInfo } from "../config";
+
+import { apikey } from "../config";
 import { COUNTRIES } from "../resources/countries";
 
 /**
@@ -79,7 +79,7 @@ export namespace PolygonsFeaturesExample {
     setCaption();
 
     function getJoiningDate(j: number) {
-        let joiningDate = steps.find(year => EU.steps[year].joining.indexOf(j) > -1)!;
+        let joiningDate = steps.find(year => EU.steps[year].joining.includes(j))!;
         const actualDate = EU.steps[joiningDate].actualJoining;
         if (actualDate !== undefined) {
             joiningDate = actualDate;
@@ -94,11 +94,11 @@ export namespace PolygonsFeaturesExample {
             const features: MapViewFeature[] = [];
             let age = steps.length;
             let k = 0;
-            while (EU.steps[steps[k]].joining.indexOf(j) === -1) {
+            while (!EU.steps[steps[k]].joining.includes(j)) {
                 age--;
                 k++;
             }
-            if (stateGroup.indexOf("germany") > -1) {
+            if (stateGroup.includes("germany")) {
                 age = steps.length;
             }
 
@@ -152,17 +152,17 @@ export namespace PolygonsFeaturesExample {
             if (step !== steps[currentStep]) {
                 dataSourcesToReShow.push(...EU.steps[step].joining);
                 for (const leaving of EU.steps[step].leaving) {
-                    if (dataSourcesToReShow.indexOf(leaving) > -1) {
+                    if (dataSourcesToReShow.includes(leaving)) {
                         dataSourcesToReShow.splice(dataSourcesToReShow.indexOf(leaving), 1);
                     }
                 }
             } else {
                 dataSourcesToShow.push(...EU.steps[step].joining);
                 for (const leaving of EU.steps[step].leaving) {
-                    if (dataSourcesToReShow.indexOf(leaving) > -1) {
+                    if (dataSourcesToReShow.includes(leaving)) {
                         dataSourcesToReShow.splice(dataSourcesToReShow.indexOf(leaving), 1);
                     }
-                    if (dataSourcesToShow.indexOf(leaving) > -1) {
+                    if (dataSourcesToShow.includes(leaving)) {
                         dataSourcesToShow.splice(dataSourcesToShow.indexOf(leaving), 1);
                     }
                 }
@@ -171,14 +171,14 @@ export namespace PolygonsFeaturesExample {
         }
         dataSourcesToReShow.forEach(value => {
             const datasource = featuresDataSources[value];
-            if (displayedDataSourceCache.indexOf(datasource) < 0) {
+            if (!displayedDataSourceCache.includes(datasource)) {
                 map.addDataSource(datasource);
                 displayedDataSourceCache.push(datasource);
             }
         });
         dataSourcesToShow.forEach(value => {
             const datasource = featuresDataSources[value];
-            if (displayedDataSourceCache.indexOf(datasource) < 0) {
+            if (!displayedDataSourceCache.includes(datasource)) {
                 map.addDataSource(datasource);
                 displayedDataSourceCache.push(datasource);
             }
@@ -247,7 +247,7 @@ export namespace PolygonsFeaturesExample {
             const max = options.thresholds[i];
             const min = i - 1 < 0 ? 0 : options.thresholds[i - 1];
             const propertyName = options.property;
-            const style: StyleDeclaration = {
+            const style: Style = {
                 description: "geoJson property-based style",
                 technique: "extruded-polygon",
                 when: [
@@ -332,17 +332,11 @@ export namespace PolygonsFeaturesExample {
 
         window.addEventListener("resize", () => mapView.resize(innerWidth, innerHeight));
 
-        const baseMap = new OmvDataSource({
-            name: "basemap",
+        CopyrightElementHandler.install("copyrightNotice", mapView);
+
+        const baseMap = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-            apiFormat: APIFormat.XYZOMV,
-            styleSetName: "tilezen",
-            authenticationCode: apikey,
-            authenticationMethod: {
-                method: AuthenticationMethod.QueryString,
-                name: "apikey"
-            },
-            copyrightInfo
+            authenticationCode: apikey
         });
         mapView.addDataSource(baseMap);
 

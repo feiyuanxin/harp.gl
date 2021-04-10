@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { Projection, sphereProjection } from "@here/harp-geoutils";
 import { Vector3 } from "three";
+
 import { SubdivisionModifier } from "./SubdivisionModifier";
 
 const VERTEX_POSITION_CACHE = [new Vector3(), new Vector3(), new Vector3()];
@@ -18,8 +19,8 @@ export class SphericalGeometrySubdivisionModifier extends SubdivisionModifier {
     /**
      * Constructs a new [[SphericalGeometrySubdivisionModifier]].
      *
-     * @param angle The maximum angle in radians between two vertices and the origin.
-     * @param projection The projection that defines the world space of this geometry.
+     * @param angle - The maximum angle in radians between two vertices and the origin.
+     * @param projection - The projection that defines the world space of this geometry.
      */
     constructor(readonly angle: number, readonly projection: Projection = sphereProjection) {
         super();

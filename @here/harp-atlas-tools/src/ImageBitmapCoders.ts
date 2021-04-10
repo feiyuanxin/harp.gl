@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as Jimp from "jimp";
+
 import { ColorUtils } from "./ColorUtils";
 import { FileSystem, ImageFormat } from "./FileSystem";
 import {
@@ -112,7 +113,7 @@ class ImageBitmapEncoder implements ImageEncoder {
      * or if no extension is provided the original image's MIME type which, if not available,
      * defaults to PNG).
      *
-     * @param filePath file storage path.
+     * @param filePath - file storage path.
      * @returns Promise.
      */
     write(filePath: string): Promise<void> {

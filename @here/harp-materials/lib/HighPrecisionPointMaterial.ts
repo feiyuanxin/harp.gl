@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as THREE from "three";
+
 import linesShaderChunk from "./ShaderChunks/LinesChunks";
 
 const vertexSource: string = `
@@ -37,7 +38,7 @@ void main() {
 }`;
 
 /**
- * Parameters used when constructing a new [[HighPrecisionPointMaterial]].
+ * Parameters used when constructing a new {@link HighPrecisionPointMaterial}.
  */
 export interface HighPrecisionPointMaterialParameters extends THREE.PointsMaterialParameters {
     /**
@@ -75,7 +76,7 @@ export class HighPrecisionPointMaterial extends THREE.PointsMaterial {
     /**
      * Constructs a new `HighPrecisionPointMaterial`.
      *
-     * @param params `HighPrecisionPointMaterial` parameters.
+     * @param params - `HighPrecisionPointMaterial` parameters.
      */
     constructor(params?: HighPrecisionPointMaterialParameters) {
         Object.assign(THREE.ShaderChunk, linesShaderChunk);
@@ -142,6 +143,7 @@ export class HighPrecisionPointMaterial extends THREE.PointsMaterial {
     get uvTransform(): THREE.Matrix3 {
         return this.uniforms.uvTransform.value;
     }
+
     set uvTransform(value: THREE.Matrix3) {
         this.uniforms.uvTransform.value = value;
     }

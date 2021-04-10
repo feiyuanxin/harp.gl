@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -14,7 +14,7 @@ export interface ISimpleChannel {
 }
 
 /**
- * Extension of [[ISimpleChannel]] to support contextual logging by adding stack of prefixes.
+ * Extension of {@link ISimpleChannel} to support contextual logging by adding stack of prefixes.
  */
 export interface IContextLogger extends ISimpleChannel {
     /**
@@ -72,11 +72,9 @@ export class ContextLogger implements IContextLogger {
 
     // They, are public member functions it's just tslint who doesn't understand this.
 
-    // tslint:disable:member-ordering
     warn = this.createLogMethod("warn");
     info = this.createLogMethod("info");
     error = this.createLogMethod("error");
-    // tslint:enable:member-ordering
 
     private createLogMethod(severity: "warn" | "info" | "error") {
         return (message: string, ...rest: any[]) => {

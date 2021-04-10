@@ -1,18 +1,18 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import * as sinon from "sinon";
+
 import { PoiManager } from "../lib/poi/PoiManager";
 
 /**
  * Stubs poi manager.
- * @param sandbox Sinon sandbox used to track created stubs.
+ * @param sandbox - Sinon sandbox used to track created stubs.
  * @returns PoiManager stub.
  */
 export function stubPoiManager(sandbox: sinon.SinonSandbox): PoiManager {

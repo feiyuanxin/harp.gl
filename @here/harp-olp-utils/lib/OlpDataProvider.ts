@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,12 +7,11 @@
 import { TileKey } from "@here/harp-geoutils";
 import { DataProvider } from "@here/harp-mapview-decoder";
 import { LoggerManager } from "@here/harp-utils";
+import { HRN, OlpClientSettings } from "@here/olp-sdk-core";
 import {
     CatalogClient,
     CatalogVersionRequest,
     DataRequest,
-    HRN,
-    OlpClientSettings,
     VersionedLayerClient
 } from "@here/olp-sdk-dataservice-read";
 
@@ -36,16 +35,23 @@ export interface OlpDataProviderParams {
      * @default Latest catalog version
      */
     version?: number;
+
+    /** OLP environment
+     * @default "here"
+     */
+    env?: string;
 }
 
 /**
  * [[DataProvider]] implementation for OLP catalogs.
  */
-export class OlpDataProvider implements DataProvider {
+export class OlpDataProvider extends DataProvider {
     private m_versionLayerClient: VersionedLayerClient | undefined;
     private m_catalogVersion: number = -1;
 
-    constructor(readonly params: OlpDataProviderParams) {}
+    constructor(readonly params: OlpDataProviderParams) {
+        super();
+    }
 
     /**
      * Connect to the data source. Returns a promise to wait for successful (or failed) connection.
@@ -54,7 +60,7 @@ export class OlpDataProvider implements DataProvider {
      */
     async connect(): Promise<void> {
         const settings = new OlpClientSettings({
-            environment: "here",
+            environment: this.params.env ?? "here",
             getToken: this.params.getToken
         });
 
@@ -68,11 +74,12 @@ export class OlpDataProvider implements DataProvider {
 
             this.m_catalogVersion = latestVersion;
         }
-        this.m_versionLayerClient = new VersionedLayerClient(
-            HRN.fromString(this.params.hrn),
-            this.params.layerId,
+        this.m_versionLayerClient = new VersionedLayerClient({
+            catalogHrn: HRN.fromString(this.params.hrn),
+            layerId: this.params.layerId,
+            version: this.m_catalogVersion,
             settings
-        );
+        });
     }
 
     /**
@@ -85,8 +92,8 @@ export class OlpDataProvider implements DataProvider {
     /**
      * Load the data of a [[Tile]] asynchronously in form of an [[ArrayBufferLike]].
      *
-     * @param tileKey Address of a tile.
-     * @param abortSignal Optional AbortSignal to cancel the request.
+     * @param tileKey - Address of a tile.
+     * @param abortSignal - Optional AbortSignal to cancel the request.
      * @returns A promise delivering the data as an [[ArrayBufferLike]], or any object.
      */
     async getTile(tileKey: TileKey, abortSignal?: AbortSignal): Promise<ArrayBufferLike | {}> {
@@ -96,7 +103,7 @@ export class OlpDataProvider implements DataProvider {
 
         try {
             const response = await this.m_versionLayerClient.getData(
-                new DataRequest().withQuadKey(tileKey).withVersion(this.m_catalogVersion),
+                new DataRequest().withQuadKey(tileKey),
                 abortSignal
             );
             if (abortSignal && abortSignal.aborted) {
@@ -108,7 +115,7 @@ export class OlpDataProvider implements DataProvider {
             if (response.status !== 200) {
                 throw new Error(response.statusText);
             }
-            return response.arrayBuffer();
+            return await response.arrayBuffer();
         } catch (error) {
             if (error.name === "AbortError" || error.message === "AbortError: Aborted") {
                 // Rethrow abort errors as they shall be handled on higher level.
@@ -127,5 +134,13 @@ export class OlpDataProvider implements DataProvider {
             );
             return {};
         }
+    }
+
+    /**
+     * Destroys this `OlpDataProvider`.
+     * @override
+     */
+    dispose() {
+        // Nothing to be done here.
     }
 }

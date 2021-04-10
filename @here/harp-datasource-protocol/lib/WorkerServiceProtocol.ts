@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -94,7 +94,7 @@ export namespace WorkerServiceProtocol {
      * Test if `error` thrown by [[CreateServiceRequest]] was caused by unknown type of service.
      */
     export function isUnknownServiceError(error: Error): boolean {
-        return /unknown targetServiceType requested: /.test(error.message);
+        return error.message.includes("unknown targetServiceType requested: ");
     }
 
     /**

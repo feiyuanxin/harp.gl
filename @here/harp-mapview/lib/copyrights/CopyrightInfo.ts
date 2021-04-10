@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,18 +7,19 @@
 import { getOptionValue, MathUtils } from "@here/harp-utils";
 
 /**
- * Copyright info attached to data displayed on map. Provided by [[DataSource]] and attached
- * to [[Tile]]s.
+ * Copyright info attached to data displayed on map. Provided by {@link DataSource} and attached
+ * to {@link Tile}s.
  *
- * In most cases, an application should display this information on [[MapView]] to conform with
+ * In most cases, an application should display this information on {@link MapView} to conform with
  * licencing terms of its map data providers.
  *
- * @see [[CopyrightElementHandler]]
+ * @see {@link CopyrightElementHandler}
  */
 export interface CopyrightInfo {
     /**
      * Unique id of the copyright holder.
      *
+     * @remarks
      * `id`s should be unique. It is recommended to build them from unique identifiers like
      * registered domain names.
      *
@@ -27,10 +28,11 @@ export interface CopyrightInfo {
      *  * `openstreetmap.org` - for data originating from OpenStreetMap project
      *  * `naturalearthdata.com` - for data originating from Natural Earth dataset
      *
-     * Note: [[DataSource]] may return [[CopyrightInfo]] with only `id`, thus defining only holder
+     * Note: {@link DataSource} may return {@link CopyrightInfo}
+     * with only `id`, thus defining only holder
      * of copyright, however, valid attribution may require proper `label` and `link`.
      *
-     * Entries with same `id` are deduplicated by [[CopyrightInfo.mergeArrays]].
+     * Entries with same `id` are deduplicated by {@link CopyrightInfo.mergeArrays}.
      */
     id: string;
 
@@ -55,11 +57,11 @@ export interface CopyrightInfo {
 
 export namespace CopyrightInfo {
     /**
-     * Merge [[CopyrightInfo]] arrays, removing duplicates.
+     * Merge {@link CopyrightInfo} arrays, removing duplicates.
      *
      * `id` and `label` are considered keys in deduplication algorithm.
      *
-     * @param sources non-duplicate elements from this array are added to `target`
+     * @param sources - non-duplicate elements from this array are added to `target`
      * @returns merge of all copyright infos in `sources`
      */
     export function mergeArrays(a: CopyrightInfo[], b?: CopyrightInfo[]): CopyrightInfo[] {
@@ -94,7 +96,7 @@ export namespace CopyrightInfo {
      * * Empty list returns empty string.
      * * Entries with empty (but defined) labels are skipped.
      *
-     * @param copyrightInfo Array of copyrights to format.
+     * @param copyrightInfo - Array of copyrights to format.
      */
     export function formatAsHtml(copyrightInfo: CopyrightInfo[]): string {
         if (copyrightInfo.length === 0) {

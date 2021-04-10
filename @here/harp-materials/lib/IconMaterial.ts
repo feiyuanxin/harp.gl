@@ -1,10 +1,16 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import * as THREE from "three";
+
+import {
+    RawShaderMaterial,
+    RawShaderMaterialParameters,
+    RendererMaterialParameters
+} from "./RawShaderMaterial";
 
 const vertexSource: string = `
 attribute vec4 position;
@@ -43,9 +49,9 @@ void main() {
 }`;
 
 /**
- * Parameters used when constructing a new [[IconMaterial]].
+ * Parameters used when constructing a new {@link IconMaterial}.
  */
-export interface IconMaterialParameters {
+export interface IconMaterialParameters extends RendererMaterialParameters {
     /**
      * Texture map.
      */
@@ -56,29 +62,31 @@ export interface IconMaterialParameters {
  * 2D material for icons, similar to [[TextMaterial]]. Uses component in texture coordinates to
  * apply opacity.
  */
-export class IconMaterial extends THREE.RawShaderMaterial {
+export class IconMaterial extends RawShaderMaterial {
     /**
      * Constructs a new `IconMaterial`.
      *
-     * @param params `IconMaterial` parameters.
+     * @param params - `IconMaterial` parameters. Always required except when cloning another
+     * material.
      */
-    constructor(params: IconMaterialParameters) {
-        // tslint:disable-next-line: deprecation
-        const shaderParams: THREE.ShaderMaterialParameters = {
-            name: "IconMaterial",
-            vertexShader: vertexSource,
-            fragmentShader: fragmentSource,
-            uniforms: {
-                map: new THREE.Uniform(params.map)
-            },
-            depthTest: true,
-            depthWrite: true,
-            transparent: true,
+    constructor(params?: IconMaterialParameters) {
+        const shaderParams: RawShaderMaterialParameters | undefined = params
+            ? {
+                  name: "IconMaterial",
+                  vertexShader: vertexSource,
+                  fragmentShader: fragmentSource,
+                  uniforms: {
+                      map: new THREE.Uniform(params.map)
+                  },
+                  depthTest: true,
+                  depthWrite: false,
+                  transparent: true,
 
-            vertexColors: true,
-            premultipliedAlpha: true,
-            blending: THREE.NormalBlending
-        };
+                  vertexColors: true,
+                  premultipliedAlpha: true,
+                  rendererCapabilities: params.rendererCapabilities
+              }
+            : undefined;
         super(shaderParams);
     }
 

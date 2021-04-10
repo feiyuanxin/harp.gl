@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import {
     OrientedBox3,
     Projection,
@@ -13,8 +12,9 @@ import {
 } from "@here/harp-geoutils";
 import { assert } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { DataSource } from "./DataSource";
-import { CalculationStatus, ElevationRangeSource } from "./ElevationRangeSource";
+import { CalculationStatus, ElevationRange, ElevationRangeSource } from "./ElevationRangeSource";
 import { MapTileCuller } from "./MapTileCuller";
 import { MapView } from "./MapView";
 import { MapViewUtils, TileOffsetUtils } from "./Utils";
@@ -34,8 +34,7 @@ export class TileKeyEntry {
         public tileKey: TileKey,
         public area: number,
         public offset: number = 0,
-        public minElevation: number = 0,
-        public maxElevation: number = 0,
+        public elevationRange?: ElevationRange,
         public distance: number = 0
     ) {}
 }
@@ -92,7 +91,8 @@ export class FrustumIntersection {
         readonly mapView: MapView,
         private readonly m_extendedFrustumCulling: boolean,
         private readonly m_tileWrappingEnabled: boolean,
-        private readonly m_enableMixedLod: boolean
+        private readonly m_enableMixedLod: boolean,
+        private readonly m_tilePixelSize: number = 256
     ) {
         this.m_mapTileCuller = new MapTileCuller(m_camera);
     }
@@ -133,10 +133,10 @@ export class FrustumIntersection {
     /**
      * Computes the tiles intersected by the updated frustum, see [[updateFrustum]].
      *
-     * @param tilingScheme The tiling scheme used to generate the tiles.
-     * @param elevationRangeSource Source of elevation range data if any.
-     * @param zoomLevels A list of zoom levels to render.
-     * @param dataSources A list of data sources to render.
+     * @param tilingScheme - The tiling scheme used to generate the tiles.
+     * @param elevationRangeSource - Source of elevation range data if any.
+     * @param zoomLevels - A list of zoom levels to render.
+     * @param dataSources - A list of data sources to render.
      * @returns The computation result, see [[FrustumIntersection.Result]].
      */
     compute(
@@ -146,39 +146,61 @@ export class FrustumIntersection {
         dataSources: DataSource[]
     ): IntersectionResult {
         this.m_tileKeyEntries.clear();
-        let calculationFinal = true;
 
         // Compute target tile area in clip space size.
         // A tile should take up roughly 256x256 pixels on screen in accordance to
         // the zoom level chosen by [MapViewUtils.calculateZoomLevelFromDistance].
         assert(this.mapView.viewportHeight !== 0);
-        const targetTileArea = Math.pow(256 / this.mapView.viewportHeight, 2);
+        const targetTileArea = Math.pow(this.m_tilePixelSize / this.mapView.viewportHeight, 2);
         const useElevationRangeSource: boolean =
             elevationRangeSource !== undefined &&
             elevationRangeSource.getTilingScheme() === tilingScheme;
         const obbIntersections =
             this.mapView.projection.type === ProjectionType.Spherical || useElevationRangeSource;
-        const tileBounds = obbIntersections ? new OrientedBox3() : new THREE.Box3();
         const uniqueZoomLevels = new Set(zoomLevels);
+
+        // Gather the minimum and maximum geometry heights of all datasources to enlarge the
+        // bounding boxes of tiles for visibility tests.
+        let minGeometryHeight = 0;
+        let maxGeometryHeight = 0;
+        dataSources.forEach(dataSource => {
+            minGeometryHeight = Math.min(minGeometryHeight, dataSource.minGeometryHeight);
+            maxGeometryHeight = Math.max(maxGeometryHeight, dataSource.maxGeometryHeight);
+        });
+
+        const cache = {
+            calculationFinal: true,
+            tileBounds: obbIntersections ? new OrientedBox3() : new THREE.Box3()
+        };
 
         // create tile key map per zoom level
         for (const zoomLevel of uniqueZoomLevels) {
             this.m_tileKeyEntries.set(zoomLevel, new Map());
         }
-        for (const item of this.m_rootTileKeys) {
-            const tileKeyEntry = new TileKeyEntry(
-                item.tileKey,
-                Infinity,
-                item.offset,
-                item.minElevation,
-                item.maxElevation
+        for (const tileEntry of this.m_rootTileKeys) {
+            const tileKey = tileEntry.tileKey;
+            const offset = tileEntry.offset;
+
+            // We even check the root tiles against the frustum b/c it can happen that
+            // computeRequiredInitialRootTileKeys is producing false positives.
+            const tileKeyEntry = this.getTileKeyEntry(
+                tileKey,
+                offset,
+                tilingScheme,
+                cache,
+                minGeometryHeight,
+                maxGeometryHeight,
+                useElevationRangeSource ? elevationRangeSource : undefined
             );
-            for (const zoomLevel of uniqueZoomLevels) {
-                const tileKeyEntries = this.m_tileKeyEntries.get(zoomLevel)!;
-                tileKeyEntries.set(
-                    TileOffsetUtils.getKeyForTileKeyAndOffset(item.tileKey, item.offset),
-                    tileKeyEntry
-                );
+
+            if (tileKeyEntry !== undefined) {
+                for (const zoomLevel of uniqueZoomLevels) {
+                    const tileKeyEntries = this.m_tileKeyEntries.get(zoomLevel)!;
+                    tileKeyEntries.set(
+                        TileOffsetUtils.getKeyForTileKeyAndOffset(tileKey, offset),
+                        tileKeyEntry
+                    );
+                }
             }
         }
 
@@ -192,6 +214,7 @@ export class FrustumIntersection {
 
             // Stop subdivision if hightest visible level is reached
             const tileKey = tileEntry.tileKey;
+            const offset = tileEntry.offset;
             const subdivide = dataSources.some((ds, i) =>
                 ds.shouldSubdivide(zoomLevels[i], tileKey)
             );
@@ -204,10 +227,7 @@ export class FrustumIntersection {
                 continue;
             }
 
-            const parentTileKey = TileOffsetUtils.getKeyForTileKeyAndOffset(
-                tileKey,
-                tileEntry.offset
-            );
+            const tileKeyAndOffset = TileOffsetUtils.getKeyForTileKeyAndOffset(tileKey, offset);
 
             // delete parent tile key from applicable zoom levels
             for (const zoomLevel of uniqueZoomLevels) {
@@ -216,64 +236,93 @@ export class FrustumIntersection {
                 }
 
                 const tileKeyEntries = this.m_tileKeyEntries.get(zoomLevel)!;
-                tileKeyEntries.delete(parentTileKey);
+                tileKeyEntries.delete(tileKeyAndOffset);
             }
 
-            for (const childTileKey of tilingScheme.getSubTileKeys(tileKey)) {
-                const offset = tileEntry.offset;
-                const tileKeyAndOffset = TileOffsetUtils.getKeyForTileKeyAndOffset(
-                    childTileKey,
-                    offset
+            for (const subTileKey of tilingScheme.getSubTileKeys(tileKey)) {
+                const subTileEntry = this.getTileKeyEntry(
+                    subTileKey,
+                    offset,
+                    tilingScheme,
+                    cache,
+                    minGeometryHeight,
+                    maxGeometryHeight,
+                    useElevationRangeSource ? elevationRangeSource : undefined
                 );
 
-                const geoBox = getGeoBox(tilingScheme, childTileKey, offset);
-
-                // For tiles without elevation range source, default 0 (getGeoBox always
-                // returns box with altitude min/max equal to zero) will be propagated as
-                // min and max elevation, these tiles most probably contains features that
-                // lays directly on the ground surface.
-                if (useElevationRangeSource) {
-                    const range = elevationRangeSource!.getElevationRange(childTileKey);
-                    geoBox.southWest.altitude = range.minElevation;
-                    geoBox.northEast.altitude = range.maxElevation;
-                    calculationFinal =
-                        calculationFinal &&
-                        range.calculationStatus === CalculationStatus.FinalPrecise;
-                }
-
-                this.mapView.projection.projectBox(geoBox, tileBounds);
-                const { area, distance } = this.computeTileAreaAndDistance(tileBounds);
-
-                if (area > 0) {
-                    const subTileEntry = new TileKeyEntry(
-                        childTileKey,
-                        area,
-                        offset,
-                        geoBox.southWest.altitude, // minElevation
-                        geoBox.northEast.altitude, // maxElevation
-                        distance
-                    );
-
+                if (subTileEntry !== undefined) {
                     // insert sub tile entry into tile entries map per zoom level
                     for (const zoomLevel of uniqueZoomLevels) {
                         if (subTileEntry.tileKey.level > zoomLevel) {
                             continue;
                         }
 
-                        const tileKeyEntries = this.m_tileKeyEntries.get(zoomLevel)!;
-                        tileKeyEntries.set(tileKeyAndOffset, subTileEntry);
+                        const subTileKeyAndOffset = TileOffsetUtils.getKeyForTileKeyAndOffset(
+                            subTileKey,
+                            offset
+                        );
+                        this.m_tileKeyEntries
+                            .get(zoomLevel)!
+                            .set(subTileKeyAndOffset, subTileEntry);
                     }
 
                     workList.push(subTileEntry);
                 }
             }
         }
-        return { tileKeyEntries: this.m_tileKeyEntries, calculationFinal };
+        return { tileKeyEntries: this.m_tileKeyEntries, calculationFinal: cache.calculationFinal };
+    }
+
+    private getTileKeyEntry(
+        tileKey: TileKey,
+        offset: number,
+        tilingScheme: TilingScheme,
+        cache: { calculationFinal: boolean; tileBounds: OrientedBox3 | THREE.Box3 },
+        minGeometryHeight: number,
+        maxGeometryHeight: number,
+        elevationRangeSource?: ElevationRangeSource
+    ): TileKeyEntry | undefined {
+        const geoBox = getGeoBox(tilingScheme, tileKey, offset);
+
+        // For tiles without elevation range source, default 0 (getGeoBox always
+        // returns box with altitude min/max equal to zero) will be propagated as
+        // min and max elevation, these tiles most probably contains features that
+        // lays directly on the ground surface.
+        if (elevationRangeSource !== undefined) {
+            const range = elevationRangeSource!.getElevationRange(tileKey);
+            geoBox.southWest.altitude = range.minElevation;
+            geoBox.northEast.altitude = range.maxElevation;
+            cache.calculationFinal =
+                cache.calculationFinal &&
+                range.calculationStatus === CalculationStatus.FinalPrecise;
+        }
+
+        // Enlarge the bounding boxes of tiles with min/max geometry height for visibility tests.
+        geoBox.southWest.altitude = (geoBox.southWest.altitude ?? 0) + minGeometryHeight;
+        geoBox.northEast.altitude = (geoBox.northEast.altitude ?? 0) + maxGeometryHeight;
+
+        this.mapView.projection.projectBox(geoBox, cache.tileBounds);
+        const { area, distance } = this.computeTileAreaAndDistance(cache.tileBounds);
+
+        if (area > 0) {
+            return new TileKeyEntry(
+                tileKey,
+                area,
+                offset,
+                {
+                    minElevation: geoBox.southWest.altitude,
+                    maxElevation: geoBox.northEast.altitude
+                },
+                distance
+            );
+        }
+
+        return undefined;
     }
 
     /**
      * Estimate screen space area of tile and distance to center of tile
-     * @param tileBounds The bounding volume of a tile
+     * @param tileBounds - The bounding volume of a tile
      * @return Area estimate and distance to tile center in clip space
      */
     private computeTileAreaAndDistance(
@@ -310,20 +359,28 @@ export class FrustumIntersection {
 
         return {
             area: objectSize * objectSize,
-            distance: projectedPoint.z / projectedPoint.w
+            //Dividing by w means we loose information for whether the point is behind the camera
+            //(i.e. it is in front of the near plane) or beyond the far plane, hence we first clamp
+            //to [-1, 1] range, before doing the division.
+            distance:
+                projectedPoint.z <= -projectedPoint.w
+                    ? -1
+                    : projectedPoint.z >= projectedPoint.w
+                    ? 1
+                    : projectedPoint.z / projectedPoint.w
         };
     }
 
     /**
      * Create a list of root nodes to test against the frustum. The root nodes each start at level 0
-     * and have an offset (see [[Tile]]) based on:
+     * and have an offset (see {@link Tile}) based on:
      * - the current position [[worldCenter]].
      * - the height of the camera above the world.
      * - the field of view of the camera (the maximum value between the horizontal / vertical
      *   values)
      * - the tilt of the camera (because we see more tiles when tilted).
      *
-     * @param worldCenter The center of the camera in world space.
+     * @param worldCenter - The center of the camera in world space.
      */
     private computeRequiredInitialRootTileKeys(worldCenter: THREE.Vector3) {
         this.m_rootTileKeys = [];
@@ -331,7 +388,7 @@ export class FrustumIntersection {
         const tileWrappingEnabled = this.mapView.projection.type === ProjectionType.Planar;
 
         if (!tileWrappingEnabled || !this.m_tileWrappingEnabled) {
-            this.m_rootTileKeys.push(new TileKeyEntry(rootTileKey, Infinity, 0, 0));
+            this.m_rootTileKeys.push(new TileKeyEntry(rootTileKey, Infinity, 0));
             return;
         }
 
@@ -396,7 +453,7 @@ export class FrustumIntersection {
             ),
             0,
             // We can store currently up to 16 unique keys(2^4, where 4 is the default bit-shift
-            // value which is used currently in the [[VisibleTileSet]] methods) hence we can have a
+            // value which is used currently in the VisibleTileSet methods) hence we can have a
             // maximum range of 7 (because 2*7+1 = 15).
             7
         );
@@ -405,7 +462,7 @@ export class FrustumIntersection {
             offset <= offsetRange + startOffset;
             offset++
         ) {
-            this.m_rootTileKeys.push(new TileKeyEntry(rootTileKey, Infinity, offset, 0, 0));
+            this.m_rootTileKeys.push(new TileKeyEntry(rootTileKey, Infinity, offset));
         }
     }
 }

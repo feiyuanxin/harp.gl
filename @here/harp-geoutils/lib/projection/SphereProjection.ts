@@ -1,8 +1,10 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import * as THREE from "three";
 
 import { GeoBox } from "../coordinates/GeoBox";
 import { GeoCoordinates } from "../coordinates/GeoCoordinates";
@@ -15,8 +17,6 @@ import { Vector3Like } from "../math/Vector3Like";
 import { EarthConstants } from "./EarthConstants";
 import { mercatorProjection, webMercatorProjection } from "./MercatorProjection";
 import { Projection, ProjectionType } from "./Projection";
-
-import * as THREE from "three";
 
 /**
  * Transforms the given vector using the provided basis.
@@ -44,7 +44,7 @@ function apply(
  *  - quadrant(+Math.PI *  0.5) = 3
  *  - quadrant(+Math.PI *  1.0) = 4
  *
- * @param longitude The longitude in radians.
+ * @param longitude - The longitude in radians.
  */
 function getLongitudeQuadrant(longitude: number) {
     const oneOverPI = 1 / Math.PI;
@@ -62,15 +62,15 @@ function lengthOfVector3(worldPoint: Vector3Like): number {
 /**
  * Creates a Box3 enclosing the geobox.
  *
- * @param geoBox Ghe given geobox
- * @param worldBox The resulting axis aligned bounding box.
+ * @param geoBox - Ghe given geobox
+ * @param worldBox - The resulting axis aligned bounding box.
  */
 function makeBox3<Bounds extends Box3Like>(
     geoBox: GeoBox,
     worldBox: Bounds,
     unitScale: number
 ): Bounds {
-    const halfEquatorialRadius = (unitScale + (geoBox.maxAltitude || 0)) * 0.5;
+    const halfEquatorialRadius = (unitScale + (geoBox.maxAltitude ?? 0)) * 0.5;
 
     const minLongitude = THREE.MathUtils.degToRad(geoBox.west);
     const maxLongitude = THREE.MathUtils.degToRad(geoBox.east);
@@ -88,12 +88,10 @@ function makeBox3<Bounds extends Box3Like>(
         quadrantIndex <= maxLongitudeQuadrant;
         quadrantIndex++
     ) {
-        // tslint:disable-next-line: no-bitwise
         const x = ((quadrantIndex + 1) & 1) * ((quadrantIndex & 2) - 1);
         xMin = Math.min(x, xMin);
         xMax = Math.max(x, xMax);
 
-        // tslint:disable-next-line: no-bitwise
         const y = (quadrantIndex & 1) * ((quadrantIndex & 2) - 1);
         yMin = Math.min(y, yMin);
         yMax = Math.max(y, yMax);
@@ -136,15 +134,15 @@ function makeBox3<Bounds extends Box3Like>(
 /**
  * Computes the spherical projection of the given geo coordinates.
  *
- * @param geoPoint The geo coordinates.
- * @param worldpoint The resulting world coordinates.
+ * @param geoPoint - The geo coordinates.
+ * @param worldpoint - The resulting world coordinates.
  */
 function project<WorldCoordinates extends Vector3Like>(
     geoPoint: GeoCoordinatesLike,
     worldpoint: WorldCoordinates,
     unitScale: number
 ): typeof worldpoint {
-    const radius = unitScale + (geoPoint.altitude || 0);
+    const radius = unitScale + (geoPoint.altitude ?? 0);
     const latitude = THREE.MathUtils.degToRad(geoPoint.latitude);
     const longitude = THREE.MathUtils.degToRad(geoPoint.longitude);
     const cosLatitude = Math.cos(latitude);
@@ -296,8 +294,8 @@ class SphereProjection extends Projection {
                     sinMidY * cosSouth * (cosMidX * cosEast + sinMidX * sinEast);
             }
 
-            const rMax = (this.unitScale + (geoBox.maxAltitude || 0)) * 0.5;
-            const rMin = (this.unitScale + (geoBox.minAltitude || 0)) * 0.5;
+            const rMax = (this.unitScale + (geoBox.maxAltitude ?? 0)) * 0.5;
+            const rMin = (this.unitScale + (geoBox.minAltitude ?? 0)) * 0.5;
 
             // min(dot(southEast, zAxis), dot(northEast, zAxis))
 
@@ -383,7 +381,6 @@ class SphereProjection extends Projection {
             const scale = r + z;
 
             if (result === undefined) {
-                // tslint:disable-next-line: no-object-literal-type-assertion
                 result = {} as Vector3Like;
             }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -7,7 +7,7 @@
 import { Vector3Like } from "./Vector3Like";
 
 /**
- * The interface [[TransformLike]] is used to represent transforms with
+ * The interface {@link TransformLike} is used to represent transforms with
  * only translation and rotation.
  */
 export interface TransformLike {
@@ -33,9 +33,9 @@ export interface TransformLike {
 }
 
 /**
- * Returns true if the given object implements the interface [[TransformLike]].
+ * Returns true if the given object implements the interface {@link TransformLike}.
  *
- * @param object The object.
+ * @param object - The object.
  */
 export function isTransformLike(object: {}): object is TransformLike {
     const transform = object as Partial<TransformLike>;

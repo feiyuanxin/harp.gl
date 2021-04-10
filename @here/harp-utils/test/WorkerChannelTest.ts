@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { assert } from "chai";
 import * as sinon from "sinon";
+
 import { LogLevel } from "../lib/Logger/ILogger";
 import { LoggerManager } from "../lib/Logger/LoggerManager";
 import {
@@ -19,8 +19,8 @@ import {
 
 declare const global: any;
 
-describe("WorkerChannel", function() {
-    beforeEach(function() {
+describe("WorkerChannel", function () {
+    beforeEach(function () {
         if (typeof self === "undefined") {
             global.self = {
                 postMessage() {
@@ -30,13 +30,13 @@ describe("WorkerChannel", function() {
         }
     });
 
-    afterEach(function() {
+    afterEach(function () {
         if (Object.keys(self).length === 1) {
             delete global.self;
         }
     });
 
-    it("The WorkerChannel post messages with the format of IWorkerChannelMessage.", function() {
+    it("The WorkerChannel post messages with the format of IWorkerChannelMessage.", function () {
         const message1 = "My message : ";
         const message2 = "is original.";
         const loggerName = "myLogger";

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,7 +16,7 @@ export interface UriResolver {
      * If given resolver doesn't know about this specific kind of `URI`, it should return string as
      * received.
      *
-     * @param input `URI`
+     * @param input - `URI`
      * @returns actual `URL` if this handler knows how locate given `uri` or original `uri`
      */
     resolveUri(uri: string): string;
@@ -27,7 +27,7 @@ export interface PrefixUriResolverDefinition {
 }
 
 /**
- * Basic, import-map like [[UriResolver]].
+ * Basic, import-map like {@link UriResolver}.
  *
  * Resolves `uris` basing on exact or prefix match of `key` from `definitions`.
  *
@@ -78,7 +78,7 @@ export class RelativeUriResolver implements UriResolver {
 /**
  * Compose URI resolvers.
  *
- * Creates new [[UriResolver]] that applies resolvers in orders or arguments.
+ * Creates new {@link UriResolver} that applies resolvers in orders or arguments.
  *
  * Example:
  *

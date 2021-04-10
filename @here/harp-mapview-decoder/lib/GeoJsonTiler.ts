@@ -1,16 +1,24 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { GeoJson, ITiler } from "@here/harp-datasource-protocol";
+import { GeoJson, isFeatureGeometry, ITiler } from "@here/harp-datasource-protocol";
 import { TileKey } from "@here/harp-geoutils";
+// @ts-ignore
+import * as geojsonvtExport from "geojson-vt";
 
-// tslint:disable-next-line:no-var-requires
-const geojsonvtExport = require("geojson-vt");
 // to be able to run tests on nodejs
-const geojsonvt = geojsonvtExport.default || geojsonvtExport;
+const geojsonvt = geojsonvtExport.default ?? geojsonvtExport;
+
+const EXTENT = 4096;
+
+// the factor used to compute the size of the buffer.
+const BUFFER_FACTOR = 0.05;
+
+// align the buffer to the next integer multiple of 2.
+const BUFFER = -(-Math.ceil(EXTENT * BUFFER_FACTOR) & -2);
 
 interface GeoJsonVtIndex {
     geojson: GeoJson;
@@ -29,14 +37,14 @@ export class GeoJsonTiler implements ITiler {
     }
 
     async connect(): Promise<void> {
-        return Promise.resolve();
+        return await Promise.resolve();
     }
 
     async registerIndex(indexId: string, input: URL | GeoJson): Promise<void> {
         if (this.indexes.has(indexId)) {
             return;
         }
-        return this.updateIndex(indexId, input);
+        return await this.updateIndex(indexId, input);
     }
 
     async updateIndex(indexId: string, input: URL | GeoJson): Promise<void> {
@@ -47,21 +55,29 @@ export class GeoJsonTiler implements ITiler {
                     `GeoJsonTiler: Unable to fetch ${input.href}: ${response.statusText}`
                 );
             }
-            input = await response.json();
+            input = (await response.json()) as GeoJson;
         } else {
             input = input as GeoJson;
         }
 
+        // Generate ids only if input doesn't have them.
+        const generateId =
+            isFeatureGeometry(input) ||
+            input.type === "GeometryCollection" ||
+            (input.type === "Feature" && input.id === undefined) ||
+            (input.type === "FeatureCollection" &&
+                input.features.length > 0 &&
+                input.features[0].id === undefined);
         const index = geojsonvt(input, {
             maxZoom: 20, // max zoom to preserve detail on
             indexMaxZoom: 5, // max zoom in the tile index
             indexMaxPoints: 100000, // max number of points per tile in the tile index
             tolerance: 3, // simplification tolerance (higher means simpler)
-            extent: 4096, // tile extent
-            buffer: 0, // tile buffer on each side
+            extent: EXTENT, // tile extent
+            buffer: BUFFER, // tile buffer on each side
             lineMetrics: false, // whether to calculate line metrics
             promoteId: null, // name of a feature property to be promoted to feature.id
-            generateId: true, // whether to generate feature ids. Cannot be used with promoteId
+            generateId, // whether to generate feature ids. Cannot be used with promoteId
             debug: 0 // logging level (0, 1 or 2)
         });
         index.geojson = input;
@@ -77,27 +93,7 @@ export class GeoJsonTiler implements ITiler {
         const tile = index.getTile(tileKey.level, tileKey.column, tileKey.row);
         if (tile !== null) {
             tile.layer = indexId;
-            for (const feature of tile.features) {
-                feature.originalGeometry = this.getOriginalGeometry(feature, index.geojson);
-            }
         }
         return tile || {};
-    }
-
-    private getOriginalGeometry(feature: any, geojson: GeoJson): any {
-        switch (geojson.type) {
-            case "Point":
-            case "MultiPoint":
-            case "LineString":
-            case "MultiLineString":
-            case "Polygon":
-            case "MultiPolygon":
-            case "GeometryCollection":
-                return geojson;
-            case "Feature":
-                return geojson.geometry;
-            case "FeatureCollection":
-                return geojson.features[feature.id].geometry;
-        }
     }
 }

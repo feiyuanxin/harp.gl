@@ -1,11 +1,11 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { isJsonExpr } from "./Expr";
-import { StyleDeclaration, Theme } from "./Theme";
+import { Style, Theme } from "./Theme";
 
 /**
  * The ThemeVisitor visits every style in the theme in a depth-first fashion.
@@ -15,12 +15,12 @@ export class ThemeVisitor {
     /**
      * Applies a function to every style in the theme.
      *
-     * @param visitFunc Function to be called with `style` as an argument. Function should return
+     * @param visitFunc - Function to be called with `style` as an argument. Function should return
      *                  `true` to cancel visitation.
      * @returns `true` if function has finished prematurely.
      */
-    visitStyles(visitFunc: (style: StyleDeclaration) => boolean): boolean {
-        const visit = (style: StyleDeclaration): boolean => {
+    visitStyles(visitFunc: (style: Style) => boolean): boolean {
+        const visit = (style: Style): boolean => {
             if (isJsonExpr(style)) {
                 return false;
             }

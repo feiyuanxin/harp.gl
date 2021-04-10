@@ -5,6 +5,7 @@
  */
 
 import * as THREE from "three";
+
 import { DisplacedBufferAttribute } from "./DisplacedBufferAttribute";
 
 const tmpV1 = new THREE.Vector3();
@@ -24,9 +25,9 @@ export interface DisplacementRange {
  * @internal
  * Displace a box in a given direction by a specified range. The original box min and max vertices
  * are translated as a result by displacementRange.min and displacementRange.max respectively.
- * @param box The original box to displace.
- * @param displacementRange The minimum and maximum displacement values.
- * @param displacementDir Direction in which the displacement will be applied.
+ * @param box - The original box to displace.
+ * @param displacementRange - The minimum and maximum displacement values.
+ * @param displacementDir - Direction in which the displacement will be applied.
  * @return The displaced box.
  */
 export function displaceBox(
@@ -49,15 +50,15 @@ export function displaceBox(
  * displacement map.
  */
 export class DisplacedBufferGeometry extends THREE.BufferGeometry {
-    private m_displacedPositions: DisplacedBufferAttribute;
-    private m_originalBoundingBox = new THREE.Box3();
+    private readonly m_displacedPositions: DisplacedBufferAttribute;
+    private readonly m_originalBoundingBox = new THREE.Box3();
 
     /**
      * Creates an instance of displaced buffer geometry.
-     * @param originalGeometry The goeometry to be displaced.
-     * @param displacementMap A texture with the displacement values.
-     * @param displacementRange The displacement value range found in the displacement map.
-     * @param displacedPositions Buffer attribute that will be used for displaced positions if
+     * @param originalGeometry - The goeometry to be displaced.
+     * @param displacementMap - A texture with the displacement values.
+     * @param displacementRange - The displacement value range found in the displacement map.
+     * @param displacedPositions - Buffer attribute that will be used for displaced positions if
      * provided, otherwise a new buffer attribute will be created.
      */
     constructor(
@@ -82,9 +83,9 @@ export class DisplacedBufferGeometry extends THREE.BufferGeometry {
 
     /**
      * Resets the displaced buffer geometry to use new geometry or displacement map.
-     * @param geometry The goeometry to be displaced.
-     * @param displacementMap A texture with the displacement values.
-     * @param displacementRange The displacement value range found in the displacement map.
+     * @param geometry - The goeometry to be displaced.
+     * @param displacementMap - A texture with the displacement values.
+     * @param displacementRange - The displacement value range found in the displacement map.
      */
     reset(
         geometry: THREE.BufferGeometry,
@@ -105,7 +106,6 @@ export class DisplacedBufferGeometry extends THREE.BufferGeometry {
     }
 
     // HARP-9585: Override of base class method, however tslint doesn't recognize it as such.
-    // tslint:disable-next-line: explicit-override
     computeBoundingBox(): void {
         // Calculate a coarse approximation of the displaced geometry bbox by displacing the
         // original bbox and enlarging it to cover the whole displacement range.
@@ -128,7 +128,6 @@ export class DisplacedBufferGeometry extends THREE.BufferGeometry {
     }
 
     // HARP-9585: Override of base class method, however tslint doesn't recognize it as such.
-    // tslint:disable-next-line: explicit-override
     computeBoundingSphere(): void {
         // Use as coarse approximation the sphere bounding the bbox.
         if (this.boundingBox === null) {

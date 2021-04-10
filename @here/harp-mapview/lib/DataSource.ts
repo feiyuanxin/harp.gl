@@ -1,25 +1,25 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Definitions, StyleSet, Theme, ValueMap } from "@here/harp-datasource-protocol";
+import { FlatTheme, Theme, ValueMap } from "@here/harp-datasource-protocol";
 import { ExprPool } from "@here/harp-datasource-protocol/lib/ExprPool";
 import { Projection, TileKey, TilingScheme } from "@here/harp-geoutils";
 import { assert, LoggerManager } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { MapView } from "./MapView";
 import { Tile } from "./Tile";
 
 const logger = LoggerManager.instance.create("DataSource");
-const UPDATE_EVENT = { type: "update" };
 
 /**
- * Options for a [[DataSource]].
+ * Options for a {@link DataSource}.
  */
 export interface DataSourceOptions {
     /**
-     * The unique name of a [[DataSource]] instance.
+     * The unique name of a {@link DataSource} instance.
      */
     name?: string;
     /**
@@ -27,14 +27,21 @@ export interface DataSourceOptions {
      */
     styleSetName?: string;
     /**
+     * Used to configure the languages used by the `DataSource` according to priority;
+     * the first language in the array has the highest priority.
+     *
+     *  An array of ISO 639-1 language codes.
+     */
+    languages?: string[];
+    /**
      * The minimum zoom level at which data is available or displayed at
-     * (depending on [[DataSource]] subclass).
+     * (depending on {@link DataSource} subclass).
      * @deprecated Use [[minDataLevel]] and [[minDisplayLevel]] instead.
      */
     minZoomLevel?: number;
     /**
      * The maximum zoom level at which data is available or displayed at
-     * (depending on [[DataSource]] subclass).
+     * (depending on {@link DataSource} subclass).
      * @deprecated Use [[maxDataLevel]] and [[maxDisplayLevel]] instead.
      */
     maxZoomLevel?: number;
@@ -47,11 +54,11 @@ export interface DataSourceOptions {
      */
     maxDataLevel?: number;
     /**
-     * The minimum zoom level at which [[DataSource]] is displayed.
+     * The minimum zoom level at which {@link DataSource} is displayed.
      */
     minDisplayLevel?: number;
     /**
-     * The maximum zoom level at which [[DataSource]] is displayed.
+     * The maximum zoom level at which {@link DataSource} is displayed.
      */
     maxDisplayLevel?: number;
     /**
@@ -64,17 +71,59 @@ export interface DataSourceOptions {
      * available (and in some cases, the tiles can overlap, i.e. for example when a child is next
      * to a parent, the parent is rendered beneath the child), however for some datasources (those
      * that produce transparent tiles for example), this gives bad results, and as such, it should
-     * be disabled to reduce flickening. Another way to put it is that loading tiles are replaced
+     * be disabled to reduce flickering. Another way to put it is that loading tiles are replaced
      * with cached tiles and we then fall (back/forward) to the next appropriate zoom level.
      * @default true
      */
     allowOverlappingTiles?: boolean;
+
+    /**
+     * Whether features from these data source can picked by calling
+     * {@link MapView.intersectMapObjects}. Disabling picking for data sources that don't need it
+     * will improve picking performance.
+     * @default true
+     */
+    enablePicking?: boolean;
+
+    /**
+     * Maximum geometry height above ground level this {@link DataSource} can produce.
+     *
+     * @remarks
+     * Used in first stage of frustum culling before {@link Tile#maxGeometryHeight} data is
+     * available.
+     *
+     * @default [[EarthConstants.MAX_BUILDING_HEIGHT]].
+     */
+    maxGeometryHeight?: number;
+
+    /**
+     * Minimum geometry height below ground level this {@link DataSource} can produce. Negative
+     * values describe height below ground.
+     *
+     * @remarks
+     * Used in first stage of frustum culling before {@link Tile#minGeometryHeight} data is
+     * available.
+     *
+     * @default `0`.
+     */
+    minGeometryHeight?: number;
+
+    /**
+     * Number used to order [DataSource]'s relative to each other, see
+     * {@link DataSource.dataSourceOrder}
+     */
+    dataSourceOrder?: number;
 }
 
 /**
- * Derive a class from `DataSource` to contribute data and geometries to the [[MapView]].
+ * Derive a class from `DataSource` to contribute data and geometries to the {@link MapView}.
  */
 export abstract class DataSource extends THREE.EventDispatcher {
+    /**
+     * Keep the update event here to avoid a global reference to the datasource (and thus prevent garbage collection).
+     */
+    private readonly UPDATE_EVENT = { type: "update" };
+
     /**
      * A counter to generate unique names for each `DataSource`, if no name is provided in the
      * constructor.
@@ -87,7 +136,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
     enabled: boolean = true;
 
     /**
-     * Set to `true` if the [[MapView]] can cache tiles produced by this `DataSource`.
+     * Set to `true` if the {@link MapView} can cache tiles produced by this `DataSource`.
      */
     cacheable: boolean = false;
 
@@ -120,16 +169,31 @@ export abstract class DataSource extends THREE.EventDispatcher {
     maxDataLevel: number = 20;
 
     /**
-     * The minimum zoom level at which [[DataSource]] is displayed.
+     * The minimum zoom level at which {@link DataSource} is displayed.
      */
     minDisplayLevel: number = 1;
 
     /**
-     * The maximum zoom level at which [[DataSource]] is displayed.
+     * The maximum zoom level at which {@link DataSource} is displayed.
      */
     maxDisplayLevel: number = 20;
 
     allowOverlappingTiles: boolean = true;
+
+    enablePicking: boolean = true;
+
+    /**
+     * Overrides the default rendering order of this `DataSource`.
+     *
+     * @remarks
+     * When `dataSourceOrder` is defined, all the objects created by this `DataSource`
+     * will be rendered on top of the objects created by other `DataSource`s with
+     * lower `dataSourceOrder` values.
+     *
+     * @defaultValue undefined
+     */
+    dataSourceOrder: number = 0;
+
     /**
      * @internal
      * @hidden
@@ -137,7 +201,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
     readonly exprPool = new ExprPool();
 
     /**
-     * The [[MapView]] instance holding a reference to this `DataSource`.
+     * The {@link MapView} instance holding a reference to this `DataSource`.
      */
     private m_mapView?: MapView;
 
@@ -152,32 +216,45 @@ export abstract class DataSource extends THREE.EventDispatcher {
     private m_maxGeometryHeight = 0;
 
     /**
+     * Current value of [[minGeometryHeight]] property.
+     */
+    private m_minGeometryHeight = 0;
+
+    /**
      * Storage level offset applied to this `DataSource`.
      */
     private m_storageLevelOffset: number = 0;
 
-    private readonly m_featureStateMap = new Map<number, ValueMap>();
+    private readonly m_featureStateMap = new Map<number | string, ValueMap>();
+
+    /**
+     *  An array of ISO 639-1 language codes.
+     */
+    protected languages?: string[];
 
     /**
      * Constructs a new `DataSource`.
      *
-     * @param options The options to create the data source.
+     * @param options - The options to create the data source.
      */
     constructor(options: DataSourceOptions = {}) {
         super();
         let { name } = options;
         const {
             styleSetName,
-            // tslint:disable-next-line: deprecation
+            languages,
             minZoomLevel,
-            // tslint:disable-next-line: deprecation
             maxZoomLevel,
             minDataLevel,
             maxDataLevel,
             minDisplayLevel,
             maxDisplayLevel,
             storageLevelOffset,
-            allowOverlappingTiles
+            allowOverlappingTiles,
+            enablePicking,
+            minGeometryHeight,
+            maxGeometryHeight,
+            dataSourceOrder
         } = options;
         if (name === undefined || name.length === 0) {
             name = `anonymous-datasource#${++DataSource.uniqueNameCounter}`;
@@ -186,6 +263,10 @@ export abstract class DataSource extends THREE.EventDispatcher {
 
         this.styleSetName = styleSetName;
 
+        if (languages !== undefined) {
+            this.languages = languages;
+        }
+
         if (minDataLevel !== undefined) {
             this.minDataLevel = minDataLevel;
         }
@@ -193,11 +274,9 @@ export abstract class DataSource extends THREE.EventDispatcher {
             this.maxDataLevel = maxDataLevel;
         }
         if (minZoomLevel !== undefined) {
-            // tslint:disable-next-line: deprecation
             this.minZoomLevel = minZoomLevel;
         }
         if (maxZoomLevel !== undefined) {
-            // tslint:disable-next-line: deprecation
             this.maxZoomLevel = maxZoomLevel;
         }
         if (minDisplayLevel !== undefined) {
@@ -212,19 +291,33 @@ export abstract class DataSource extends THREE.EventDispatcher {
         if (allowOverlappingTiles !== undefined) {
             this.allowOverlappingTiles = allowOverlappingTiles;
         }
+
+        if (enablePicking !== undefined) {
+            this.enablePicking = enablePicking;
+        }
+
+        if (minGeometryHeight !== undefined) {
+            this.minGeometryHeight = minGeometryHeight;
+        }
+        if (maxGeometryHeight !== undefined) {
+            this.maxGeometryHeight = maxGeometryHeight;
+        }
+        if (dataSourceOrder) {
+            this.dataSourceOrder = dataSourceOrder;
+        }
     }
 
     /**
      * Gets the state of the given feature id.
      *
-     * @param featureId The id of the feature.
+     * @param featureId - The id of the feature. Id numbers are deprecated in favor of strings.
      */
-    getFeatureState(featureId: number): ValueMap | undefined {
+    getFeatureState(featureId: number | string): ValueMap | undefined {
         return this.m_featureStateMap.get(featureId);
     }
 
     /**
-     * Clears the state of all the features of this [[DataSource]].
+     * Clears the state of all the features of this {@link DataSource}.
      */
     clearFeatureState() {
         this.m_featureStateMap.clear();
@@ -237,19 +330,19 @@ export abstract class DataSource extends THREE.EventDispatcher {
      * dataSource.setFeatureState(featureId, { enabled: true });
      * ```
      *
-     * @param featureId The id of the feature.
-     * @param state The new state of the feature.
+     * @param featureId - The id of the feature. Id numbers are deprecated in favor of strings.
+     * @param state - The new state of the feature.
      */
-    setFeatureState(featureId: number, state: ValueMap) {
+    setFeatureState(featureId: number | string, state: ValueMap) {
         this.m_featureStateMap.set(featureId, state);
     }
 
     /**
      * Removes the state associated to the given feature.
      *
-     * @param featureId The id of the feature.
+     * @param featureId - The id of the feature. Id numbers are deprecated in favor of strings.
      */
-    removeFeatureState(featureId: number) {
+    removeFeatureState(featureId: number | string) {
         this.m_featureStateMap.delete(featureId);
     }
 
@@ -261,14 +354,17 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * Sets the name of the [[StyleSet]] to use for the decoding. If this [[DataSource]] is already
-     * attached to a [[MapView]], this setter then reapplies [[StyleSet]] with this name found in
-     * [[MapView]]s theme.
+     * Sets the name of the [[StyleSet]] to use for the decoding.
+     * If this {@link DataSource} is already
+     * attached to a {@link MapView}, this setter then reapplies
+     * [[StyleSet]] with this name found in
+     * {@link MapView}s theme.
      */
     set styleSetName(styleSetName: string | undefined) {
-        this.m_styleSetName = styleSetName;
-        if (this.m_mapView !== undefined && styleSetName !== undefined) {
-            this.setTheme(this.m_mapView.theme);
+        if (styleSetName !== this.m_styleSetName) {
+            this.m_styleSetName = styleSetName;
+            this.clearCache();
+            this.requestUpdate();
         }
     }
 
@@ -287,16 +383,20 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * Boolean which says whether a [[DataSource]] produces tiles that fully cover the tile, i.e.
-     * tiles underneath are completely hidden. Must be overriden for [[DataSource]]'s that don't
-     * have a ground plane, but which still fully cover the tile, e.g. web tiles.
+     * Boolean which says whether a {@link DataSource} produces
+     * tiles that fully cover the tile, i.e.
+     * tiles underneath are completely hidden. Must be
+     * overridden for {@link DataSource}'s that don't
+     * have a ground plane, but which still fully
+     * cover the tile, e.g. web tiles.
      */
     isFullyCovering(): boolean {
         return this.addGroundPlane;
     }
 
     /**
-     * Returns `true` if this `DataSource` is ready and the [[MapView]] can invoke `getTile()` to
+     * Returns `true` if this `DataSource` is ready
+     * and the {@link MapView} can invoke `getTile()` to
      * start requesting data.
      */
     ready(): boolean {
@@ -304,7 +404,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * The [[MapView]] that is holding this `DataSource`.
+     * The {@link MapView} that is holding this `DataSource`.
      */
     get mapView(): MapView {
         if (this.m_mapView === undefined) {
@@ -315,17 +415,19 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * The [[Projection]] used by the [[MapView]] that is holding this `DataSource`.
+     * The {@link @here/harp-geoutils#Projection} used by
+     * the {@link MapView} that is holding this `DataSource`.
      *
-     * An `Error` is thrown if you call this method before this `DataSource` has been added
-     * to a [[MapView]].
+     * An `Error` is thrown if you call this method
+     * before this `DataSource` has been added
+     * to a {@link MapView}.
      */
     get projection(): Projection {
         return this.mapView.projection;
     }
 
     /**
-     * This method is called when the `DataSource` is added to a [[MapView]]. Reimplement this
+     * This method is called when the `DataSource` is added to a {@link MapView}. Override this
      * method to provide any custom initialization, such as, to establish a network connection,
      * or to initialize complex data structures.
      */
@@ -334,27 +436,27 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * Returns the [[TilingScheme]] used by this `DataSource`.
+     * Returns the {@link @here/harp-geoutils#TilingScheme} used by this `DataSource`.
      */
     abstract getTilingScheme(): TilingScheme;
 
     /**
-     * This method is called when this `DataSource` is added to a [[MapView]].
+     * This method is called when this `DataSource` is added to a {@link MapView}.
      *
-     * Reimplementations of this method must invoke the definition of the super class.
+     * Overrides of this method must invoke the definition of the super class.
      *
-     * @param mapView The instance of the [[MapView]].
+     * @param mapView - The instance of the {@link MapView}.
      */
     attach(mapView: MapView): void {
         this.m_mapView = mapView;
     }
 
     /**
-     * This method is called when this `DataSource` is removed from a [[MapView]].
+     * This method is called when this `DataSource` is removed from a {@link MapView}.
      *
-     * Reimplementations of this method must invoke the definition of the super class.
+     * Overrides of this method must invoke the definition of the super class.
      *
-     * @param mapView The instance of the [[MapView]].
+     * @param mapView - The instance of the {@link MapView}.
      */
     detach(mapView: MapView) {
         assert(this.m_mapView === mapView);
@@ -362,29 +464,35 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * Invoked by [[MapView]] to notify when the [[Theme]] has been changed.
-     *
-     * If `DataSource` depends on a `styleSet` or `languages`, it must update its tiles' geometry.
-     *
-     * @deprecated, Use [[setTheme]].
-     *
-     * @param styleSet The new theme that [[MapView]] uses.
-     * @param languages An optional list of languages for the `DataSource`.
+     * @return Whether this `DataSource` is detached from the `MapView`
      */
-    // tslint:disable-next-line:no-unused-variable
-    setStyleSet(styleSet?: StyleSet, definitions?: Definitions, languages?: string[]): void {
-        // to be overwritten by subclasses
+
+    isDetached() {
+        return this.m_mapView === undefined;
     }
 
     /**
-     * Apply the [[Theme]] to this data source.
+     * Apply the {@link @here/harp-datasource-protocol#Theme} to this data source.
      *
      * If `DataSource` depends on a `styleSet` defined by this theme or `languages`, it must update
      * its tiles' geometry.
      *
-     * @param languages
+     * @param theme - The Theme to be applied
      */
-    setTheme(theme: Theme, languages?: string[]): void {
+    async setTheme(theme: Theme | FlatTheme): Promise<void>;
+
+    /**
+     * Apply the {@link @here/harp-datasource-protocol#Theme} to this data source.
+     *
+     * If `DataSource` depends on a `styleSet` defined by this theme or `languages`, it must update
+     * its tiles' geometry.
+     *
+     * @param theme - The Theme to be applied
+     * @param languages - optional: The languages in priority order to be applied
+     *
+     * @deprecated use setTheme( Theme | FlatTheme) and setLanguages(string[]) instead
+     */
+    async setTheme(theme: Theme | FlatTheme, languages?: string[]): Promise<void> {
         // to be overwritten by subclasses
     }
 
@@ -392,9 +500,10 @@ export abstract class DataSource extends THREE.EventDispatcher {
      * Used to configure the languages used by the `DataSource` according to priority;
      * the first language in the array has the highest priority.
      *
-     * @param languages An array of ISO 639-1 language codes.
+     * @param languages - An array of ISO 639-1 language codes.
      */
     setLanguages(languages?: string[]): void {
+        this.languages = languages;
         // to be overloaded by subclasses
     }
 
@@ -402,7 +511,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
      * Used to express different country point of view (political view).
      *
      * @note Set to `undefined` (or empty string) if you want to reset to default point of view.
-     * @param pov The country code which point of view should be presented in lower-case
+     * @param pov - The country code which point of view should be presented in lower-case
      * ISO 3166-1 alpha-2 format.
      */
     setPoliticalView(pov?: string): void {
@@ -410,29 +519,31 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * This method is called when [[MapView]] needs to visualize or preload the content of a
-     * [[TileKey]].
+     * This method is called when {@link MapView} needs to visualize or preload the content of a
+     * {@link @here/harp-geoutils#TileKey}.
      *
-     * @param tileKey The unique identifier for a map tile.
+     * @param tileKey - The unique identifier for a map tile.
+     * @param delayLoad - If true, the Tile will be created, but Tile.load will not be called
+     * @default false.
      */
-    abstract getTile(tileKey: TileKey): Tile | undefined;
+    abstract getTile(tileKey: TileKey, delayLoad?: boolean): Tile | undefined;
 
     /**
-     * This method is called by [[MapView]] before the tile needs to be updated, for example after
+     * This method is called by {@link MapView} before the
+     * tile needs to be updated, for example after
      * a theme change.
      *
-     * @param tile The [[Tile]] to update.
+     * @param tile - The {@link Tile} to update.
      */
-    // tslint:disable-next-line:no-unused-variable
     updateTile(tile: Tile) {
         // to be overloaded by subclasses
     }
 
     /**
-     * This method is called by the [[MapView]] to determine if the content of the surrounding
+     * This method is called by the {@link MapView} to determine if the content of the surrounding
      * tiles must be preloaded.
      *
-     * @returns `true` if the [[MapView]] should try to preload tiles surrounding the visible
+     * @returns `true` if the {@link MapView} should try to preload tiles surrounding the visible
      * tiles; `false` otherwise. The default is `false`.
      */
     shouldPreloadTiles(): boolean {
@@ -441,7 +552,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
 
     /**
      * The minimum zoom level at which data is available or displayed at
-     * (depending on [[DataSource]] subclass).
+     * (depending on {@link DataSource} subclass).
      * @deprecated Use [[minDataLevel]] and [[minDisplayLevel]] instead.
      */
     get minZoomLevel(): number {
@@ -460,7 +571,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
 
     /**
      * The maximum zoom level at which data is available or displayed at
-     * (depending on [[DataSource]] subclass).
+     * (depending on {@link DataSource} subclass).
      * @deprecated Use [[maxDataLevel]] and [[maxDisplayLevel]] instead.
      */
     get maxZoomLevel(): number {
@@ -480,22 +591,41 @@ export abstract class DataSource extends THREE.EventDispatcher {
     /**
      * Maximum geometry height above ground level this `DataSource` can produce.
      *
-     * Used in first stage of frustum culling before [[Tile.maxGeometryHeight]] data is available.
+     * Used in first stage of frustum culling before
+     * {@link Tile.maxGeometryHeight} data is available.
      *
      * @default 0.
      */
     get maxGeometryHeight() {
         return this.m_maxGeometryHeight;
     }
+
     set maxGeometryHeight(value: number) {
         this.m_maxGeometryHeight = value;
+    }
+
+    /**
+     * Minimum geometry height below ground level this `DataSource` can produce. A negative number
+     * specifies a value below ground level.
+     *
+     * Used in first stage of frustum culling before
+     * {@link Tile.minGeometryHeight} data is available.
+     *
+     * @default 0.
+     */
+    get minGeometryHeight() {
+        return this.m_minGeometryHeight;
+    }
+
+    set minGeometryHeight(value: number) {
+        this.m_minGeometryHeight = value;
     }
 
     /**
      * The difference between storage level and display level of tile.
      *
      * Storage level offset is a value applied (added) to current zoom level giving
-     * a final tile level being displayed. This way we may differentate current
+     * a final tile level being displayed. This way we may differentiate current
      * zoom level from the storage level that is displayed, giving fine grained
      * control over the tiles being decoded an displayed.
      */
@@ -506,7 +636,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
     /**
      * Setup the relative offset between storage level and display level of tile.
      *
-     * @param levelOffset Difference between zoom level and display level.
+     * @param levelOffset - Difference between zoom level and display level.
      */
     set storageLevelOffset(levelOffset: number) {
         this.m_storageLevelOffset = levelOffset;
@@ -516,7 +646,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
      * Enables or disables overlay of geometry on elevation. It must be overloaded by data sources
      * supporting this feature.
      *
-     * @param value True to enable, false to disable.
+     * @param value - True to enable, false to disable.
      */
     setEnableElevationOverlay(enable: boolean) {
         // to be overloaded by subclasses
@@ -525,7 +655,7 @@ export abstract class DataSource extends THREE.EventDispatcher {
     /**
      * Computes the data zoom level to use.
      *
-     * @param zoomLevel The zoom level of the [[MapView]].
+     * @param zoomLevel - The zoom level of the {@link MapView}.
      * @returns The data zoom level to use.
      */
     getDataZoomLevel(zoomLevel: number): number {
@@ -537,31 +667,33 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * Returns `true` if [[DataSource]] should be displayed for the zoom level.
-     * @param zoomLevel The zoom level of the [[MapView]].
+     * Returns `true` if {@link DataSource} should be displayed for the zoom level.
+     * @param zoomLevel - The zoom level of the {@link MapView}.
      */
     isVisible(zoomLevel: number): boolean {
         return zoomLevel >= this.minDisplayLevel && zoomLevel <= this.maxDisplayLevel;
     }
 
     /**
-     * Returns `true` if [[DataSource]] can load tile with given [[TileKey]] and zoom level.
+     * Returns `true` if {@link DataSource} can load tile with
+     * given {@link @here/harp-geoutils#TileKey} and zoom level.
      *
-     * @param zoomLevel The zoom level of the [[MapView]].
-     * @param tileKey The unique identifier for a map tile.
-     * @returns `true` if the tile for the given [[TileKey]] can be loaded.
+     * @param zoomLevel - The zoom level of the {@link MapView}.
+     * @param tileKey - The unique identifier for a map tile.
+     * @returns `true` if the tile for the given {@link @here/harp-geoutils#TileKey} can be loaded.
      */
     canGetTile(zoomLevel: number, tileKey: TileKey): boolean {
         return tileKey.level <= zoomLevel;
     }
 
     /**
-     * Returns `true` if [[MapView]] should traverse tiles further with given [[TileKey]] and
+     * Returns `true` if {@link MapView} should traverse tiles
+     * further with given {@link @here/harp-geoutils#TileKey} and
      * zoom level.
      *
-     * @param zoomLevel The zoom level of the [[MapView]].
-     * @param tileKey The unique identifier for a map tile.
-     * @returns `true` if the subtiles of the given [[TileKey]] should be
+     * @param zoomLevel - The zoom level of the {@link MapView}.
+     * @param tileKey - The unique identifier for a map tile.
+     * @returns `true` if the subtiles of the given {@link @here/harp-geoutils#TileKey} should be
      * checked for collisions.
      */
     shouldSubdivide(zoomLevel: number, tileKey: TileKey): boolean {
@@ -569,25 +701,27 @@ export abstract class DataSource extends THREE.EventDispatcher {
     }
 
     /**
-     * Returns `true` if [[MapView]] should render the text elements with the given [[TileKey]] and
+     * Returns `true` if {@link MapView} should render the text
+     * elements with the given {@link @here/harp-geoutils#TileKey} and
      * zoom level.
      *
+     * @remarks
      * This is an additional check for the tiles that are already selected for rendering so the
      * default implementation returns `true`.
      *
-     * @param zoomLevel The zoom level.
-     * @param tileKey The unique identifier for a map tile.
-     * @returns `true` if the text elements created for the given [[TileKey]] should be rendered.
+     * @param zoomLevel - The zoom level.
+     * @param tileKey - The unique identifier for a map tile.
+     * @returns `true` if the text elements created for the
+     *          given {@link @here/harp-geoutils#TileKey} should be rendered.
      */
-    // tslint:disable-next-line:no-unused-variable
     shouldRenderText(zoomLevel: number, tileKey: TileKey): boolean {
         return true;
     }
 
     /**
-     * Sends a request to the [[MapView]] to redraw the scene.
+     * Sends a request to the {@link MapView} to redraw the scene.
      */
     requestUpdate() {
-        this.dispatchEvent(UPDATE_EVENT);
+        this.dispatchEvent(this.UPDATE_EVENT);
     }
 }

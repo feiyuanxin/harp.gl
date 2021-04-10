@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -16,7 +16,7 @@ export class Pixels {
     /**
      * Parses a pixel string literal.
      *
-     * @param text The string color literal
+     * @param text - The string color literal
      */
     static parse(text: string): Pixels | undefined {
         const match = RX.exec(text);
@@ -29,7 +29,7 @@ export class Pixels {
     /**
      * Constructs a [[Pixels]] literal
      *
-     * @param value The number of pixels.
+     * @param value - The number of pixels.
      */
     constructor(readonly value: number) {}
 

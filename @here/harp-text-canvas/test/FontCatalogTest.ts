@@ -1,20 +1,20 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { getTestResourceUrl } from "@here/harp-test-utils";
 import { assert } from "chai";
 import * as sinon from "sinon";
 import * as THREE from "three";
 
-import { getTestResourceUrl } from "@here/harp-test-utils";
 import { FontCatalog, FontStyle, GlyphData, TextRenderStyle } from "../index";
 
 async function loadTexture(url: string): Promise<THREE.Texture> {
-    return new Promise(resolve => {
+    return await new Promise(resolve => {
         new THREE.TextureLoader().load(url, resolve);
-    }) as Promise<THREE.Texture>;
+    });
 }
 
 async function loadJSON(url: string): Promise<any> {
@@ -133,7 +133,7 @@ describe("FontCatalog", () => {
                 onProgress?: (event: ProgressEvent) => void,
                 onError?: (event: ErrorEvent) => void
             ) => {
-                return new Promise(resolve => {
+                return new Promise<void>(resolve => {
                     if (onLoad !== undefined) {
                         const image = { width: 1, height: 1 };
                         onLoad(new THREE.Texture(image as HTMLImageElement));
@@ -184,7 +184,7 @@ describe("FontCatalog", () => {
         assert.strictEqual(fontCatalog.name, "Default");
         assert.strictEqual(fontCatalog.type, "msdf");
         assert.strictEqual(fontCatalog.size, 32);
-        assert.strictEqual(fontCatalog.maxWidth, 59);
+        assert.strictEqual(fontCatalog.maxWidth, 83);
         assert.strictEqual(fontCatalog.maxHeight, 68);
         assert.strictEqual(fontCatalog.distanceRange, 8);
         assert.strictEqual(fontCatalog.maxCodePointCount, 256);
@@ -216,6 +216,39 @@ describe("FontCatalog", () => {
         }
         assert(true);
     });
+
+    it("Retrieves replacement glyph data.", () => {
+        const char = "L";
+
+        const codePoint = char.codePointAt(0)!;
+        const font = fontCatalog.getFont(codePoint);
+        assert.isTrue(
+            fontCatalog!.getGlyph(char.codePointAt(0)!, font, FontStyle.Regular) !== undefined
+        );
+
+        const glyph = fontCatalog.getGlyph(codePoint, font, FontStyle.Regular);
+        const renderStyle = new TextRenderStyle();
+        try {
+            // Make this glyph a replacement, which should lead to the glyph not being rendered on
+            // production. Normally, the property `isReplacement` is only true for the replacement
+            // glyph, the "<?>".
+            (glyph as any).isReplacement = true;
+            fontCatalog.showReplacementGlyphs = false;
+
+            // should be undefined in production...
+            assert.isUndefined(fontCatalog.getGlyphs(char, renderStyle));
+
+            // enable debugging
+            fontCatalog.showReplacementGlyphs = true;
+            assert.isDefined(fontCatalog.getGlyphs(char, renderStyle));
+            // should NOT be empty now...
+            assert.strictEqual(fontCatalog.getGlyphs(char, renderStyle)!.length, 1);
+            assert.strictEqual(fontCatalog.getGlyphs(char, renderStyle)![0], glyph);
+        } finally {
+            (glyph as any).isReplacement = false;
+        }
+    });
+
     it("Is cleared, and fails on glyph data retrieval.", () => {
         fontCatalog.clear();
         for (const sample of textSamples) {
@@ -230,6 +263,7 @@ describe("FontCatalog", () => {
         }
         assert(true);
     });
+
     it("Is disposed, and fails on asset loading.", async () => {
         fontCatalog.dispose();
         assert.strictEqual(fontCatalog.fonts.length, 0);

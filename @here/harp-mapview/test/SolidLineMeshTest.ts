@@ -1,17 +1,16 @@
 /*
- * Copyright (C) 2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
-// tslint:disable:no-unused-expression
 // Some expect assertions trigger this error.
 
 import { SolidLineMaterial } from "@here/harp-materials";
 import { expect } from "chai";
 import * as THREE from "three";
+
 import { DisplacedBufferGeometry } from "../lib/geometry/DisplacedBufferGeometry";
 import { SolidLineMesh } from "../lib/geometry/SolidLineMesh";
 
@@ -91,21 +90,21 @@ class SolidLineGeometryBuilder extends BufferGeometryBuilder {
         return replicatedAttribute;
     }
 
-    private static computePositionsAndBitangets(
+    private static computePositionsAndBitangents(
         polyline: number[],
-        polylineBitangets: number[]
+        polylineBitangents: number[]
     ): { positions: number[]; bitangents: number[] } {
         const positions = SolidLineGeometryBuilder.replicateToExtrudedVertices(polyline, 3);
         const bitangents: number[] = [];
-        const sameBitangent = polylineBitangets.length === 3;
+        const sameBitangent = polylineBitangents.length === 3;
 
         for (let i = 0; i < polyline.length - 3; i += 3) {
             for (let j = i; j < i + 6; j += 3) {
                 const bitangent1Idx = sameBitangent ? 0 : j;
                 const bitangent1 = new THREE.Vector3(
-                    polylineBitangets[bitangent1Idx],
-                    polylineBitangets[bitangent1Idx + 1],
-                    polylineBitangets[bitangent1Idx + 2]
+                    polylineBitangents[bitangent1Idx],
+                    polylineBitangents[bitangent1Idx + 1],
+                    polylineBitangents[bitangent1Idx + 2]
                 ).normalize();
                 bitangent1.toArray(bitangents, bitangents.length);
                 bitangent1.negate().toArray(bitangents, bitangents.length);
@@ -132,7 +131,7 @@ class SolidLineGeometryBuilder extends BufferGeometryBuilder {
     }
 
     constructor(polyline: number[], polylineBitangents: number[]) {
-        const { positions, bitangents } = SolidLineGeometryBuilder.computePositionsAndBitangets(
+        const { positions, bitangents } = SolidLineGeometryBuilder.computePositionsAndBitangents(
             polyline,
             polylineBitangents
         );
@@ -142,7 +141,7 @@ class SolidLineGeometryBuilder extends BufferGeometryBuilder {
     }
 
     addPolyline(polyline: number[], polylineBitangents: number[]): SolidLineGeometryBuilder {
-        const { positions, bitangents } = SolidLineGeometryBuilder.computePositionsAndBitangets(
+        const { positions, bitangents } = SolidLineGeometryBuilder.computePositionsAndBitangents(
             polyline,
             polylineBitangents
         );
@@ -172,12 +171,20 @@ class SolidLineGeometryBuilder extends BufferGeometryBuilder {
 }
 
 class SolidLineMeshBuilder {
-    private static DEFAULT_MATERIAL = new SolidLineMaterial({ lineWidth: 1, outlineWidth: 1 });
+    private static readonly DEFAULT_MATERIAL = new SolidLineMaterial({
+        lineWidth: 1,
+        outlineWidth: 1,
+        rendererCapabilities: { isWebGL2: false } as any
+    });
 
     readonly geometryBuilder: SolidLineGeometryBuilder;
-    private m_materials: THREE.Material[] = [SolidLineMeshBuilder.DEFAULT_MATERIAL];
+    private readonly m_materials: THREE.Material[] = [SolidLineMeshBuilder.DEFAULT_MATERIAL];
     private m_featureStarts?: number[];
-    private m_groups = new Array<{ start: number; count: number; materialIndex?: number }>();
+    private readonly m_groups = new Array<{
+        start: number;
+        count: number;
+        materialIndex?: number;
+    }>();
 
     constructor(polyline: number[], bitangents: number[]) {
         this.geometryBuilder = new SolidLineGeometryBuilder(polyline, bitangents);
@@ -245,10 +252,7 @@ function buildRayTo(
     const rayIntersect = new THREE.Vector3().fromArray(intersect);
     const raycaster = new THREE.Raycaster(
         rayOrigin,
-        rayIntersect
-            .clone()
-            .sub(rayOrigin)
-            .normalize()
+        rayIntersect.clone().sub(rayOrigin).normalize()
     );
     const distance = rayIntersect.distanceTo(rayOrigin);
     return { raycaster, distance };
@@ -266,8 +270,8 @@ function checkIntersect(
     expect(actualIntersect.point.distanceTo(expectedIntersect.point)).closeTo(0, 1e-5);
 }
 
-describe("SolidLineMesh", function() {
-    it("raycast returns intersection on minimal hit example", function() {
+describe("SolidLineMesh", function () {
+    it("raycast returns intersection on minimal hit example", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         const { raycaster, distance } = buildRayTo([0, 1, 0]);
@@ -281,7 +285,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns intersection on hit with ray collinear to extruded line", function() {
+    it("raycast returns intersection on hit with ray collinear to extruded line", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([2, 0, 0], [-1, 0, 0]), intersects);
@@ -334,7 +338,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns no intersection on miss with ray collinear to extruded line", function() {
+    it("raycast returns no intersection on miss with ray collinear to extruded line", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([2.1, 0, 0], [1, 0, 0]), intersects);
@@ -347,7 +351,7 @@ describe("SolidLineMesh", function() {
         expect(intersects).empty;
     });
 
-    it("raycast returns intersection on coplanar ray hit with extruded line", function() {
+    it("raycast returns intersection on coplanar ray hit with extruded line", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([0.5, 2, 0], [0, -1, 0]), intersects);
@@ -360,7 +364,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns intersection on coplanar ray orig hit with extruded line", function() {
+    it("raycast returns intersection on coplanar ray orig hit with extruded line", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([0.5, 1, 0], [0, 1, 0]), intersects);
@@ -383,7 +387,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns no intersection on coplanar ray miss with extruded line", function() {
+    it("raycast returns no intersection on coplanar ray miss with extruded line", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([0.5, 1.1, 0], [0, 1, 0]), intersects);
@@ -391,7 +395,7 @@ describe("SolidLineMesh", function() {
         expect(intersects).empty;
     });
 
-    it("raycast returns intersection on coplanar ray hit with extruded line cap", function() {
+    it("raycast returns intersection on coplanar ray hit with extruded line cap", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         const raycaster = buildRay([3, 2, 0], [-1, -1, 0]);
@@ -405,7 +409,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns no intersection on degenerate line segment", function() {
+    it("raycast returns no intersection on degenerate line segment", function () {
         const intersects: THREE.Intersection[] = [];
 
         // Line segment with length 0
@@ -427,7 +431,7 @@ describe("SolidLineMesh", function() {
         expect(intersects).empty;
     });
 
-    it("raycast returns no intersection on extruded line miss", function() {
+    it("raycast returns no intersection on extruded line miss", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 0, 1, 0], [1, 0, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([1.1, 1, 1], [0, 0, -1]), intersects);
@@ -435,7 +439,7 @@ describe("SolidLineMesh", function() {
         expect(intersects).empty;
     });
 
-    it("raycast returns no intersection on extrusion plane miss", function() {
+    it("raycast returns no intersection on extrusion plane miss", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 1, 0], [-1, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([0, 0, 1], [-1, 1, 0]), intersects);
@@ -443,21 +447,19 @@ describe("SolidLineMesh", function() {
         expect(intersects).empty;
     });
 
-    it("raycast returns no intersection on bounding sphere miss", function() {
+    it("raycast returns no intersection on bounding sphere miss", function () {
         const mesh = new SolidLineMeshBuilder([-1, -1, -1, 1, 1, 1], [-1, 1, 1]).build();
         const intersects: THREE.Intersection[] = [];
         mesh.raycast(buildRay([3, 0, 3], [0, 0, -1]), intersects);
 
-        expect(mesh.userData.feature?.boundingVolumes)
-            .is.an("array")
-            .with.lengthOf(1);
+        expect(mesh.userData.feature?.boundingVolumes).is.an("array").with.lengthOf(1);
         expect(mesh.userData.feature.boundingVolumes[0]).deep.equals(
             new THREE.Sphere(new THREE.Vector3(0, 0, 0), Math.sqrt(3))
         );
         expect(intersects).empty;
     });
 
-    it("raycast returns no intersection on near/far range miss", function() {
+    it("raycast returns no intersection on near/far range miss", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
         const intersects: THREE.Intersection[] = [];
         const { raycaster, distance } = buildRayTo([0, 1, 0]);
@@ -471,7 +473,7 @@ describe("SolidLineMesh", function() {
         expect(intersects).empty;
     });
 
-    it("raycast returns intersection on hit with transformed mesh", function() {
+    it("raycast returns intersection on hit with transformed mesh", function () {
         // prettier-ignore
         const worldToLocal = new THREE.Matrix4().set(2, 0, 0, 4,
                                                      0, 2, 0, 5,
@@ -484,7 +486,7 @@ describe("SolidLineMesh", function() {
             vertex1.toArray().concat(vertex2.toArray()),
             bitangent.toArray()
         ).build();
-        const localToWorld = new THREE.Matrix4().getInverse(worldToLocal);
+        const localToWorld = new THREE.Matrix4().copy(worldToLocal).invert();
         mesh.applyMatrix4(localToWorld);
         mesh.updateMatrixWorld();
 
@@ -500,7 +502,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns intersection on hit with mesh with multiple features", function() {
+    it("raycast returns intersection on hit with mesh with multiple features", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0, 2, 0, 0], [0, 1, 0])
             .addFeature([5, 5, 5, 7, 7, 7], [-1, 1, 1])
             .build();
@@ -508,9 +510,7 @@ describe("SolidLineMesh", function() {
         const { raycaster, distance } = buildRayTo([5, 5, 5], [5, 5, 7]);
         mesh.raycast(raycaster, intersects);
 
-        expect(mesh.userData.feature?.boundingVolumes)
-            .is.an("array")
-            .with.lengthOf(2);
+        expect(mesh.userData.feature?.boundingVolumes).is.an("array").with.lengthOf(2);
         expect(mesh.userData.feature.boundingVolumes[0]).deep.equals(
             new THREE.Sphere(new THREE.Vector3(1, 0, 0), 1)
         );
@@ -525,11 +525,18 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast returns intersection on hit with mesh with multiple groups", function() {
+    it("raycast returns intersection on hit with mesh with multiple groups", function () {
         const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0, 2, 0, 0], [0, 1, 0])
             .addFeature([5, 5, 5, 7, 7, 7], [-1, 1, 1])
             .addGroup(0, 1)
-            .addGroup(1, 2, new SolidLineMaterial({ lineWidth: 5 }))
+            .addGroup(
+                1,
+                2,
+                new SolidLineMaterial({
+                    lineWidth: 5,
+                    rendererCapabilities: { isWebGL2: false } as any
+                })
+            )
             .build();
         const intersects: THREE.Intersection[] = [];
         const { raycaster, distance } = buildRayTo([5, 5, 5], [5, 5, 7]);
@@ -543,7 +550,7 @@ describe("SolidLineMesh", function() {
         });
     });
 
-    it("raycast on displaced geometry expands bounding sphere by displacement range", function() {
+    it("raycast on displaced geometry expands bounding sphere by displacement range", function () {
         const meshBuilder = new SolidLineMeshBuilder([0, 0, 0, 2, 0, 0], [0, 1, 0]);
         meshBuilder.geometryBuilder.withUv([0, 0, 1, 1]).withNormal([0, 0, 1, 0, 0, 1]);
         const mesh = meshBuilder.build();
@@ -556,9 +563,7 @@ describe("SolidLineMesh", function() {
         const { raycaster, distance } = buildRayTo([0, 1, 10]);
         mesh.raycast(raycaster, intersects);
 
-        expect(mesh.userData.feature?.boundingVolumes)
-            .is.an("array")
-            .with.lengthOf(1);
+        expect(mesh.userData.feature?.boundingVolumes).is.an("array").with.lengthOf(1);
         expect(mesh.userData.feature.boundingVolumes[0]).deep.equals(
             new THREE.Sphere(new THREE.Vector3(1, 0, 11), Math.SQRT2)
         );
@@ -566,6 +571,26 @@ describe("SolidLineMesh", function() {
         checkIntersect(intersects, {
             distance,
             point: new THREE.Vector3(0, 1, 10),
+            index: 0,
+            object: mesh
+        });
+    });
+
+    it("raycast returns intersection on modified geometry (auto update bounding volume)", function () {
+        const mesh = new SolidLineMeshBuilder([0, 0, 0, 1, 0, 0], [0, 1, 0]).build();
+        const intersects: THREE.Intersection[] = [];
+        const { raycaster, distance } = buildRayTo([5, 1, 0]);
+        mesh.raycast(raycaster, intersects);
+
+        expect(intersects).empty;
+
+        const geometryBuilder = new SolidLineGeometryBuilder([0, 0, 0, 5, 0, 0], [0, 1, 0]);
+        mesh.geometry = geometryBuilder.build();
+        mesh.raycast(raycaster, intersects);
+
+        checkIntersect(intersects, {
+            distance,
+            point: new THREE.Vector3(5, 1, 0),
             index: 0,
             object: mesh
         });

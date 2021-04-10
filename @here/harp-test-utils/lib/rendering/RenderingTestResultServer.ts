@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 // @here:check-imports:environment:node
 
+import { LoggerManager } from "@here/harp-utils";
 import * as bodyParser from "body-parser";
 import * as express from "express";
 import * as fs from "fs";
@@ -14,7 +15,6 @@ import * as path from "path";
 import * as serveStatic from "serve-static";
 import * as util from "util";
 
-import { LoggerManager } from "@here/harp-utils";
 import { genHtmlReport } from "./HtmlReport";
 import { ImageTestResultLocal, ImageTestResultRequest } from "./Interface";
 import { getOutputImagePath, loadSavedResults } from "./RenderingTestResultCommon";
@@ -128,9 +128,7 @@ export async function getIbctReport(req: express.Request, res: express.Response)
     try {
         const [failed, report] = await genHtmlReport(currentResults, {}, outputBasePath);
         logger.log("Tests failed: ", failed);
-        res.status(200)
-            .contentType("text/html")
-            .send(report);
+        res.status(200).contentType("text/html").send(report);
     } catch (error) {
         logger.error("error", error);
         res.status(500).send(`error: ${error}\n${error.stack}`);
@@ -168,7 +166,6 @@ export function installMiddleware(app: express.Router, basePath: string) {
 
     // tslint gives a false alert b/c bodyParser is a function(deprecated) and a namespace.
     // We are using the non-deprecated namespace here, so all fine.
-    // tslint:disable-next-line: deprecation
     const jsonParser = bodyParser.json({ limit: 1024 * 1024 * 16 });
     app.get("/ibct-report", jsonParser, getIbctReport);
     app.post("/ibct-feedback", jsonParser, postIbctFeedback);
@@ -233,7 +230,7 @@ export function startStandaloneServer(host: string, port: number) {
  */
 
 if (require.main === module) {
-    const host = process.env.HOST || "localhost";
+    const host = process.env.HOST ?? "localhost";
     const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8081;
 
     if (process.argv.length > 2) {

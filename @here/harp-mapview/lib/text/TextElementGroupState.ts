@@ -1,17 +1,18 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import { TileKey } from "@here/harp-geoutils";
 import { assert } from "@here/harp-utils";
+
 import { TextElementGroup } from "./TextElementGroup";
 import { TextElementState } from "./TextElementState";
+import { TextElementType } from "./TextElementType";
 
 /**
  * Type of functions used to do early rejection of elements during group state creation or update.
- * @param textElementState The state of the text element to check.
+ * @param textElementState - The state of the text element to check.
  * @returns `undefined` if element was rejected, otherwise its current view distance.
  */
 export type TextElementFilter = (textElementState: TextElementState) => number | undefined;
@@ -21,14 +22,14 @@ export type TextElementFilter = (textElementState: TextElementState) => number |
  * they're being rendered.
  */
 export class TextElementGroupState {
-    private m_textElementStates: TextElementState[];
+    private readonly m_textElementStates: TextElementState[];
     private m_visited: boolean = false;
 
     /**
      * Creates the state for specified group.
-     * @param group The group of which the state will be created.
-     * @param tileKey The key of the tile to which this group belongs.
-     * @param filter Function used to do early rejection. @see [[TextElementFilter]].
+     * @param group - The group of which the state will be created.
+     * @param tileKey - The key of the tile to which this group belongs.
+     * @param filter - Function used to do early rejection. @see [[TextElementFilter]].
      */
     constructor(
         readonly group: TextElementGroup,
@@ -37,7 +38,7 @@ export class TextElementGroupState {
     ) {
         assert(group.elements.length > 0);
         const length = group.elements.length;
-        this.m_textElementStates = new Array(length);
+        this.m_textElementStates = [];
         this.m_visited = true;
 
         // TODO: HARP-7648. Reduce number of allocations here:
@@ -47,16 +48,26 @@ export class TextElementGroupState {
         //    primitive field in the label state.
         for (let i = 0; i < length; ++i) {
             const textElement = group.elements[i];
-            const state = new TextElementState(textElement);
-            const textDistance = filter(state);
-            state.update(textDistance);
-            this.m_textElementStates[i] = state;
+            if (textElement.type === TextElementType.LineMarker && textElement.path !== undefined) {
+                const numPoints = textElement.path.length;
+                for (let p = 0; p < numPoints; p++) {
+                    const state = new TextElementState(textElement, p);
+                    const textDistance = filter(state);
+                    state.update(textDistance);
+                    this.m_textElementStates.push(state);
+                }
+            } else {
+                const state = new TextElementState(textElement);
+                const textDistance = filter(state);
+                state.update(textDistance);
+                this.m_textElementStates.push(state);
+            }
         }
     }
 
     /**
-     * Indicates whether the group has been submitted to the [[TextElementsRenderer]] in the current
-     * frame.
+     * Indicates whether the group has been submitted to the
+     * {@link TextElementsRenderer} in the current frame.
      */
     get visited(): boolean {
         return this.m_visited;
@@ -75,8 +86,8 @@ export class TextElementGroupState {
 
     /**
      * Updates the fading state of all text elements within the group to the specified time.
-     * @param time The time to which the fading state will be updated.
-     * @param disableFading `true` if fading is disabled, `false` otherwise.
+     * @param time - The time to which the fading state will be updated.
+     * @param disableFading - `true` if fading is disabled, `false` otherwise.
      */
     updateFading(time: number, disableFading: boolean): void {
         for (const elementState of this.m_textElementStates) {
@@ -88,7 +99,7 @@ export class TextElementGroupState {
 
     /**
      * Calls the specified callback for every visible text elements in the group.
-     * @param visibleElementsCallback Functions that will be called for every visible text element
+     * @param visibleElementsCallback - Functions that will be called for every visible text element
      * in the group.
      */
     traverseVisibleElements(visibleElementsCallback: (e: TextElementState) => void): void {
@@ -101,7 +112,7 @@ export class TextElementGroupState {
 
     /**
      * Updates the states of elements within the group.
-     * @param filter Function used to do early rejection. @see [[TextElementFilter]].
+     * @param filter - Function used to do early rejection. @see [[TextElementFilter]].
      */
     updateElements(filter: TextElementFilter) {
         for (const elementState of this.m_textElementStates) {

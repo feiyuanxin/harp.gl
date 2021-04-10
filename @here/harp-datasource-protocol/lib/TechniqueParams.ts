@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -8,19 +8,23 @@ import { JsonExpr } from "./Expr";
 import { InterpolatedPropertyDefinition } from "./InterpolatedPropertyDefs";
 
 /**
- * Available line caps types(`"None"`, `"Round"`, `"Square"`, `"TriangleOut"`, `"TriangleIn"`).
- * Default is `"Round"`.
+ * The style type of the line caps.
  */
 export type LineCaps = "Square" | "Round" | "None" | "TriangleOut" | "TriangleIn";
 
 /**
- * Available line dash types(`"Round"`, `"Square"`, `"Diamond"`).
- * Default is `"Square"`.
+ * The style type of the line dashes.
  */
 export type LineDashes = "Square" | "Round" | "Diamond";
 
 /**
+ * Defines how to interpret the units.
+ */
+export type MetricUnit = "Meter" | "Pixel";
+
+/**
  * Standard kinds of geometry.
+ * @deprecated See {@link BaseTechniqueParams.kind}.
  */
 export enum StandardGeometryKind {
     /**
@@ -80,25 +84,28 @@ export enum StandardGeometryKind {
 }
 
 /**
- * Geometry kind used for use by [[BaseTechniqueParams.kind]].
- *
  * The kind of geometry is used to group objects together,
  * allowing the group to be hidden or displayed.
  *
+ * @remarks
  * Any string can be used to specify the kind of the technique in a style in the theme file. Is is
  * suggested to specify multiple kinds for specific types of data. For a highway, the following list
  * of kinds is suggested:
- *
+ *```json
  *    ["line", "road", "road:highway"]
- *
+ *```
  * If it is a tunnel for a highway:
- *
+ *```json
  *    ["line", "road", "road:highway", "tunnel", "road:tunnel", "road:highway:tunnel"]
- *
+ *```
  * If specified in this way, specific types of data (here: highway roads) can be enabled and/or
  * disabled.
+ * @deprecated See {@link BaseTechniqueParams.kind}.
  */
 export type GeometryKind = string | StandardGeometryKind;
+
+// See https://github.com/typescript-eslint/typescript-eslint/blob/master/packages/eslint-plugin/docs/rules/no-redeclare.md#ignoredeclarationmerge
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export const GeometryKind = StandardGeometryKind;
 
 /**
@@ -106,20 +113,26 @@ export const GeometryKind = StandardGeometryKind;
  */
 export type DynamicProperty<T> = T | JsonExpr | InterpolatedPropertyDefinition<T>;
 
-/*
+/**
+ * Length literals.
+ *
+ * @remarks
  * Description of length units inside a style. Supports literal values (interpreted as `m`), `m` and
  * `px`(i.e. `80`, `14px`, `0.6m`, etc.).
  */
 export type StyleLength = string | number;
 
 /**
+ * Color literals.
+ *
+ * @remarks
  * Description of colors inside a style. Supports hex values as well as CSS hex, rgb and hsl values
  * (i.e. `0xffffff`, `#f00fab`, `#aaa`, `rgb(255, 0 120)`, `hsl(360, 100%, 100%)`, etc.).
  */
 export type StyleColor = string | number;
 
 /**
- * A set of [[GeometryKind]]s.
+ * A set of {@link GeometryKind}s.
  */
 export class GeometryKindSet extends Set {
     /**
@@ -182,7 +195,8 @@ export interface BaseTechniqueParams {
     /**
      * The render order of the objects created using this technique.
      *
-     * If not specified in style file, [[StyleSetEvaluator]] will assign monotonically increasing
+     * @remarks
+     * If not specified in style file monotonically increasing
      * values according to style position in file.
      */
     renderOrder?: DynamicProperty<number>;
@@ -190,18 +204,27 @@ export interface BaseTechniqueParams {
     /**
      * The category of this technique.
      *
-     * The category is used in conjunction with [[Theme.priorities]]
-     * to assign render orders to the objects created by this [[Style]].
+     * @remarks
+     * The category is used in conjunction with {@link Theme.priorities}
+     * to assign render orders to the objects created by this {@link Style}.
      */
     category?: DynamicProperty<string>;
 
     /**
-     * Optional. If `true`, no IDs will be saved for the geometry this technique creates.
+     * Optional. If `true` or `Pickability.transient`, no IDs will be saved for the geometry
+     * this style creates. Default is `Pickability.onlyVisible`, which allows all pickable and
+     * visible objects to be picked, Pickability.all, will also allow invisible objects to be
+     * picked.
+     * @defaultValue `Pickability.onlyVisible`
+     * The boolean option is for backwardscompatibilty, please use the Pickability.
+     *
+     *
+     * TODO: deprecate and rename to something that makes more sense
      */
-    transient?: boolean;
+    transient?: boolean | Pickability;
 
     /**
-     * Distance to the camera (0.0 = camera position, 1.0 = farPlane) at which the object start
+     * Distance to the camera `(0.0 = camera position, 1.0 = farPlane) at which the object start
      * fading out (opacity decreases).
      */
     fadeNear?: DynamicProperty<number>;
@@ -213,10 +236,13 @@ export interface BaseTechniqueParams {
     fadeFar?: DynamicProperty<number>;
 
     /**
-     * Specified kind of geometry. One kind is set as default in the technique, and can be
-     * overridden in the style.
+     * Specified kind of geometry.
      *
-     * @deprecated Use [[enabled]] with expressions based on `['dynamic-properties']` operator.
+     * @remarks
+     * One kind is set as default in the technique, and can be overridden in the style.
+     *
+     * @deprecated Use {@link enabled} with expressions based on `['dynamic-properties']` operator.
+     * See "object picking" example.
      */
     kind?: GeometryKind | GeometryKindSet;
 
@@ -225,20 +251,60 @@ export interface BaseTechniqueParams {
      *
      * Use with `['dynamic-properties']` operator for dynamic feature highlight, highlighig etc.
      *
-     * @see Picking example - [[PickingExample]]
+     * @see Picking example
      */
     enabled?: DynamicProperty<boolean>;
+
+    /**
+     * Set to 'true' if line should appear transparent.
+     *
+     * @remarks
+     * Rendering transparent lines may come with a
+     * slight performance impact.
+     * See https://threejs.org/docs/#api/en/materials/Material.transparent.
+     */
+    transparent?: DynamicProperty<boolean>;
+
+    /**
+     * Defines which side of faces will be rendered - front, back or both.
+     * See https://threejs.org/docs/#api/en/materials/Material.side.
+     */
+    side?: DynamicProperty<number>;
+
+    /**
+     * Minimal zoom level. If the current zoom level is smaller, the technique will not be used.
+     */
+    minZoomLevel?: DynamicProperty<number>;
+
+    /**
+     * Maximum zoom level. If the current zoom level is equal to or greater, the technique will not be used.
+     */
+    maxZoomLevel?: DynamicProperty<number>;
+
+    /**
+     * If `true`, geometry height won't be scaled on projection. Enable it for projections with
+     * variable scale factor (e.g. mercator) to avoid distortions in geometry with great heights and
+     * latitude spans. E.g. a large object with even height would look oblique to the ground plane
+     * on mercator unless this property is set to `true`.
+     *
+     * @defaultValue `true` for geometries stored at level less than `12`.
+     */
+    constantHeight?: DynamicProperty<boolean>;
 }
 
 export enum TextureCoordinateType {
     /**
      * Texture coordinates are in tile space.
+     *
+     * @remarks
      * SW of the tile will have (0,0) and NE will have (1,1).
      */
     TileSpace = "tile-space",
 
     /**
      * Texture coordinates are in equirectangular space.
+     *
+     * @remarks
      * (u, v) = ( (longitude+180) / 360, (latitude+90) / 180).
      */
     EquirectangularSpace = "equirectangular-space",
@@ -246,6 +312,7 @@ export enum TextureCoordinateType {
     /**
      * Texture coordinates in feature space.
      *
+     * @remarks
      * To compute texture coordinates in feature space,
      * the feature must have a property named `bbox` with value
      * the tuple `[west, south, east, north]`.
@@ -298,13 +365,7 @@ export interface StandardTechniqueParams extends BaseTechniqueParams {
      * Skip rendering clobbered pixels.
      * See https://threejs.org/docs/#api/en/materials/Material.depthTest.
      */
-    depthTest?: boolean;
-    /**
-     * Set to 'true' if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     * See https://threejs.org/docs/#api/en/materials/Material.transparent.
-     */
-    transparent?: boolean;
+    depthTest?: DynamicProperty<boolean>;
     /**
      * For transparent lines, set a value between 0.0 for totally transparent, to 1.0 for totally
      * opaque.
@@ -412,11 +473,6 @@ export interface PointTechniqueParams extends BaseTechniqueParams {
      */
     texture?: string;
     /**
-     * Set to `true` if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     */
-    transparent?: boolean;
-    /**
      * For transparent lines, set a value between 0.0 for totally transparent, to 1.0 for totally
      * opaque.
      */
@@ -450,8 +506,45 @@ export enum PoiStackMode {
 }
 
 /**
+ * Define the pickability of an object.
+ */
+export enum Pickability {
+    /**
+     * Pickable if visible.
+     */
+    onlyVisible = "only-visible",
+    /**
+     * Not Pickable at all.
+     */
+    transient = "transient",
+    /**
+     * All objects of this type pickable.
+     */
+    all = "all"
+}
+
+/**
+ * Converts backwards compatible transient property to pure {@type Pickabilty} object
+ *
+ * @param transient The transient property from the style
+ */
+export function transientToPickability(transient?: boolean | Pickability): Pickability {
+    let pickability: Pickability = Pickability.onlyVisible;
+    if (transient !== undefined && transient !== null) {
+        pickability =
+            typeof transient === "string"
+                ? transient
+                : transient === true
+                ? Pickability.transient
+                : Pickability.onlyVisible;
+    }
+    return pickability;
+}
+
+/**
  * Defines options (tokens) supported for text placements defined via [[placements]] attribute.
  *
+ * @remarks
  * Possible values are defined as vertical placement letter and horizontal letter, where
  * one of the axis may be ignored and then assumed centered. Moving clock-wise, we have:
  * `TL` (top-left), `T` (top-center), `TR` (top-right), `R` (center-right), `BR` (bottom-right),
@@ -488,6 +581,7 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     /**
      * Text to be displayed for feature.
      *
+     * @remarks
      * Defaults to first defined:
      *  - feature property `label` if present in technique (deprecated)
      *  - `["get", "name:short"]` is `useAbbreviation` is true
@@ -502,7 +596,7 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     /**
      * Field name of object containing the text to be rendered.
      *
-     * @deprecated, Use `["get", "FIELD"]`.
+     * @deprecated Use `["get", "FIELD"]`.
      */
     label?: string;
     /**
@@ -525,25 +619,25 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     /**
      * Minimum zoomLevel at which to display the label text. No default.
      */
-    textMinZoomLevel?: number;
+    textMinZoomLevel?: DynamicProperty<number>;
     /**
      * Maximum zoomLevel at which to display the label text. No default.
      */
-    textMaxZoomLevel?: number;
+    textMaxZoomLevel?: DynamicProperty<number>;
     /**
      * Minimum zoomLevel at which to display the label icon. No default.
      */
-    iconMinZoomLevel?: number;
+    iconMinZoomLevel?: DynamicProperty<number>;
     /**
      * Maximum zoomLevel at which to display the label icon. No default.
      */
-    iconMaxZoomLevel?: number;
+    iconMaxZoomLevel?: DynamicProperty<number>;
 
     /**
      * Icon color.
      *
+     * @remarks
      * If specified, combined using multiplication with color value read from icon texture.
-     *
      * Works best for grayscale or monochromatic textures.
      */
     iconColor?: StyleColor;
@@ -551,10 +645,11 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     /**
      * Icon brightness.
      *
+     * @remarks
      * Factor that multiplies a color on top of the icon texture (and `iconColor`) with `0` being
      * fully black as final output, `1` being the original rgb colors of the texture.
      *
-     * @default `1`
+     * @defaultValue `1`
      */
     iconBrightness?: number;
 
@@ -564,24 +659,29 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     distanceScale?: number;
     /**
      * If `false`, text may overlap markers.
-     * @default `false`
+     * @defaultValue `false`
      */
     textMayOverlap?: boolean;
     /**
-     * If `false`, the icon may overlap text and other icons of lower priority. If not defined, the
+     * If `false`, the icon may overlap text and other icons of lower priority.
+     *
+     * @remarks
+     * If not defined, the
      * property value from `textMayOverlap` will be used.
-     * @default `false`
+     * @defaultValue `false`
      */
     iconMayOverlap?: boolean;
     /**
      * If `false`, text will not reserve screen space, other markers will be able to overlap.
-     * @default `true`
+     * @defaultValue `true`
      */
     textReserveSpace?: boolean;
     /**
-     * If `false`, icon will not reserve screen space, other markers will be able to overlap. If not
-     * defined, the property value from `iconReserveSpace` will be used.
-     * @default `true`
+     * If `false`, icon will not reserve screen space, other markers will be able to overlap.
+     *
+     * @remarks
+     * If not defined, the property value from `iconReserveSpace` will be used.
+     * @defaultValue `true`
      */
     iconReserveSpace?: boolean;
     /**
@@ -589,14 +689,19 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
      */
     renderTextDuringMovements?: boolean;
     /**
-     * If `true`, the label will always be rendered on top. If overlapping with other labels with
+     * If `true`, the label will always be rendered on top.
+     *
+     * @remarks
+     * If overlapping with other labels with
      * this flag set, the render order is undefined.
-     * @default `false`
+     * @defaultValue `false`
      */
     alwaysOnTop?: boolean;
     /**
-     * If `true`, icon will appear even if the text part is blocked by other labels. Defaults to
-     * `false`.
+     * If `true`, icon will appear even if the text part is blocked by other labels.
+     *
+     * @remarks
+     * @defaultValue `false`
      */
     textIsOptional?: boolean;
     /**
@@ -612,8 +717,9 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
      */
     minDistance?: number;
     /**
-     * If true, the text will appear even if the icon cannot be rendered because of missing icon
-     * graphics. Defaults to `true`.
+     * If `true`, text will appear even if the icon is blocked by other labels.
+     *
+     * @defaultValue `false`
      */
     iconIsOptional?: boolean;
     /**
@@ -657,7 +763,10 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
      */
     poiTable?: string;
     /**
-     * Fixed name to identify POI options in the POI table. If `poiName` has a value, this value
+     * Fixed name to identify POI options in the POI table.
+     *
+     * @remarks
+     * If `poiName` has a value, this value
      * supersedes any value read from the field referenced in `poiNameField`.
      */
     poiName?: string;
@@ -666,11 +775,13 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
      */
     poiNameField?: string;
     /**
-     * Name of [[ImageTexture]] definition to use.
+     * The name of either the {@link ImageTexture} in {@link Theme.imageTextures} or the user image
+     * cached in {@link @here/harp-mapview#userImageCache} to be rendered as marker.
      */
     imageTexture?: DynamicProperty<string>;
     /**
-     * Field name to extract imageTexture content from.
+     * Field name to extract imageTexture content from, if imageTexture refers to an
+     * [[ImageTexture]] definition.
      */
     imageTextureField?: string;
     /**
@@ -773,6 +884,7 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     /**
      * Text label positions relative to the label central position (anchor point).
      *
+     * @remarks
      * This attribute defines a comma separated tokens of possible text placements
      * relative to label central position (anchor), for example: "TL, TR, C".
      * Keep in mind that horizontal placement defines text position in opposite way to
@@ -785,8 +897,13 @@ export interface MarkerTechniqueParams extends BaseTechniqueParams {
     placements?: string;
 
     /**
-     * World space offset in meters applied to the icon. Valid only for icons which have the
-     * "offset_direction" property as an attribute of the data.
+     * World space offset in meters applied to the icon along the ground plane, i.e. tangent
+     * to the local space up vector.
+     *
+     * @remarks
+     * Valid only for icons which have the
+     * "offset_direction" property as an attribute of the data, which specifies an angle in degrees
+     * in which direction the offset should take place, i.e. 0 degrees is north, 90 is east etc.
      */
     worldOffset?: DynamicProperty<number>;
 }
@@ -798,11 +915,6 @@ export interface LineTechniqueParams extends BaseTechniqueParams {
      * @format color-hex
      */
     color: DynamicProperty<StyleColor>;
-    /**
-     * Set to true if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     */
-    transparent?: boolean;
     /**
      * For transparent lines, set a value between 0.0 for totally transparent, to 1.0 for totally
      * opaque.
@@ -825,11 +937,6 @@ export interface SegmentsTechniqueParams extends BaseTechniqueParams {
      */
     color: DynamicProperty<StyleColor>;
     /**
-     * Set to `true` if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     */
-    transparent?: boolean;
-    /**
      * For transparent lines, set a value between `0.0` for fully transparent, to `1.0` for fully
      * opaque.
      */
@@ -845,7 +952,10 @@ export interface SegmentsTechniqueParams extends BaseTechniqueParams {
  */
 export interface PolygonalTechniqueParams {
     /**
-     * Whether to use polygon offset. Default is false. This corresponds to the
+     * Whether to use polygon offset. Default is false.
+     *
+     * @remarks
+     * This corresponds to the
      * GL_POLYGON_OFFSET_FILL WebGL feature.
      *
      * PolygonOffset is used to raise the geometry towards the geometry (for depth calculation
@@ -876,6 +986,13 @@ export interface PolygonalTechniqueParams {
     polygonOffsetUnits?: DynamicProperty<number>;
 
     /**
+     * Skip rendering clobbered pixels.
+     * See https://threejs.org/docs/#api/en/materials/Material.depthTest.
+     * @defaultValue `false`
+     */
+    depthTest?: DynamicProperty<boolean>;
+
+    /**
      * Sets the polygon outline color.
      * @format color-hex
      */
@@ -892,6 +1009,25 @@ export interface PolygonalTechniqueParams {
      * transparent. A value of <= 0.0 disables fading.
      */
     lineFadeFar?: DynamicProperty<number>;
+
+    /**
+     * Set to `true` if line should appear transparent. Rendering transparent lines may come with a
+     * slight performance impact.
+     */
+    transparent?: DynamicProperty<boolean>;
+
+    /**
+     * For transparent lines, set a value between `0.0` for fully transparent, to `1.0` for fully
+     * opaque.
+     */
+    opacity?: DynamicProperty<number>;
+
+    /**
+     * Fill color in hexadecimal or CSS-style notation, for example: `"#e4e9ec"`, `"#fff"`,
+     * `"rgb(255, 0, 0)"`, or `"hsl(35, 11%, 88%)"`.
+     * @format color-hex
+     */
+    color?: DynamicProperty<StyleColor>;
 }
 
 /**
@@ -901,31 +1037,15 @@ export interface BasicExtrudedLineTechniqueParams
     extends BaseTechniqueParams,
         PolygonalTechniqueParams {
     /**
-     * A value determining the shading technique. Valid values are "Basic" and "Standard". Default
-     * is "Basic".
+     * A value determining the shading technique.
+     *
+     * @remarks
+     * Valid values are "Basic" and "Standard". Default is "basic".
      *
      * `"basic"`   : Simple shading, faster to render. Only simple color and opacity are effective.
      * `"standard"`: Elaborate shading, with metalness, and roughness.
-     *
-     * TODO: is this TechniqueParams or Style prop ?
      */
     shading?: "basic";
-    /**
-     * Color of a line in hexadecimal or CSS-style notation, for example: `"#e4e9ec"`, `"#fff"`,
-     * `"rgb(255, 0, 0)"`, or `"hsl(35, 11%, 88%)"`.
-     * @format color-hex
-     */
-    color: DynamicProperty<StyleColor>;
-    /**
-     * Set to `true` if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     */
-    transparent?: boolean;
-    /**
-     * For transparent lines, set a value between 0.0 for totally transparent, to 1.0 for totally
-     * opaque.
-     */
-    opacity?: DynamicProperty<number>;
     /**
      * Width of line in meters for different zoom levels.
      */
@@ -951,6 +1071,7 @@ export interface StandardExtrudedLineTechniqueParams
      * A value determining the shading technique. Valid values are `"basic"` and `"standard"`.
      * Default is `"basic"`.
      *
+     * @remarks
      * `"basic"` : Simple shading, faster to render. Only simple color and opacity are effective.
      * `"standard"` : Elaborate shading, with metalness, and roughness.
      */
@@ -960,7 +1081,10 @@ export interface StandardExtrudedLineTechniqueParams
      */
     lineWidth: DynamicProperty<number>;
     /**
-     * Style of both end caps. Possible values: `"None"`, `"Circle"`. A value of undefined maps to
+     * Style of both end caps. Possible values: `"None"`, `"Circle"`.
+     *
+     * @remarks
+     * A value of undefined maps to
      * `"Circle"`.
      */
     caps?: DynamicProperty<"None" | "Circle">;
@@ -983,21 +1107,10 @@ export interface SolidLineTechniqueParams extends BaseTechniqueParams, Polygonal
      */
     outlineColor?: DynamicProperty<StyleColor>;
     /**
-     * Set to `true` if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     */
-    transparent?: boolean;
-    /**
-     * For transparent lines, set a value between `0.0` for fully transparent, to `1.0` for fully
-     * opaque.
-     */
-    opacity?: DynamicProperty<number>;
-    // TODO: Make pixel units default.
-    /**
      * @deprecated Specify metrics units as part of the value instead.
      * Units in which different size properties are specified. Either `Meter` (default) or `Pixel`.
      */
-    metricUnit?: string;
+    metricUnit?: MetricUnit;
     /**
      * Width of a line in `metricUnit` for different zoom levels.
      */
@@ -1008,11 +1121,12 @@ export interface SolidLineTechniqueParams extends BaseTechniqueParams, Polygonal
     outlineWidth?: DynamicProperty<StyleLength>;
     /**
      * Clip the line outside the tile if `true`.
+     * @defaultValue false
      */
     clipping?: DynamicProperty<boolean>;
     /**
-     * Describes line caps type (`"None"`, `"Round"`, `"Square"`, `"TriangleOut"`, `"TriangleIn"`).
-     * Default is `"Round"`.
+     * Describes the style of the line caps.
+     * @defaultValue `"Round"`.
      */
     caps?: DynamicProperty<LineCaps>;
     /**
@@ -1030,9 +1144,8 @@ export interface SolidLineTechniqueParams extends BaseTechniqueParams, Polygonal
      */
     secondaryRenderOrder?: DynamicProperty<number>;
     /**
-     * Describes secondary line caps type (`"None"`, `"Round"`, `"Square"`, `"TriangleOut"`,
-     * `"TriangleIn"`).
-     * Default is `"Round"`.
+     * Describes the style of the secondary line caps
+     * @defaultValue `"Round"`.
      */
     secondaryCaps?: DynamicProperty<LineCaps>;
     /**
@@ -1050,8 +1163,8 @@ export interface SolidLineTechniqueParams extends BaseTechniqueParams, Polygonal
      */
     drawRangeEnd?: number;
     /**
-     * Describes line dash type (`"Round"`, `"Square"`, `"Diamond"`).
-     * Default is `"Square"`.
+     * Describes the style of the line dashes.
+     * @defaultValue `"Square"`.
      */
     dashes?: DynamicProperty<LineDashes>;
     /**
@@ -1078,22 +1191,6 @@ export interface SolidLineTechniqueParams extends BaseTechniqueParams, Polygonal
  * Technique used to draw filled polygons.
  */
 export interface FillTechniqueParams extends BaseTechniqueParams, PolygonalTechniqueParams {
-    /**
-     * Fill color in hexadecimal or CSS-style notation, for example: `"#e4e9ec"`, `"#fff"`,
-     * `"rgb(255, 0, 0)"`, or `"hsl(35, 11%, 88%)"`.
-     * @format color-hex
-     */
-    color?: DynamicProperty<StyleColor>;
-    /**
-     * Set to `true` if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     */
-    transparent?: boolean;
-    /**
-     * For transparent lines, set a value between `0.0` for fully transparent, to `1.0` for fully
-     * opaque.
-     */
-    opacity?: DynamicProperty<number>;
     /**
      * A value of `true` creates a wireframe geometry. (May not be supported with all techniques).
      */
@@ -1173,16 +1270,12 @@ export interface ExtrudedPolygonTechniqueParams extends StandardTechniqueParams 
     defaultColor?: DynamicProperty<StyleColor>;
 
     /**
-     * If `true`, the height of the extruded buildings will not be modified by the mercator
-     * projection distortion that happens around the poles.
+     * If `true`, wall geometry will is added along the tile boundaries.
      *
-     * @default `false`
-     */
-    constantHeight?: boolean;
-
-    /**
-     * If `false`, wall geometry will not be added along the tile boundaries.
-     * @default `true`
+     * @remarks
+     * this causes artifacts when used with shadows,
+     * so it should be known in advance that shadows won't be enabled.
+     * @defaultValue `false`
      */
     boundaryWalls?: boolean;
 
@@ -1199,6 +1292,7 @@ export interface ExtrudedPolygonTechniqueParams extends StandardTechniqueParams 
     /**
      * Control rendering of depth prepass before the actual geometry.
      *
+     * @remarks
      * Depth prepass is a method to render translucent meshes, hence only the visible front faces of
      * a mesh are actually rendered, removing artifacts caused by blending with internal faces of
      * the mesh. This method is used for drawing translucent buildings over map background.
@@ -1224,23 +1318,17 @@ export interface ShaderTechniqueParams extends BaseTechniqueParams {
     params: ShaderTechniqueMaterialParameters;
 
     /**
-     * Type of primitive for the shader technique. Valid values are "point" | "line" | "segments" |
-     * "mesh"
+     * Type of primitive for the shader technique.
      */
     primitive: "point" | "line" | "segments" | "mesh";
-
-    /**
-     * Set to 'true' if line should appear transparent. Rendering transparent lines may come with a
-     * slight performance impact.
-     * See https://threejs.org/docs/#api/en/materials/Material.transparent.
-     */
-    transparent?: boolean;
 
     [name: string]: any;
 }
 
 /**
  * Technique used to render a terrain geometry with a texture.
+ *
+ * @remarks
  * When using this technique, the datasource will produce texture coordinates in
  * local tile space (i.e. [0,0] at south-west and [1,1] at north-east tile corner).
  */
@@ -1253,12 +1341,15 @@ export interface TerrainTechniqueParams extends StandardTechniqueParams {
     /**
      * If `heightBasedColors` is defined, this value defines the interpolation method used to
      * generate the height-based gradient texture (defaults to `Discrete`).
+     * @defaultValue `"Discrete"`
      */
     heightGradientInterpolation?: "Discrete" | "Linear" | "Cubic";
 
     /**
      * If `heightBasedColors` is defined, this value defines the width (in pixels) of the generated
-     * gradient texture (defaults to `128`).
+     * gradient texture.
+     *
+     * @defaultValue `128`
      */
     heightGradientWidth?: number;
 }
@@ -1270,21 +1361,20 @@ export interface TextTechniqueParams extends BaseTechniqueParams {
     /**
      * Text to be displayed for feature.
      *
+     * @remarks
      * Defaults to first defined:
      *  - feature property `label` if present in technique (depreacted);
      *  - `["get", "name:short"]` is `useAbbreviation` is true;
      *  - `["get", "iso_code"]` is `useIsoCode` is true;
      *  - `["get", "name:$LANGUAGE"]` for each specified language;
      *  - `["get", "name"]`.
-     *
-     * See [[ExtendedTileInfo.getFeatureText]].
      */
     text?: DynamicProperty<string>;
 
     /**
      * Field name of object containing the text to be rendered.
      *
-     * @deprecated, Use `["get", "FIELD"]`.
+     * @deprecated Use `["get", "FIELD"]`.
      */
     label?: string;
     /**
@@ -1295,6 +1385,7 @@ export interface TextTechniqueParams extends BaseTechniqueParams {
     useAbbreviation?: boolean;
     /**
      * If `true`, the iso code (field 'iso_code') of the elements is used as text.
+     * @remarks
      * The `iso_code` field contains the ISO 3166-1 2-letter country code.
      *
      * @deprecated Use proper expression with [`get`, `iso_code`] for this purpose.
@@ -1305,26 +1396,18 @@ export interface TextTechniqueParams extends BaseTechniqueParams {
      */
     priority?: DynamicProperty<number>;
     /**
-     * Minimal zoom level. If the current zoom level is smaller, the technique will not be used.
-     */
-    minZoomLevel?: number;
-    /**
-     * Maximum zoom level. If the current zoom level is larger, the technique will not be used.
-     */
-    maxZoomLevel?: number;
-    /**
      * Scaling factor of the text. Defaults to 0.5, reducing the size ot 50% in the distance.
      */
     distanceScale?: number;
     /**
      * If `true`, icon is allowed to overlap other labels or icons of lower priority.
-     * @default `false`
+     * @defaultValue `false`
      */
     mayOverlap?: boolean;
     /**
      * If `true`, element will reserve screen space, other markers of lower priority will not be
      * able to overlap.
-     * @default `true`
+     * @defaultValue `true`
      */
     reserveSpace?: boolean;
     /**

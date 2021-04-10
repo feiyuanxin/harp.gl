@@ -1,19 +1,19 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:completed-docs
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import "@here/harp-fetch";
-import { assert } from "chai";
+
+import { assert, expect } from "chai";
 import * as sinon from "sinon";
+
 import { TransferManager } from "../index";
 
-describe("TransferManager", function() {
+describe("TransferManager", function () {
     const fakeDataUrl = `https://download.example.url`;
 
     function createMockDownloadResponse() {
@@ -30,7 +30,7 @@ describe("TransferManager", function() {
         return mock;
     }
 
-    it("#downloadJson handles successful download response", async function() {
+    it("#downloadJson handles successful download response", async function () {
         // Arrange
         const mock = createMockDownloadResponse();
         mock.json.resolves({ version: "4" });
@@ -46,34 +46,79 @@ describe("TransferManager", function() {
         assert.deepEqual(response, { version: "4" });
     });
 
-    it("#downloadJson handles HTTP 404 status response", async function() {
+    it("#downloadJson handles HTTP 404 status response", async function () {
         // Arrange
         const mock = createMockDownloadResponse();
         mock.status = 404;
         mock.ok = false;
-        mock.json.resolves({ version: "4" });
+        mock.text.resolves("Dummy error");
         const fetchStub = sinon.stub().resolves(mock);
         const downloadMgr = new TransferManager(fetchStub, 5);
 
         // Act
+        try {
+            await downloadMgr.download(fakeDataUrl);
+        } catch (err) {
+            // Assert
+            assert(fetchStub.called);
+            assert(fetchStub.callCount === 1);
+            assert(fetchStub.getCall(0).args[0] === fakeDataUrl);
+            assert.equal(err.message, "Dummy error");
+        }
+    });
+
+    it("#downloadJson handles HTTP 503 status response with max retries", async function () {
+        // This test is slower than others, because it waits `TransferManager.retryTimeout` *
+        // retryCount ms, which means it gets longer and longer each time it fails.
+        this.timeout(10000);
+
+        // Arrange
+        const mock = createMockDownloadResponse();
+        mock.status = 503;
+        mock.ok = false;
+        mock.json.resolves({
+            version: "4"
+        });
+        const fetchStub = sinon.stub().resolves(mock);
+        const maxRetries = 5;
+        const downloadMgr = new TransferManager(fetchStub, maxRetries);
+
+        // Act
         const downloadResponse = downloadMgr.download(fakeDataUrl);
 
-        const resp = await downloadResponse.then(response => {
-            return response;
+        await downloadResponse.catch(err => {
+            expect(err.message).contains("Max number of retries reached");
         });
-
-        const data = await resp.json();
 
         // Assert
         assert(fetchStub.called);
-        assert(fetchStub.callCount === 1);
+        assert(fetchStub.callCount === maxRetries);
         assert(fetchStub.getCall(0).args[0] === fakeDataUrl);
-        assert.isFalse(resp.ok);
-        assert.equal(resp.status, 404);
-        assert.deepEqual(data, { version: "4" });
     });
 
-    it("#instance handles returning same single static instance correctly", async function() {
+    it("#downloadJson handles HTTP client codes like 400, 401 without retry", async function () {
+        // Arrange
+        const mock = createMockDownloadResponse();
+        mock.status = 401;
+        mock.ok = false;
+        mock.text.resolves("Dummy error");
+        const fetchStub = sinon.stub().resolves(mock);
+        const downloadMgr = new TransferManager(fetchStub, 5);
+
+        // Act
+        try {
+            await downloadMgr.download(fakeDataUrl);
+        } catch (err) {
+            // Assert
+            assert(fetchStub.called);
+            assert(fetchStub.callCount === 1);
+            assert(fetchStub.getCall(0).args[0] === fakeDataUrl);
+            assert.isDefined(err);
+            assert.equal(err.message, "Dummy error");
+        }
+    });
+
+    it("#instance handles returning same single static instance correctly", async function () {
         const downloadMgr1 = TransferManager.instance();
         const downloadMgr2 = TransferManager.instance();
 
@@ -84,7 +129,7 @@ describe("TransferManager", function() {
      * Note, TransferManager limits the number of html headers sent to MAX_PARALLEL_DOWNLOADS, but
      * will allow more then MAX_PARALLEL_DOWNLOADS of parallel download under the hood.
      */
-    it("#downloadJson performs download with maxParallelDownloads exceeded", async function() {
+    it("#downloadJson performs download with maxParallelDownloads exceeded", async function () {
         // Arrange
         const MAX_PARALLEL_DOWNLOADS = 16;
         const CALLS_NUMBER = 32;
@@ -113,7 +158,7 @@ describe("TransferManager", function() {
         assert(fetchStub.getCall(MAX_PARALLEL_DOWNLOADS - 1).args[0] === fakeDataUrl);
     });
 
-    it("#Maximum parallel downloads", async function() {
+    it("#Maximum parallel downloads", async function () {
         let numberOfFetches = 0;
         let numberOfJsonDownloads = 0;
         let numberOfArrayBufferDownloads = 0;

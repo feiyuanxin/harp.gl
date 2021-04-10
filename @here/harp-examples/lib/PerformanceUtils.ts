@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,9 +18,14 @@ import {
     SimpleFrameStatistics
 } from "@here/harp-mapview";
 import { debugContext } from "@here/harp-mapview/lib/DebugContext";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
 import { assert, LoggerManager, PerformanceTimer } from "@here/harp-utils";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
 import * as THREE from "three";
+
 import { apikey, copyrightInfo } from "../config";
 import { PerformanceTestData } from "./PerformanceConfig";
 
@@ -31,7 +36,7 @@ export namespace PerformanceUtils {
         mapView: MapView;
         mapControls: MapControls;
         omvDataSourceConnected: boolean;
-        mainDataSource: OmvDataSource | undefined;
+        mainDataSource: VectorTileDataSource | undefined;
     }
 
     export interface ThemeDef {
@@ -75,7 +80,7 @@ export namespace PerformanceUtils {
         const availableExtensions = context.getSupportedExtensions();
         if (
             availableExtensions !== null &&
-            availableExtensions.indexOf("WEBGL_debug_renderer_info") > -1
+            availableExtensions.includes("WEBGL_debug_renderer_info")
         ) {
             const infoExtension = context.getExtension("WEBGL_debug_renderer_info");
             if (infoExtension !== null) {
@@ -151,7 +156,7 @@ export namespace PerformanceUtils {
         // Set to `true` to visualize the text placement collisions
         debugContext.setValue("DEBUG_SCREEN_COLLISIONS", false);
 
-        return new Promise<MapViewApp>((resolve, reject) => {
+        return await new Promise<MapViewApp>((resolve, reject) => {
             const dataSourceInitialized = connectDataSources(
                 mapViewApp,
                 dataSourceType,
@@ -175,11 +180,11 @@ export namespace PerformanceUtils {
         dataSourceTypes: string[],
         storageLevelOffsetModifier: number
     ): Promise<DataSource[]> {
-        const createDataSource = (dataSourceType: string): OmvDataSource => {
-            let dataSource: OmvDataSource | undefined;
+        const createDataSource = (dataSourceType: string): VectorTileDataSource => {
+            let dataSource: VectorTileDataSource | undefined;
             switch (dataSourceType) {
                 case "OMV":
-                    dataSource = new OmvDataSource({
+                    dataSource = new VectorTileDataSource({
                         baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
                         apiFormat: APIFormat.XYZOMV,
                         styleSetName: "tilezen",
@@ -207,7 +212,7 @@ export namespace PerformanceUtils {
                 }
 
                 return mapViewApp.mapView.addDataSource(dataSource).then(() => {
-                    if (dataSource instanceof OmvDataSource) {
+                    if (dataSource instanceof VectorTileDataSource) {
                         mapViewApp.omvDataSourceConnected = true;
                     }
                     return dataSource;
@@ -239,9 +244,9 @@ export namespace PerformanceUtils {
 
         if (force === true) {
             await delay(0);
-            return setMapCenter(mapViewApp, lat, long, cameraHeight, false);
+            return await setMapCenter(mapViewApp, lat, long, cameraHeight, false);
         } else {
-            return new Promise<void>((resolve, reject) => {
+            return await new Promise<void>((resolve, reject) => {
                 resolve();
             });
         }
@@ -251,7 +256,7 @@ export namespace PerformanceUtils {
      * Render a frame. Can be used to gather the latest statistics of rendering just this last
      * frame.
      *
-     * @param clearFrameEvents If `true` the current frameEvents are cleared.
+     * @param clearFrameEvents - If `true` the current frameEvents are cleared.
      */
     async function renderMapFrame(
         mapViewApp: MapViewApp,
@@ -261,7 +266,7 @@ export namespace PerformanceUtils {
 
         const currentFrame = mapView.frameNumber;
 
-        return new Promise<FrameResults>((resolve, reject) => {
+        return await new Promise<FrameResults>((resolve, reject) => {
             const renderCallback = (event: RenderEvent) => {
                 mapView.removeEventListener(MapViewEventNames.AfterRender, renderCallback);
                 const renderedFrames = mapView.frameNumber - currentFrame;
@@ -302,7 +307,7 @@ export namespace PerformanceUtils {
             waitForFinish !== true || !MapViewUtils.mapViewIsLoading(mapViewApp.mapView);
 
         if (numFrames > 1 || !isFinished) {
-            return new Promise<FrameResults>((resolve, reject) => {
+            return await new Promise<FrameResults | undefined>((resolve, reject) => {
                 recordFrames(mapViewApp, numFrames - 1, waitForFinish)
                     .then(results => {
                         resolve(results);
@@ -334,13 +339,13 @@ export namespace PerformanceUtils {
             frameResults.renderedFrames = numFrames;
         }
 
-        return new Promise<FrameResults>((resolve, reject) => {
+        return await new Promise<FrameResults | undefined>((resolve, reject) => {
             resolve(frameResults);
         });
     }
 
-    function recordRendering(mapViewApp: MapViewApp): Promise<SimpleFrameStatistics> {
-        return new Promise<SimpleFrameStatistics>((resolve, reject) => {
+    function recordRendering(mapViewApp: MapViewApp): Promise<SimpleFrameStatistics | undefined> {
+        return new Promise<SimpleFrameStatistics | undefined>((resolve, reject) => {
             ensureRenderFinished(mapViewApp).then(() => {
                 const decodingStatistics: any = {};
 
@@ -401,8 +406,8 @@ export namespace PerformanceUtils {
         long: number,
         height: number,
         showLabels: boolean
-    ): Promise<SimpleFrameStatistics> {
-        return new Promise<SimpleFrameStatistics>((resolve, reject) => {
+    ): Promise<SimpleFrameStatistics | undefined> {
+        return await new Promise<SimpleFrameStatistics | undefined>((resolve, reject) => {
             setMapCenter(mapViewApp, lat, long, height, true).then(() => {
                 applyDataFilter(mapViewApp.mapView, showLabels);
 
@@ -471,8 +476,8 @@ export namespace PerformanceUtils {
         zoomLevel: number,
         tilt: number,
         showLabels: boolean
-    ): Promise<SimpleFrameStatistics> {
-        return new Promise<SimpleFrameStatistics>((resolve, reject) => {
+    ): Promise<SimpleFrameStatistics | undefined> {
+        return await new Promise<SimpleFrameStatistics | undefined>((resolve, reject) => {
             ensureRenderFinished(mapViewApp).then(() => {
                 PerformanceStatistics.instance.clear();
                 mapViewApp.mapView.clearTileCache();
@@ -497,7 +502,7 @@ export namespace PerformanceUtils {
     ): Promise<SimpleFrameStatistics> {
         applyDataFilter(mapViewApp.mapView, showLabels);
 
-        return new Promise<SimpleFrameStatistics>(async (resolve, reject) => {
+        return await new Promise<SimpleFrameStatistics>(async (resolve, reject) => {
             const mapView = mapViewApp.mapView;
 
             const zoomLevelResults: SimpleFrameStatistics = {
@@ -570,7 +575,7 @@ export namespace PerformanceUtils {
         locations: PerformanceTestData.FlyoverLocation[],
         waitForFrameLoaded: boolean,
         isCancelled?: () => boolean
-    ): Promise<SimpleFrameStatistics> {
+    ): Promise<SimpleFrameStatistics | undefined> {
         const mapView = mapViewApp.mapView;
         const firstLocation = locations[0];
         setCamera(
@@ -594,7 +599,7 @@ export namespace PerformanceUtils {
         );
         const startTime = PerformanceTimer.now();
 
-        return new Promise<SimpleFrameStatistics>((resolve, reject) => {
+        return await new Promise<SimpleFrameStatistics | undefined>((resolve, reject) => {
             const renderCallback = () => {
                 if (isCancelled !== undefined && isCancelled()) {
                     mapView.endAnimation();
@@ -657,7 +662,7 @@ export namespace PerformanceUtils {
     async function ensureRenderFinished(mapViewApp: MapViewApp): Promise<void> {
         const mapView = mapViewApp.mapView;
 
-        return new Promise<void>((resolve, reject) => {
+        return await new Promise<void>((resolve, reject) => {
             const renderCallback = () => {
                 if (
                     mapViewApp.mapView.isDynamicFrame ||
@@ -678,7 +683,7 @@ export namespace PerformanceUtils {
 
     function applyDataFilter(mapView: MapView, showLabels: boolean) {
         for (const dataSource of mapView.dataSources) {
-            if (dataSource instanceof OmvDataSource) {
+            if (dataSource instanceof VectorTileDataSource) {
                 applyDataFilterToDataSource(mapView, dataSource, showLabels);
             }
         }
@@ -686,7 +691,7 @@ export namespace PerformanceUtils {
 
     function applyDataFilterToDataSource(
         mapView: MapView,
-        dataSource: OmvDataSource,
+        dataSource: VectorTileDataSource,
         showLabels: boolean
     ) {
         const tileGeometryManager = mapView.tileGeometryManager;
@@ -710,7 +715,7 @@ export namespace PerformanceUtils {
         showLabels: boolean,
         laps: number = 1,
         isCancelled?: () => boolean
-    ): Promise<SimpleFrameStatistics> {
+    ): Promise<SimpleFrameStatistics | undefined> {
         assert(
             spline.controlPoints.length / 2 === spline.zoomLevels.length,
             "Control points and zoom levels must have same number of entries"
@@ -722,7 +727,7 @@ export namespace PerformanceUtils {
 
         applyDataFilter(mapViewApp.mapView, showLabels);
 
-        return new Promise<SimpleFrameStatistics>((resolve, reject) => {
+        return await new Promise<SimpleFrameStatistics | undefined>((resolve, reject) => {
             const numberOfDrawPoints =
                 numFramesOverride !== undefined ? numFramesOverride : spline.numberOfDrawPoints;
             const segments = Math.ceil(numberOfDrawPoints / (spline.controlPoints.length / 2 - 1));

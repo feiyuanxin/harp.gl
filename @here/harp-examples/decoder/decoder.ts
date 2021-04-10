@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -10,11 +10,15 @@ declare let self: Worker & {
 
 self.importScripts("three.min.js");
 
-import { OmvTileDecoderService, OmvTilerService } from "@here/harp-omv-datasource/index-worker";
+import {
+    GeoJsonTilerService,
+    VectorTileDecoderService
+} from "@here/harp-vectortile-datasource/index-worker";
+
 import { CustomDecoderService } from "./custom_decoder";
 
-OmvTileDecoderService.start();
-OmvTilerService.start();
+VectorTileDecoderService.start();
+GeoJsonTilerService.start();
 
 //Following code is only needed for datasource_custom example.
 // snippet:custom_datasource_example_custom_decoder_service_start.ts

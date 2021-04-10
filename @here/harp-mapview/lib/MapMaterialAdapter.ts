@@ -1,20 +1,20 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ColorUtils, Expr, getPropertyValue, Value } from "@here/harp-datasource-protocol";
+import { disableBlending, enableBlending, RawShaderMaterial } from "@here/harp-materials";
 import * as THREE from "three";
 
-import { ColorUtils, Expr, getPropertyValue, Value } from "@here/harp-datasource-protocol";
-import { disableBlending, enableBlending } from "@here/harp-materials";
 import { evaluateColorProperty } from "./DecodedTileHelpers";
 import { MapView } from "./MapView";
 
 /**
  * @hidden
  *
- * Pick of [[MapView]] properties required to update materials used [[MapMaterialAdapter]].
+ * Pick of {@link MapView} properties required to update materials used [[MapMaterialAdapter]].
  */
 export type MapAdapterUpdateEnv = Pick<MapView, "env" | "frameNumber">;
 
@@ -38,7 +38,7 @@ export interface StyledProperties {
 /**
  * @hidden
  *
- * [[MapView]] specific data assigned to `THREE.Material` instance in installed in `userData`.
+ * {@link MapView} specific data assigned to `THREE.Material` instance in installed in `userData`.
  *
  * [[MapMaterialAdapter]] is registered in `usedData.mapAdapter` property of `THREE.Material`.
  */
@@ -98,7 +98,7 @@ export class MapMaterialAdapter {
     readonly currentStyledProperties: { [name: string]: Value | undefined };
 
     private m_lastUpdateFrameNumber = -1;
-    private m_dynamicProperties: Array<[string, Expr | StylePropertyEvaluator]>;
+    private readonly m_dynamicProperties: Array<[string, Expr | StylePropertyEvaluator]>;
 
     constructor(material: THREE.Material, styledProperties: StyledProperties) {
         this.material = material;
@@ -131,7 +131,7 @@ export class MapMaterialAdapter {
     }
 
     /**
-     * Ensure that underlying object is updated to current state of [[MapView]].
+     * Ensure that underlying object is updated to current state of {@link MapView}.
      *
      * Updates dynamically styled properties of material by evaluating scene dependent expressions.
      *
@@ -237,8 +237,14 @@ export class MapMaterialAdapter {
             color = parsed;
         }
         const { r, g, b, a } = ColorUtils.getRgbaFromHex(color ?? 0xff0000);
+
         const actualOpacity = a * THREE.MathUtils.clamp(opacity ?? 1, 0, 1);
-        this.material.opacity = actualOpacity;
+        if (this.material instanceof RawShaderMaterial) {
+            this.material.setOpacity(actualOpacity);
+        } else {
+            this.material.opacity = actualOpacity;
+        }
+
         (this.material as any).color.setRGB(r, g, b);
 
         const opaque = actualOpacity >= 1.0;

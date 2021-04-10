@@ -1,14 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { assert } from "chai";
+
 import { Entry, LRUCache } from "../lib/LRUCache";
 
-// tslint:disable:no-string-literal
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 // helper class to access protected members of LRUCache
@@ -58,14 +57,13 @@ class TestLRUCache<Key, Value> extends LRUCache<Key, Value> {
         );
 
         let currentSize = 0;
-        // tslint:disable-next-line: deprecation
         this.map.forEach(val => (currentSize += val.size));
         assert.strictEqual(this["m_size"], currentSize);
     }
 }
 
-describe("LRUCache", function() {
-    it("set", function() {
+describe("LRUCache", function () {
+    it("set", function () {
         const cache = new LRUCache(3);
         cache.set(1, 1);
         cache.set(2, 2);
@@ -76,7 +74,7 @@ describe("LRUCache", function() {
         assert.strictEqual(cache.get(3), 3);
     });
 
-    it("get", function() {
+    it("get", function () {
         const cache = new LRUCache<number, number>(3);
         assert.strictEqual(cache.get(1), undefined);
         assert.strictEqual(cache.get(2), undefined);
@@ -88,7 +86,7 @@ describe("LRUCache", function() {
         assert.strictEqual(cache.get(3), undefined);
     });
 
-    it("internalIntegrity", function() {
+    it("internalIntegrity", function () {
         const cache = new TestLRUCache<number, number>(3);
         cache.assertInternalIntegrity([]);
 
@@ -120,7 +118,7 @@ describe("LRUCache", function() {
         assert.strictEqual(cache.get(2), undefined);
     });
 
-    it("overflow", function() {
+    it("overflow", function () {
         const cache = new LRUCache(3);
         cache.set(1, 1);
         cache.set(2, 2);
@@ -133,7 +131,7 @@ describe("LRUCache", function() {
         assert.strictEqual(cache.get(4), 4);
     });
 
-    it("clear", function() {
+    it("clear", function () {
         const cache = new LRUCache(3);
         cache.set(1, 1);
         cache.set(2, 2);
@@ -143,7 +141,7 @@ describe("LRUCache", function() {
         assert.strictEqual(cache.get(2), undefined);
     });
 
-    it("iterate", function() {
+    it("iterate", function () {
         const cache = new LRUCache(3);
 
         // iterate over empty array, callback must never be called.
@@ -167,7 +165,7 @@ describe("LRUCache", function() {
         assert.strictEqual(i, 4);
     });
 
-    it("delete", function() {
+    it("delete", function () {
         const cache = new TestLRUCache(4);
 
         // delete the single entry (entry is both newest + oldest)
@@ -197,7 +195,7 @@ describe("LRUCache", function() {
         cache.assertInternalIntegrity([]);
     });
 
-    it("evictionCallback", function() {
+    it("evictionCallback", function () {
         let callCount: number = 0;
         let evictedKey: number;
         let evictedValue: number;
@@ -231,7 +229,7 @@ describe("LRUCache", function() {
         assert.strictEqual(callCount, 2);
     });
 
-    it("resize", function() {
+    it("resize", function () {
         const cache = new TestLRUCache<number, number>(2);
 
         cache.set(1, 1);
@@ -256,7 +254,7 @@ describe("LRUCache", function() {
         assert.isTrue(cache.has(2));
     });
 
-    it("customCost", function() {
+    it("customCost", function () {
         const cache = new TestLRUCache<number, number>(10, n => n);
 
         // fill cache, make sure size is correct
@@ -299,7 +297,7 @@ describe("LRUCache", function() {
         size: number;
     }
 
-    it("resize with customCost", function() {
+    it("resize with customCost", function () {
         const cache = new TestLRUCache<number, SizeObjType>(5, n => n.size);
 
         const obj1 = {
@@ -375,7 +373,7 @@ describe("LRUCache", function() {
         assert.equal(cache.capacity, 10 / 2);
     });
 
-    it("shrinkToCapacity empty", function() {
+    it("shrinkToCapacity empty", function () {
         const cache = new TestLRUCache<number, number>(-10, n => n);
 
         cache.shrinkToCapacity();
@@ -384,7 +382,7 @@ describe("LRUCache", function() {
         assert.isNull(cache.oldest);
     });
 
-    it("shrinkToCapacity", function() {
+    it("shrinkToCapacity", function () {
         const cache = new TestLRUCache<number, SizeObjType>(10, n => n.size);
 
         // check capacity, nothing should change
@@ -418,7 +416,7 @@ describe("LRUCache", function() {
     class EvictedObjType {
         evicted = false;
     }
-    it("evictAll", function() {
+    it("evictAll", function () {
         const cache = new TestLRUCache<number, EvictedObjType>(2, n => 1);
         cache.evictionCallback = (_, o) => (o.evicted = true);
 
@@ -440,7 +438,7 @@ describe("LRUCache", function() {
         assert.isNull(cache.oldest);
     });
 
-    it("evictSelected", function() {
+    it("evictSelected", function () {
         const cache = new TestLRUCache<number, EvictedObjType>(5, n => 1);
         cache.evictionCallback = (_, o) => (o.evicted = true);
 

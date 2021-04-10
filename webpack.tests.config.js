@@ -10,7 +10,7 @@ const webpack = require("webpack");
 const glob = require("glob");
 const path = require("path");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
-const HardSourceWebpackPlugin = require("hard-source-webpack-plugin");
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 
 const testResourceDirs = glob.sync(path.join(__dirname, "@here/*/test/resources"));
 const testResources = testResourceDirs.map(dir => {
@@ -43,7 +43,10 @@ const browserTestsConfig = {
     devtool: "source-map",
     resolve: {
         extensions: [".webpack.js", ".web.ts", ".ts", ".tsx", ".web.js", ".js"],
-        modules: [".", "node_modules"]
+        modules: [__dirname, "node_modules"],
+        fallback: {
+            fs: false
+        }
     },
     module: {
         rules: [
@@ -54,7 +57,8 @@ const browserTestsConfig = {
                 options: {
                     onlyCompileBundledFiles: true,
                     // use the main tsconfig.json for all compilation
-                    configFile: path.resolve(__dirname, "tsconfig.json")
+                    configFile: path.resolve(__dirname, "tsconfig.json"),
+                    transpileOnly: true
                 }
             }
         ]
@@ -69,53 +73,64 @@ const browserTestsConfig = {
         filename: "[name].bundle.js"
     },
     plugins: [
-        new HardSourceWebpackPlugin(),
+        new ForkTsCheckerWebpackPlugin({}),
         new webpack.EnvironmentPlugin({
             // default NODE_ENV to development. Override by setting the environment variable NODE_ENV to 'production'
-            NODE_ENV: process.env.NODE_ENV || "development"
+            NODE_ENV: "development"
         }),
-        new CopyWebpackPlugin([
-            path.join(__dirname, "test/index.html"),
-            path.join(__dirname, "test/rendering.html"),
-            path.join(__dirname, "test/performance.html"),
-            require.resolve("three/build/three.min.js"),
-            require.resolve("mocha/mocha.js"),
-            require.resolve("mocha/mocha.css"),
-            require.resolve("mocha-webdriver-runner/dist/mocha-webdriver-client.js"),
-            ...testResources,
-            path.join(harpMapThemePath, "resources/berlin*.json"),
-            {
-                from: path.join(harpMapThemePath, "resources/wests_textures"),
-                to: "resources/wests_textures",
-                toType: "dir"
-            },
-            {
-                from: path.join(harpDataSourceProtocolPath, "theme.schema.json"),
-                to: "./@here/harp-datasource-protocol",
-                toType: "dir"
-            },
-            {
-                from: path.join(harpFontResourcesPath, "resources"),
-                to: "@here/harp-fontcatalog/resources"
-            },
-            {
-                from: "./test/resources/",
-                to: "dist/resources",
-                toType: "dir"
-            }
-        ])
+        new webpack.DefinePlugin({
+            'process.platform': JSON.stringify(process.platform)
+            }),
+        new CopyWebpackPlugin({
+            patterns: [
+                path.join(__dirname, "test/index.html"),
+                path.join(__dirname, "test/rendering.html"),
+                path.join(__dirname, "test/performance.html"),
+                require.resolve("three/build/three.min.js"),
+                require.resolve("mocha/mocha.js"),
+                require.resolve("mocha/mocha.css"),
+                require.resolve("mocha-webdriver-runner/dist/mocha-webdriver-client.js"),
+                ...testResources,
+                {
+                    // DefaultThemeTest is expecting the themes to be in:
+                    // http://localhost:8080/@here/harp-map-theme/resources/berlin_*.json
+                    // FIXME: CopyWebpackPlugin is not properly handling absolute path on Windows
+                    // from: path.join(harpMapThemePath, "resources/berlin*.json"),
+                    from: "@here/harp-map-theme/resources/berlin_*.json",
+                    toType: "dir"
+                },
+                {
+                    from: path.join(harpMapThemePath, "resources/wests_textures"),
+                    to: "resources/wests_textures",
+                    toType: "dir"
+                },
+                {
+                    from: path.join(harpDataSourceProtocolPath, "theme.schema.json"),
+                    to: "./@here/harp-datasource-protocol",
+                    toType: "dir"
+                },
+                {
+                    from: path.join(harpFontResourcesPath, "resources"),
+                    to: "@here/harp-fontcatalog/resources"
+                },
+                {
+                    from: "./test/resources/",
+                    to: "dist/resources",
+                    toType: "dir"
+                }
+            ]
+        })
     ],
     externals: [
         {
-            fs: "undefined",
             perf_hooks: "undefined",
             three: "THREE",
             typescript: "undefined"
         },
-        function(context, request, callback) {
+        ({ context, request }, cb) => {
             return /three\.module\.js$/.test(request)
-                ? callback(null, "THREE")
-                : callback(undefined, undefined);
+                ? cb(null, "THREE")
+                : cb(undefined, undefined);
         }
     ],
     performance: {
@@ -134,13 +149,19 @@ const browserTestsConfig = {
     stats: {
         all: false,
         timings: true,
-        exclude: "/resources/",
+        exclude: "resources/",
         errors: true,
         entrypoints: true,
         warnings: true
     },
     // @ts-ignore
-    mode: process.env.NODE_ENV || "development"
+    mode: process.env.NODE_ENV || "development",
+    cache: process.env.HARP_NO_HARD_SOURCE_CACHE ? false :{
+        type: "filesystem",
+        buildDependencies: {
+            config: [ __filename ]
+        }
+    }
 };
 
 module.exports = browserTestsConfig;

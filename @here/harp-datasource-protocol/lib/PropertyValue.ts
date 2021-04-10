@@ -1,10 +1,11 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { LoggerManager } from "@here/harp-utils";
+
 import { Env } from "./Env";
 import { Expr, ExprScope, Value } from "./Expr";
 import { Pixels } from "./Pixels";
@@ -16,9 +17,9 @@ const logger = LoggerManager.instance.create("PropertyValue");
 /**
  * Get the value of the specified property in given `env`.
  *
- * @param property Property of a technique.
- * @param env The [[Env]] used to evaluate the property
- * @param cache An optional expression cache.
+ * @param property - Property of a technique.
+ * @param env - The {@link Env} used to evaluate the property
+ * @param cache - An optional expression cache.
  */
 export function getPropertyValue(
     property: Value | undefined,

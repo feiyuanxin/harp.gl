@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -21,7 +21,7 @@ export class RingBuffer<T> {
     /**
      * Sets up the ring buffer.
      *
-     * @param capacity The buffer's capacity.
+     * @param capacity - The buffer's capacity.
      */
     constructor(readonly capacity: number) {
         this.buffer = new Array(capacity);
@@ -39,7 +39,7 @@ export class RingBuffer<T> {
     /**
      * Adds a single element to the ring buffer.
      *
-     * @param data Data element.
+     * @param data - Data element.
      */
     enqOne(data: T): void {
         let next = this.head + 1;
@@ -61,7 +61,7 @@ export class RingBuffer<T> {
     /**
      * Adds one or more elements.
      *
-     * @param data The elements to add.
+     * @param data - The elements to add.
      */
     enq(...data: T[]): void {
         for (const v of data) {
@@ -146,10 +146,10 @@ export namespace RingBuffer {
         /**
          * Creates an iterator for the ring buffer.
          *
-         * @param m_buffer `Ringbuffer` to iterate over.
-         * @param m_index Start index.
+         * @param m_buffer - `Ringbuffer` to iterate over.
+         * @param m_index - Start index.
          */
-        constructor(private m_buffer: RingBuffer<T>, private m_index: number = 0) {}
+        constructor(private readonly m_buffer: RingBuffer<T>, private m_index: number = 0) {}
 
         /**
          * Gets the iterator's current value. This function does not fail even if an overrun occurs.
@@ -174,8 +174,12 @@ export namespace RingBuffer {
 }
 
 /**
- * An interface for a Timer class, that abstracts the basic functions of a Timer. Implemented
- * by SimpleTimer, SampledTimer, and MultiStageTimer.
+ * An interface for a Timer class, that abstracts the basic functions of a Timer.
+ *
+ * @remarks
+ * Implemented by SimpleTimer, SampledTimer, and MultiStageTimer.
+ *
+ * @internal
  */
 export interface Timer {
     readonly name: string;
@@ -208,13 +212,15 @@ export interface Timer {
      * Sets the measurement value for the amount of time that has elapsed from start() to stop().
      * Use this function to override the timer's duration.
      *
-     * @param val The timer's duration.
+     * @param val - The timer's duration.
      */
     setValue(val: number | undefined): void;
 }
 
 /**
  * A simple timer that stores only the latest measurement.
+ *
+ * @internal
  */
 export class SimpleTimer implements Timer {
     /** `true` if timer has been started. */
@@ -236,7 +242,7 @@ export class SimpleTimer implements Timer {
      * Sets the measurement value for the amount of time that has elapsed from start() to stop().
      * Use this function to override the timer's duration.
      *
-     * @param val The timer's duration.
+     * @param val - The timer's duration.
      */
     setValue(val: number | undefined) {
         this.m_currentValue = val;
@@ -274,7 +280,7 @@ export class SimpleTimer implements Timer {
             throw new Error("Timer '" + this.name + "' has not been started");
         } else {
             // this.currentValue is a number now!
-            const t = PerformanceTimer.now() - (this.m_currentValue || 0);
+            const t = PerformanceTimer.now() - (this.m_currentValue ?? 0);
             this.m_currentValue = t;
             this.setValue(t);
             this.running = false;
@@ -294,7 +300,7 @@ export class SimpleTimer implements Timer {
         if (!this.running) {
             throw new Error("Timer '" + this.name + "' has not been started");
         } else {
-            const t = PerformanceTimer.now() - (this.m_currentValue || 0);
+            const t = PerformanceTimer.now() - (this.m_currentValue ?? 0);
             return t;
         }
     }
@@ -302,6 +308,8 @@ export class SimpleTimer implements Timer {
 
 /**
  * Simple statistics about the values in an array.
+ *
+ * @internal
  */
 export interface Stats {
     /**
@@ -362,6 +370,8 @@ export interface Stats {
 
 /**
  * A timer that stores the last `n` samples in a ring buffer.
+ *
+ * @internal
  */
 export class SampledTimer extends SimpleTimer {
     /**
@@ -383,8 +393,8 @@ export class SampledTimer extends SimpleTimer {
     /**
      * Creates a `SampledTimer` instance. Must still be added to statistics if it should be logged!
      *
-     * @param statistics Statistics to use for management.
-     * @param name Name of the timer. Use colons to build a hierarchy.
+     * @param statistics - Statistics to use for management.
+     * @param name - Name of the timer. Use colons to build a hierarchy.
      */
     constructor(public statistics: Statistics, readonly name: string) {
         super(statistics, name);
@@ -404,7 +414,7 @@ export class SampledTimer extends SimpleTimer {
     /**
      * Add a single measurement to the sample.
      *
-     * @param val A measurement to add.
+     * @param val - A measurement to add.
      * @override
      */
     setValue(val: number | undefined) {
@@ -428,11 +438,14 @@ export class SampledTimer extends SimpleTimer {
  * Only exported for testing
  * @ignore
  *
+ * @remarks
  * Compute the [[ArrayStats]] for the passed in array of numbers.
  *
  * @param {number[]} samples Array containing sampled values. Will be modified (!) by sorting the
  *      entries.
  * @returns {(Stats | undefined)}
+ *
+ * @internal
  */
 export function computeArrayStats(samples: number[]): Stats | undefined {
     if (samples.length === 0) {
@@ -504,10 +517,13 @@ export function computeArrayStats(samples: number[]): Stats | undefined {
  * Only exported for testing
  * @ignore
  *
+ * @remarks
  * Compute the averages for the passed in array of numbers.
  *
  * @param {number[]} samples Array containing sampled values.
  * @returns {(Stats | undefined)}
+ *
+ * @internal
  */
 export function computeArrayAverage(samples: number[]): number | undefined {
     if (samples.length === 0) {
@@ -527,11 +543,15 @@ export function computeArrayAverage(samples: number[]): number | undefined {
 
 /**
  * Measures a sequence of connected events, such as multiple processing stages in a function.
+ *
+ * @remarks
  * Each stage is identified with a timer name, that must be a valid timer in the statistics
  * object. Additionally, all timers within a `MultiStageTimer` must be unique.
  *
  * Internally, the `MultiStageTimer` manages a list of timers where at the end of each stage,
  * one timer stops and the next timer starts.
+ *
+ * @internal
  */
 export class MultiStageTimer {
     private currentStage: string | undefined;
@@ -539,11 +559,15 @@ export class MultiStageTimer {
     /**
      * Defines the `MultiStageTimer` with a list of timer names that represent its stages.
      *
-     * @param statistics The statistics object that manages the timers.
-     * @param name Name of this `MultiStageTimer`.
-     * @param stages List of timer names.
+     * @param statistics - The statistics object that manages the timers.
+     * @param name - Name of this `MultiStageTimer`.
+     * @param stages - List of timer names.
      */
-    constructor(private statistics: Statistics, readonly name: string, public stages: string[]) {
+    constructor(
+        private readonly statistics: Statistics,
+        readonly name: string,
+        public stages: string[]
+    ) {
         if (stages.length < 1) {
             throw new Error("MultiStageTimer needs stages");
         }
@@ -581,7 +605,7 @@ export class MultiStageTimer {
     start(): number {
         this.stage = this.stages[0];
 
-        return this.statistics.getTimer(this.stages[0]).value || -1;
+        return this.statistics.getTimer(this.stages[0]).value ?? -1;
     }
 
     /**
@@ -605,7 +629,7 @@ export class MultiStageTimer {
      * stopped, and the next timer is started. If the timer in the next stage is `undefined`,
      * this is equivalent to calling `stop` on the `MultiStageTimer`.
      *
-     * @param stage The next stage to start.
+     * @param stage - The next stage to start.
      */
     set stage(stage: string | undefined) {
         if (this.currentStage === stage) {
@@ -625,19 +649,24 @@ export class MultiStageTimer {
 }
 
 /**
- * Manages a set of timers. The main objective of `Statistics` is to log these timers. You can
+ * Manages a set of timers.
+ *
+ * @remarks
+ * The main objective of `Statistics` is to log these timers. You can
  * disable statistics to minimize their impact on performance.
+ *
+ * @internal
  */
 export class Statistics {
-    private timers: Map<string, Timer>;
+    private readonly timers: Map<string, Timer>;
 
-    private nullTimer: Timer;
+    private readonly nullTimer: Timer;
 
     /**
      * Sets up a group of timers.
      *
-     * @param name The statistics name, for logging purposes.
-     * @param enabled If `false`, the timers do not measure the performance.
+     * @param name - The statistics name, for logging purposes.
+     * @param enabled - If `false`, the timers do not measure the performance.
      */
     constructor(public name?: string, public enabled = false) {
         this.timers = new Map<string, Timer>();
@@ -647,7 +676,7 @@ export class Statistics {
     /**
      * Adds a timer, based on the name specified.
      *
-     * @param name The timer's name; must be unique.
+     * @param name - The timer's name; must be unique.
      */
     createTimer(name: string, keepSamples = true): Timer {
         const timer = keepSamples ? new SampledTimer(this, name) : new SimpleTimer(this, name);
@@ -658,7 +687,7 @@ export class Statistics {
     /**
      * Adds the timer specified.
      *
-     * @param timer The timer's name, which must be unique within this statistics object.
+     * @param timer - The timer's name, which must be unique within this statistics object.
      */
     addTimer(timer: Timer): Timer {
         if (this.timers.get(timer.name) !== undefined) {
@@ -673,7 +702,7 @@ export class Statistics {
     /**
      * Gets a timer by name.
      *
-     * @param name The timer's name.
+     * @param name - The timer's name.
      */
     getTimer(name: string): Timer {
         if (!this.enabled) {
@@ -687,7 +716,7 @@ export class Statistics {
     /**
      * Checks if a timer with the specified name already exists.
      *
-     * @param name The timer's name.
+     * @param name - The timer's name.
      * @returns `true` if a timer with `name` already exists; `false` otherwise.
      */
     hasTimer(name: string): boolean {
@@ -707,8 +736,8 @@ export class Statistics {
     /**
      * Prints all values to the console.
      *
-     * @param header Optional header line.
-     * @param footer Optional footer line.
+     * @param header - Optional header line.
+     * @param footer - Optional footer line.
      */
     log(header?: string, footer?: string) {
         if (header !== undefined || this.name !== undefined) {
@@ -754,6 +783,8 @@ export class Statistics {
 
 /**
  * Class containing all counters, timers and events of the current frame.
+ *
+ * @internal
  */
 export class FrameStats {
     readonly entries: Map<string, number> = new Map();
@@ -762,7 +793,7 @@ export class FrameStats {
     /**
      * Retrieve the value of the performance number.
      *
-     * @param name Name of the performance number.
+     * @param name - Name of the performance number.
      * @returns The value of the performance number or `undefined` if it has not been declared by
      *      `setValue` before.
      */
@@ -773,8 +804,8 @@ export class FrameStats {
     /**
      * Set the value of the performance number.
      *
-     * @param name Name of the performance number.
-     * @param name New value of the performance number.
+     * @param name - Name of the performance number.
+     * @param name - New value of the performance number.
      */
     setValue(name: string, value: number) {
         this.entries.set(name, value);
@@ -784,8 +815,8 @@ export class FrameStats {
      * Add a value to the current value of the performance number. If the performance is not known,
      * it will be initialized with `value`.
      *
-     * @param name Name of the performance number.
-     * @param name Value to be added to the performance number.
+     * @param name - Name of the performance number.
+     * @param name - Value to be added to the performance number.
      */
     addValue(name: string, value: number) {
         const oldValue = this.entries.get(name);
@@ -795,7 +826,7 @@ export class FrameStats {
     /**
      * Add a text message to the frame, like "Font XYZ has been loaded"
      *
-     * @param message The message to add.
+     * @param message - The message to add.
      */
     addMessage(message: string) {
         if (this.messages === undefined) {
@@ -820,8 +851,9 @@ export class FrameStats {
  * @ignore
  * Only exported for testing.
  *
+ * @remarks
  * Instead of passing around an array of objects, we store the frame statistics as an object of
- * arrays. This allows convenient computations from [[RingBuffer]],
+ * arrays. This allows convenient computations from {@link RingBuffer},
  */
 export class FrameStatsArray {
     readonly frameEntries: Map<string, RingBuffer<number>> = new Map();
@@ -904,6 +936,9 @@ interface ChromeMemoryInfo {
     jsHeapSizeLimit: number;
 }
 
+/**
+ * @internal
+ */
 export interface SimpleFrameStatistics {
     configs: Map<string, string>;
     appResults: Map<string, number>;
@@ -915,10 +950,14 @@ export interface SimpleFrameStatistics {
 }
 
 /**
- * Performance measurement central. Maintains the current [[FrameStats]], which holds all individual
- * performance numbers.
+ * Performance measurement central.
  *
- * Implemented as an instance for easy access.
+ * @remarks
+ * Maintains the current. Implemented as an instance for easy access.
+ *
+ * {@link FrameStats}, which holds all individual performance numbers.
+ *
+ * @internal
  */
 export class PerformanceStatistics {
     /**
@@ -931,6 +970,7 @@ export class PerformanceStatistics {
     get isFull(): boolean {
         return this.m_frameEvents.length >= this.maxNumFrames;
     }
+
     /**
      * Global instance to the instance. The current instance can be overridden by creating a new
      * `PerformanceStatistics`.
@@ -981,7 +1021,7 @@ export class PerformanceStatistics {
     readonly configs: Map<string, string> = new Map();
 
     // Current array of frame events.
-    private m_frameEvents: FrameStatsArray;
+    private readonly m_frameEvents: FrameStatsArray;
 
     /**
      * Creates an instance of PerformanceStatistics. Overrides the current `instance`.
@@ -1092,8 +1132,8 @@ export class PerformanceStatistics {
     /**
      * Logs all values to the logger.
      *
-     * @param header Optional header line.
-     * @param footer Optional footer line.
+     * @param header - Optional header line.
+     * @param footer - Optional footer line.
      */
     log(header?: string, footer?: string) {
         logger.log(header !== undefined ? header : "PerformanceStatistics");

@@ -1,19 +1,17 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { LoggerManager } from "@here/harp-utils";
 import { assert } from "chai";
 import * as querystring from "querystring";
+import * as THREE from "three";
 import { UAParser } from "ua-parser-js";
 
-import * as THREE from "three";
-
-import { LoggerManager } from "@here/harp-utils";
-import { DomReporter } from "./DomReporter";
-
 import { canvasToImageData, compareImages, loadImageData } from "./DomImageUtils";
+import { DomReporter } from "./DomReporter";
 import { Reporter, TestImageProps } from "./Interface";
 import { getReferenceImageUrl } from "./ReferenceImageLocator";
 import { RenderingTestResultReporter } from "./RenderingTestResultReporter";
@@ -132,15 +130,16 @@ export class RenderingTestHelper {
         this.preloadedImageCache.set(url, p);
         return p;
     }
-    private static preloadedImageCache = new Map<string, Promise<ImageData>>();
+
+    private static readonly preloadedImageCache = new Map<string, Promise<ImageData>>();
 
     constructor(public mochaTest: Mocha.Context, public baseImageProps: TestImageProps) {}
 
     /**
      * Save actual image only with comparison status OK
      *
-     * @param canvas actual image canvas
-     * @param name test name
+     * @param canvas - actual image canvas
+     * @param name - test name
      */
     async saveCanvasMatchesReference(canvas: HTMLCanvasElement, name: string) {
         const actualImage = await canvasToImageData(canvas);
@@ -166,9 +165,9 @@ export class RenderingTestHelper {
     /**
      * Compare actual image vs reference image then report comparison result to feedbackServer
      *
-     * @param canvas actual image canvas
-     * @param name test name
-     * @param options test options
+     * @param canvas - actual image canvas
+     * @param name - test name
+     * @param options - test options
      */
     async assertCanvasMatchesReference(
         canvas: HTMLCanvasElement,
@@ -222,7 +221,8 @@ interface WebGlInfo {
 }
 
 export function getWebGlInfo() {
-    const renderer = new THREE.WebGLRenderer();
+    //Enable backward compatibility with three.js <= 0.117
+    const renderer = new ((THREE as any).WebGL1Renderer ?? THREE.WebGLRenderer)();
     const context = renderer.getContext();
     const result: WebGlInfo = {};
     const availableExtensions = context.getSupportedExtensions();
@@ -240,4 +240,8 @@ export function getWebGlInfo() {
     return result;
 }
 
-logger.log("WebGlInfo", getWebGlInfo());
+try {
+    logger.log("WebGlInfo", getWebGlInfo());
+} catch {
+    logger.warn("WebGL is not supported on this machine");
+}

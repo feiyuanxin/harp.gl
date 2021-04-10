@@ -1,14 +1,41 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Projection, TileKey } from "@here/harp-geoutils";
 
 import { DecodedTile } from "./DecodedTile";
-import { Definitions, StyleSet } from "./Theme";
+import { Definitions, StylePriority, StyleSet } from "./Theme";
 import { TileInfo } from "./TileInfo";
 import { OptionsMap, RequestController } from "./WorkerDecoderProtocol";
+
+export interface DecoderOptions {
+    /**
+     * The StyleSet to be applied during decoding.
+     */
+    styleSet?: StyleSet;
+
+    /**
+     * The Definitions to be applied during decoding.
+     */
+    definitions?: Definitions;
+
+    /**
+     * The Priorities to be applied during decoding.
+     */
+    priorities?: StylePriority[];
+
+    /**
+     * The Label Priorities to be applied during decoding.
+     */
+    labelPriorities?: string[];
+
+    /**
+     * A prioritized list of language codes to be applied.
+     */
+    languages?: string[];
+}
 
 /**
  * General type decoder which can be used to provide decoded tile data.
@@ -35,7 +62,7 @@ export interface ITileDecoder {
         tileKey: TileKey,
         projection: Projection,
         requestController?: RequestController
-    ): Promise<DecodedTile>;
+    ): Promise<DecodedTile | undefined>;
 
     /**
      * Get tile info.
@@ -57,17 +84,10 @@ export interface ITileDecoder {
      *
      * Non-existing (`undefined`) options (including styleSet) are not changed.
      *
-     * @param styleSet optional, new style set.
-     * @param definitions optional, definitions used to resolve references in `styleSet`
-     * @param languages optional, language list
-     * @param options optional, new options - shape is specific for each decoder
+     * @param options - configuration options
+     * @param customOptions - optional, new options - shape is specific for each decoder
      */
-    configure(
-        styleSet?: StyleSet,
-        definitions?: Definitions,
-        languages?: string[],
-        options?: OptionsMap
-    ): void;
+    configure(options?: DecoderOptions, customOptions?: OptionsMap): void;
 
     /**
      * Free all resources associated with this decoder.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,62 +20,57 @@ export class ColorUtils {
     /**
      * Retreive red component of 32-bit color value.
      *
-     * @param value color value encoded in 32-bit number.
+     * @param value - color value encoded in 32-bit number.
      * @returns color red component value in between 0 to 255.
      */
     static red(value: number): number {
-        // tslint:disable-next-line: no-bitwise
         return value >> 24 >= 0 ? value >> 24 : 256 + (value >> 24);
     }
 
     /**
      * Retreive green component from 32-bit RGBA color value.
      *
-     * @param value color value encoded in 32-bit number.
+     * @param value - color value encoded in 32-bit number.
      * @returns color green component value in between 0 to 255.
      */
     static green(value: number): number {
-        // tslint:disable-next-line: no-bitwise
         return (value >> 16) & 255;
     }
 
     /**
      * Retreive blue component from 32-bit RGBA color value.
      *
-     * @param value color value encoded in 32-bit number.
+     * @param value - color value encoded in 32-bit number.
      * @returns color blue component value in between 0 to 255.
      */
     static blue(value: number): number {
-        // tslint:disable-next-line: no-bitwise
         return (value >> 8) & 255;
     }
 
     /**
      * Retreive alpha (opacity) component from 32-bit RGBA color value.
      *
-     * @param value color value encoded in 32-bit number.
+     * @param value - color value encoded in 32-bit number.
      * @returns color alpha component value in between 0 to 255.
      */
     static alpha(value: number): number {
-        // tslint:disable-next-line: no-bitwise
         return value & 255;
     }
 
     /**
      * Convert RGBA color object into integer value.
      *
-     * @param c color stored as RGBA object.
+     * @param c - color stored as RGBA object.
      * @returns 32-bit coded integer color value.
      */
     static rgbaToInt(c: RGBA): number {
-        // tslint:disable-next-line: no-bitwise
         return ((c.a & 255) << 24) + (((c.b & 255) << 16) + ((c.g & 255) << 8) + (c.r & 255));
     }
 
     /**
      * Convert integer coded RGBA color into RGBA interface object.
      *
-     * @param value 32-bit coded integer color value.
+     * @param value - 32-bit coded integer color value.
      * @returns color stored in RGBA object instance.
      */
     static intToRgba(value: number): RGBA {
@@ -135,7 +130,6 @@ export class ColorUtils {
         const factor = ColorUtils.alpha(fg) / 255;
         const color: RGBA = {
             r: Math.min(Math.floor(ColorUtils.red(bg) * (1 - factor) + ColorUtils.red(fg)), 255),
-            // tslint:disable-next-line: max-line-length
             g: Math.min(
                 Math.floor(ColorUtils.green(bg) * (1 - factor) + ColorUtils.green(fg)),
                 255

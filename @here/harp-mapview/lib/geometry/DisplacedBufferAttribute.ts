@@ -7,6 +7,7 @@
 import { Vector3Like } from "@here/harp-geoutils";
 import { sampleBilinear } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { VertexCache } from "./VertexCache";
 
 /**
@@ -15,21 +16,22 @@ import { VertexCache } from "./VertexCache";
  * specified displacement map.
  */
 export class DisplacedBufferAttribute extends THREE.BufferAttribute {
-    private static MAX_CACHE_SIZE = 6;
+    private static readonly MAX_CACHE_SIZE = 6;
     private m_texture?: Float32Array;
     private m_textureWidth: number = 0;
     private m_textureHeight: number = 0;
-    private m_cache = new VertexCache(DisplacedBufferAttribute.MAX_CACHE_SIZE);
+    private readonly m_cache = new VertexCache(DisplacedBufferAttribute.MAX_CACHE_SIZE);
     private m_lastBufferIndex?: number;
-    private m_lastPos = new THREE.Vector3();
-    private m_tmpNormal = new THREE.Vector3();
+    private readonly m_lastPos = new THREE.Vector3();
+    private readonly m_tmpNormal = new THREE.Vector3();
 
     /**
      * Creates an instance of displaced buffer attribute.
-     * @param originalAttribute The buffer attribute to be displaced (e.g. the position attribute).
-     * @param m_normals The normals along which the coordinates will be displaced.
-     * @param m_uvs The uv coordinates to be used to sample the displacement map.
-     * @param displacementMap A texture with the displacement values in 32bit floats.
+     * @param originalAttribute - The buffer attribute to be displaced
+     *                            (e.g. the position attribute).
+     * @param m_normals - The normals along which the coordinates will be displaced.
+     * @param m_uvs - The uv coordinates to be used to sample the displacement map.
+     * @param displacementMap - A texture with the displacement values in 32bit floats.
      */
     constructor(
         public originalAttribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
@@ -43,10 +45,11 @@ export class DisplacedBufferAttribute extends THREE.BufferAttribute {
 
     /**
      * Resets the displaced buffer attribute to use new buffer attributes or displacement map.
-     * @param originalAttribute The buffer attribute to be displaced (e.g. the position attribute).
-     * @param normals The normals along which the coordinates will be displaced.
-     * @param uvs  The uv coordinates to be used to sample the displacement map.
-     * @param displacementMap A texture with the displacement values in 32bit floats.
+     * @param originalAttribute - The buffer attribute to be displaced
+     *                            (e.g. the position attribute).
+     * @param normals - The normals along which the coordinates will be displaced.
+     * @param uvs -  The uv coordinates to be used to sample the displacement map.
+     * @param displacementMap - A texture with the displacement values in 32bit floats.
      */
     reset(
         originalAttribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
@@ -71,9 +74,11 @@ export class DisplacedBufferAttribute extends THREE.BufferAttribute {
     getX(index: number): number {
         return this.getDisplacedCoordinate(index).x;
     }
+
     getY(index: number): number {
         return this.getDisplacedCoordinate(index).y;
     }
+
     getZ(index: number): number {
         return this.getDisplacedCoordinate(index).z;
     }
@@ -83,6 +88,7 @@ export class DisplacedBufferAttribute extends THREE.BufferAttribute {
         this.m_textureWidth = displacementMap.image.width;
         this.m_textureHeight = displacementMap.image.height;
     }
+
     private getDisplacedCoordinate(bufferIndex: number): Vector3Like {
         if (bufferIndex === this.m_lastBufferIndex) {
             return this.m_lastPos;
@@ -95,6 +101,7 @@ export class DisplacedBufferAttribute extends THREE.BufferAttribute {
         this.m_cache.set(bufferIndex, this.m_lastPos);
         return this.m_lastPos;
     }
+
     private displacePosition(bufferIndex: number) {
         this.m_lastPos.fromBufferAttribute(
             this.originalAttribute as THREE.BufferAttribute,

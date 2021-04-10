@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -62,6 +62,7 @@ export class TextGeometry {
     get backgroundMesh(): THREE.Mesh {
         return this.m_bgMesh;
     }
+
     /**
      * Maximum glyph capacity.
      */
@@ -82,16 +83,15 @@ export class TextGeometry {
     private m_mesh: THREE.Mesh;
     private m_bgMesh: THREE.Mesh;
 
-    private m_pickingCount: number;
-    private m_pickingDataArray: PickingData[];
+    private m_pickingDataArray: PickingData[] = [];
 
     /**
      * Creates a new `TextGeometry`.
      *
-     * @param material Material used to render foreground glyphs.
-     * @param backgroundMaterial Material used to render background glyphs.
-     * @param initialSize Initial amount of glyphs that can be stored.
-     * @param capacity Maximum glyph capacity.
+     * @param material - Material used to render foreground glyphs.
+     * @param backgroundMaterial - Material used to render background glyphs.
+     * @param initialSize - Initial amount of glyphs that can be stored.
+     * @param capacity - Maximum glyph capacity.
      *
      * @returns New `TextGeometry`.
      */
@@ -106,7 +106,6 @@ export class TextGeometry {
         this.m_currentCapacity = Math.min(initialSize, capacity);
         this.m_drawCount = 0;
         this.m_updateOffset = 0;
-        this.m_pickingCount = 0;
 
         this.m_vertexBuffer = new THREE.InterleavedBuffer(
             new Float32Array(this.m_currentCapacity * QUAD_VERTEX_MEMORY_FOOTPRINT),
@@ -131,8 +130,6 @@ export class TextGeometry {
         this.m_geometry.setAttribute("bgColor", this.m_bgColorAttribute);
         this.m_geometry.setIndex(this.m_indexBuffer);
 
-        this.m_pickingDataArray = new Array(this.m_currentCapacity);
-
         this.m_mesh = new THREE.Mesh(this.m_geometry, material);
         this.m_bgMesh = new THREE.Mesh(this.m_geometry, backgroundMaterial);
         this.m_mesh.renderOrder = Number.MAX_SAFE_INTEGER;
@@ -156,7 +153,7 @@ export class TextGeometry {
     clear() {
         this.m_drawCount = 0;
         this.m_updateOffset = 0;
-        this.m_pickingCount = 0;
+        this.m_pickingDataArray.length = 0;
     }
 
     /**
@@ -182,12 +179,12 @@ export class TextGeometry {
     /**
      * Add a new glyph to the `TextGeometry`.
      *
-     * @param glyphData [[GlyphData]] holding the glyph description.
-     * @param corners Transformed glyph corners.
-     * @param weight Foreground glyph sampling weight.
-     * @param bgWeight Foreground glyph sampling weight.
-     * @param mirrored If `true`, UVs will be horizontally mirrored (needed for RTL punctuation).
-     * @param style Currently set [[TextRenderStyle]].
+     * @param glyphData - [[GlyphData]] holding the glyph description.
+     * @param corners - Transformed glyph corners.
+     * @param weight - Foreground glyph sampling weight.
+     * @param bgWeight - Foreground glyph sampling weight.
+     * @param mirrored - If `true`, UVs will be horizontally mirrored (needed for RTL punctuation).
+     * @param style - Currently set [[TextRenderStyle]].
      *
      * @returns Result of the addition.
      */
@@ -255,14 +252,14 @@ export class TextGeometry {
     /**
      * Add a new glyph to a text buffer.
      *
-     * @param buffer Target buffer where glyph attributes will be stored.
-     * @param offset Offset of the target buffer.
-     * @param glyphData [[GlyphData]] holding the glyph description.
-     * @param corners Transformed glyph corners.
-     * @param weight Foreground glyph sampling weight.
-     * @param bgWeight Foreground glyph sampling weight.
-     * @param mirrored If `true`, UVs will be mirrored (needed for RTL punctuation).
-     * @param style Currently set [[TextRenderStyle]].
+     * @param buffer - Target buffer where glyph attributes will be stored.
+     * @param offset - Offset of the target buffer.
+     * @param glyphData - [[GlyphData]] holding the glyph description.
+     * @param corners - Transformed glyph corners.
+     * @param weight - Foreground glyph sampling weight.
+     * @param bgWeight - Foreground glyph sampling weight.
+     * @param mirrored - If `true`, UVs will be mirrored (needed for RTL punctuation).
+     * @param style - Currently set [[TextRenderStyle]].
      */
     addToBuffer(
         buffer: Float32Array,
@@ -303,14 +300,14 @@ export class TextGeometry {
      * Add a previously computed [[TextBufferObject]] to the `TextGeometry`. Extra parameters can
      * be passed to override the passed attribute data.
      *
-     * @param textBufferObject [[TextBufferObject]] containing computed glyphs.
-     * @param position Override position value.
-     * @param scale Override scale value.
-     * @param rotation Override rotation value.
-     * @param color Override color value.
-     * @param opacity Override opacity value.
-     * @param bgColor Override background color value.
-     * @param bgOpacity Override background opacity value.
+     * @param textBufferObject - [[TextBufferObject]] containing computed glyphs.
+     * @param position - Override position value.
+     * @param scale - Override scale value.
+     * @param rotation - Override rotation value.
+     * @param color - Override color value.
+     * @param opacity - Override opacity value.
+     * @param bgColor - Override background color value.
+     * @param bgOpacity - Override background opacity value.
      *
      * @returns Result of the addition.
      */
@@ -331,13 +328,14 @@ export class TextGeometry {
             this.resizeBuffers(newSize);
         }
 
-        const s = scale || 1.0;
-        const r = rotation || 0.0;
+        const s = scale ?? 1.0;
+        const r = rotation ?? 0.0;
         const cosR = Math.cos(r);
         const sinR = Math.sin(r);
         const offsetX = position !== undefined ? position.x : 0.0;
         const offsetY = position !== undefined ? position.y : 0.0;
-        const offsetZ = position !== undefined ? position.z : 0.0;
+        // Ignore z for rendering
+        const offsetZ = 0.0;
 
         const buffer = textBufferObject.buffer;
 
@@ -433,22 +431,21 @@ export class TextGeometry {
     /**
      * Adds picking data for glyphs from the specified start until the last glyph added.
      *
-     * @param startIdx First glyph index that this picking data is associated to.
-     * @param endIdx Last glyph index that this picking data is associated to.
-     * @param pickingData Picking data to be added.
+     * @param startIdx - First glyph index that this picking data is associated to.
+     * @param endIdx - Last glyph index that this picking data is associated to.
+     * @param pickingData - Picking data to be added.
      */
     addPickingData(startIdx: number, endIdx: number, pickingData: any): boolean {
-        if (this.m_pickingCount >= this.m_currentCapacity) {
+        if (this.m_pickingDataArray.length >= this.m_currentCapacity) {
             return false;
         }
 
-        this.m_pickingDataArray[this.m_pickingCount] = {
+        this.m_pickingDataArray.push({
             start: Math.min(startIdx, this.capacity),
             end: Math.min(endIdx, this.capacity),
             data: pickingData
-        };
+        });
 
-        ++this.m_pickingCount;
         return true;
     }
 
@@ -456,8 +453,8 @@ export class TextGeometry {
      * Fill the picking results for the pixel with the given screen coordinate. If multiple glyphs
      * are found, the order of the results is unspecified.
      *
-     * @param screenPosition Screen coordinate of picking position.
-     * @param pickCallback Callback to be called for every picked element.
+     * @param screenPosition - Screen coordinate of picking position.
+     * @param pickCallback - Callback to be called for every picked element.
      */
     pick(screenPosition: THREE.Vector2, pickCallback: (pickData: any | undefined) => void) {
         for (const pickingData of this.m_pickingDataArray) {
@@ -509,7 +506,7 @@ export class TextGeometry {
     /**
      * Update the info with the memory footprint caused by objects owned by the `TextGeometry`.
      *
-     * @param info The info object to increment with the values from this `TextGeometry`.
+     * @param info - The info object to increment with the values from this `TextGeometry`.
      */
     updateMemoryUsage(info: MemoryUsage) {
         const numBytes =

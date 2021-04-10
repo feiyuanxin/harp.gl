@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -12,13 +12,14 @@ import {
 } from "@here/harp-datasource-protocol";
 import { GeoBox, GeoCoordinates } from "@here/harp-geoutils";
 import { MapView } from "@here/harp-mapview";
+import { LoggerManager } from "@here/harp-utils";
 import {
     GeoJsonDataProvider,
     GeoJsonDataProviderOptions,
-    OmvDataSource,
-    OmvDataSourceParameters
-} from "@here/harp-omv-datasource";
-import { LoggerManager } from "@here/harp-utils";
+    VectorTileDataSource,
+    VectorTileDataSourceParameters
+} from "@here/harp-vectortile-datasource";
+
 import { MapViewFeature } from "./Features";
 
 const logger = LoggerManager.instance.create("FeaturesDataSource");
@@ -33,7 +34,7 @@ const DEFAULT_GEOJSON: FeatureCollection = {
  * Options for [[FeaturesDataSource]].
  */
 export interface FeatureDataSourceOptions
-    extends OmvDataSourceParameters,
+    extends VectorTileDataSourceParameters,
         GeoJsonDataProviderOptions {
     /**
      * Initial set of features for new instance of [[FeaturesDataSource]].
@@ -53,14 +54,14 @@ export interface FeatureDataSourceOptions
 /**
  * [[DataSource]] implementation to use for the addition of custom features.
  */
-export class FeaturesDataSource extends OmvDataSource {
+export class FeaturesDataSource extends VectorTileDataSource {
     private m_isAttached = false;
     private m_featureCollection: FeatureCollection = this.emptyGeojson();
 
     /**
      * Builds a `FeaturesDataSource`.
      *
-     * @param options specify custom options using [[FeatureDataSourceOptions]] interface.
+     * @param options - specify custom options using [[FeatureDataSourceOptions]] interface.
      */
     constructor(options?: FeatureDataSourceOptions) {
         super({
@@ -83,7 +84,7 @@ export class FeaturesDataSource extends OmvDataSource {
      * the data source, one should loop through it to create [[MapViewFeature]] and add them with
      * the `add` method.
      *
-     * @param geojson A javascript object matching the GeoJSON specification.
+     * @param geojson - A javascript object matching the GeoJSON specification.
      */
     setFromGeojson(geojson: FeatureCollection | GeometryCollection | Feature) {
         if (geojson.type === "FeatureCollection") {
@@ -109,7 +110,7 @@ export class FeaturesDataSource extends OmvDataSource {
     /**
      * Adds a custom feature in the datasource.
      *
-     * @param features The features to add in the datasource.
+     * @param features - The features to add in the datasource.
      */
     add(...features: MapViewFeature[]): this {
         for (const feature of features) {
@@ -122,7 +123,7 @@ export class FeaturesDataSource extends OmvDataSource {
     /**
      * Removes a custom feature in the datasource.
      *
-     * @param features The features to add in the datasource.
+     * @param features - The features to add in the datasource.
      */
     remove(...features: MapViewFeature[]): this {
         for (const feature of features) {
@@ -147,9 +148,10 @@ export class FeaturesDataSource extends OmvDataSource {
             await this.update();
         }
     }
+
     /**
      * Override [[DataSource.attach]] to know if we're really connected to [[MapView]].
-     * @param mapView
+     * @param mapView -
      * @override
      */
     attach(mapView: MapView): void {
@@ -159,7 +161,7 @@ export class FeaturesDataSource extends OmvDataSource {
 
     /**
      * Override [[DataSource.detach]] to know if we're really connected to [[MapView]].
-     * @param mapView
+     * @param mapView -
      * @override
      */
     detach(mapView: MapView): void {
@@ -175,7 +177,7 @@ export class FeaturesDataSource extends OmvDataSource {
     getGeoBox(): GeoBox | undefined {
         let result: GeoBox | undefined;
         const addPoint = (geoJsonCoords: number[]) => {
-            // NOTE: GeoJson coordinates are in [longitute, latitute] order!
+            // NOTE: GeoJson coordinates are in [longitude, latitude] order!
             const coords = new GeoCoordinates(geoJsonCoords[1], geoJsonCoords[0]);
             if (result === undefined) {
                 result = new GeoBox(coords, coords.clone());

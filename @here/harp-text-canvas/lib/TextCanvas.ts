@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import * as THREE from "three";
 
 import { FontCatalog } from "./rendering/FontCatalog";
@@ -196,6 +195,11 @@ export interface TextCanvasParameters {
      * Material used to render text background.
      */
     backgroundMaterial?: THREE.Material;
+
+    /**
+     * Optional Canvas Name
+     */
+    name?: string;
 }
 
 /**
@@ -211,8 +215,8 @@ export interface MemoryUsage {
  * and properly layout SDF and MSDF text.
  */
 export class TextCanvas {
-    private static defaultTextRenderStyle: TextRenderStyle = new TextRenderStyle();
-    private static defaultTextLayoutStyle: TextLayoutStyle = new TextLayoutStyle();
+    private static readonly defaultTextRenderStyle: TextRenderStyle = new TextRenderStyle();
+    private static readonly defaultTextLayoutStyle: TextLayoutStyle = new TextLayoutStyle();
     /**
      * Minimum amount of glyphs each [[TextCanvas]] layer can store.
      */
@@ -223,27 +227,29 @@ export class TextCanvas {
      */
     readonly maxGlyphCount: number;
 
-    private m_renderer: THREE.WebGLRenderer;
+    readonly name?: string;
+
+    private readonly m_renderer: THREE.WebGLRenderer;
     private m_fontCatalog: FontCatalog;
 
-    private m_currentTextRenderStyle: TextRenderStyle;
-    private m_currentTextLayoutStyle: TextLayoutStyle;
+    private readonly m_currentTextRenderStyle: TextRenderStyle;
+    private readonly m_currentTextLayoutStyle: TextLayoutStyle;
 
     private m_material: SdfTextMaterial | THREE.Material;
     private m_bgMaterial: SdfTextMaterial | THREE.Material;
     private m_ownsMaterial: boolean;
     private m_ownsBgMaterial: boolean;
 
-    private m_defaultLayer: TextCanvasLayer;
-    private m_layers: TextCanvasLayer[];
+    private readonly m_defaultLayer: TextCanvasLayer;
+    private readonly m_layers: TextCanvasLayer[];
 
-    private m_lineTypesetter: LineTypesetter;
-    private m_pathTypesetter: PathTypesetter;
+    private readonly m_lineTypesetter: LineTypesetter;
+    private readonly m_pathTypesetter: PathTypesetter;
 
     /**
      * Constructs a new `TextCanvas`.
      *
-     * @param params `TextCanvas` construction parameters.
+     * @param params - `TextCanvas` construction parameters.
      *
      * @returns New `TextCanvas`.
      */
@@ -252,10 +258,14 @@ export class TextCanvas {
         this.m_fontCatalog = params.fontCatalog;
         this.minGlyphCount = params.minGlyphCount;
         this.maxGlyphCount = params.maxGlyphCount;
+        this.name = params.name;
 
         if (params.material === undefined) {
             this.m_ownsMaterial = true;
-            this.m_material = createSdfTextMaterial({ fontCatalog: params.fontCatalog });
+            this.m_material = createSdfTextMaterial({
+                fontCatalog: params.fontCatalog,
+                rendererCapabilities: this.m_renderer.capabilities
+            });
         } else {
             this.m_ownsMaterial = false;
             this.m_material = params.material;
@@ -264,7 +274,8 @@ export class TextCanvas {
             this.m_ownsBgMaterial = true;
             this.m_bgMaterial = createSdfTextMaterial({
                 fontCatalog: params.fontCatalog,
-                isBackground: true
+                isBackground: true,
+                rendererCapabilities: this.m_renderer.capabilities
             });
         } else {
             this.m_ownsBgMaterial = false;
@@ -300,6 +311,7 @@ export class TextCanvas {
     get fontCatalog(): FontCatalog {
         return this.m_fontCatalog;
     }
+
     set fontCatalog(value: FontCatalog) {
         this.m_fontCatalog = value;
 
@@ -330,6 +342,7 @@ export class TextCanvas {
     get material(): THREE.Material {
         return this.m_material;
     }
+
     set material(value: THREE.Material) {
         if (this.m_ownsMaterial) {
             this.m_material.dispose();
@@ -348,6 +361,7 @@ export class TextCanvas {
     get backgroundMaterial(): THREE.Material {
         return this.m_bgMaterial;
     }
+
     set backgroundMaterial(value: THREE.Material) {
         if (this.m_ownsBgMaterial) {
             this.m_bgMaterial.dispose();
@@ -366,6 +380,7 @@ export class TextCanvas {
     get textRenderStyle(): TextRenderStyle {
         return this.m_currentTextRenderStyle;
     }
+
     set textRenderStyle(style: TextRenderStyle) {
         this.m_currentTextRenderStyle.copy(style);
     }
@@ -376,6 +391,7 @@ export class TextCanvas {
     get textLayoutStyle(): TextLayoutStyle {
         return this.m_currentTextLayoutStyle;
     }
+
     set textLayoutStyle(style: TextLayoutStyle) {
         this.m_currentTextLayoutStyle.copy(style);
     }
@@ -394,11 +410,19 @@ export class TextCanvas {
     /**
      * Renders the content of this `TextCanvas`.
      *
-     * @param camera Orthographic camera.
-     * @param target Optional render target.
-     * @param clear Optional render target clear operation.
+     * @param camera - Orthographic camera.
+     * @param lowerLayerId - Optional Id the first layer to be rendered has to be equal or above
+     * @param higherLayerId - Optional Id the last layer to be rendered has to be below
+     * @param target - Optional render target.
+     * @param clear - Optional render target clear operation.
      */
-    render(camera: THREE.OrthographicCamera, target?: THREE.WebGLRenderTarget, clear?: boolean) {
+    render(
+        camera: THREE.OrthographicCamera,
+        lowerLayerId?: number,
+        higherLayerId?: number,
+        target?: THREE.WebGLRenderTarget,
+        clear?: boolean
+    ) {
         this.m_fontCatalog.update(this.m_renderer);
         let oldTarget: THREE.RenderTarget | null = null;
         if (target !== undefined) {
@@ -408,10 +432,16 @@ export class TextCanvas {
         if (clear === true) {
             this.m_renderer.clear(true);
         }
-        for (const layer of this.m_layers) {
-            layer.storage.update();
-            this.m_renderer.clear(false, true);
-            this.m_renderer.render(layer.storage.scene, camera);
+        for (let i = 0; i < this.m_layers.length; i++) {
+            const layer = this.m_layers[i];
+            if (layer.id >= (lowerLayerId ?? 0)) {
+                if (higherLayerId === undefined || layer.id < higherLayerId) {
+                    layer.storage.update();
+                    this.m_renderer.render(layer.storage.scene, camera);
+                } else {
+                    break;
+                }
+            }
         }
         if (target !== undefined) {
             this.m_renderer.setRenderTarget(oldTarget);
@@ -422,7 +452,7 @@ export class TextCanvas {
      * Creates a new `TextCanvas` rendering layer and returns. If there was already a layer for the
      * input `layerId`, it just returns this one instead.
      *
-     * @param layerId Desired layer identifier.
+     * @param layerId - Desired layer identifier.
      *
      * @returns Created [[TextCanvasLayer]].
      */
@@ -451,7 +481,7 @@ export class TextCanvas {
     /**
      * Retrieves a specific `TextCanvas` rendering layer.
      *
-     * @param layerId Desired layer identifier.
+     * @param layerId - Desired layer identifier.
      *
      * @returns Selected [[TextCanvasLayer]].
      */
@@ -472,9 +502,9 @@ export class TextCanvas {
      * Returns the computed bounding box for the input text. The current [[TextRenderStyle]] and
      * [[TextLayoutStyle]] will influence the results of this function.
      *
-     * @param text Input text. Provide an array of [[GlyphData]] for better performance.
-     * @param outputBounds Output text bounding box.
-     * @param params Optional measurement parameters.
+     * @param text - Input text. Provide an array of [[GlyphData]] for better performance.
+     * @param outputBounds - Output text bounding box.
+     * @param params - Optional measurement parameters.
      *
      * @returns Result of the measurement. If `false`, some error occurred during execution and the
      * input text couldn't be properly measured.
@@ -521,9 +551,9 @@ export class TextCanvas {
      * Adds the input text to this `TextCanvas` in the specified screen position. The current
      * [[TextRenderStyle]] and [[TextLayoutStyle]] will influence the results of this function.
      *
-     * @param text Input text. Provide an array of [[GlyphData]] for better performance.
-     * @param position Screen position.
-     * @param params Optional addition parameters.
+     * @param text - Input text. Provide an array of [[GlyphData]] for better performance.
+     * @param position - Screen position.
+     * @param params - Optional addition parameters.
      *
      * @returns Result of the addition. If `false`, some error occurred during execution and the
      * input text couldn't be properly added.
@@ -586,8 +616,8 @@ export class TextCanvas {
      * Creates a new [[TextBufferObject]]. The computed text vertex buffer is equivalent to the
      * result of performing the `addText` function for the input text in the screen origin.
      *
-     * @param text Input text. Provide an array of [[GlyphData]] for better performance.
-     * @param params Optional creation parameters.
+     * @param text - Input text. Provide an array of [[GlyphData]] for better performance.
+     * @param params - Optional creation parameters.
      *
      * @returns New [[TextBufferObject]] (or `undefined` if requested text glyphs couldn't be
      * retrieved from the current [[FontCatalog]]).
@@ -665,8 +695,8 @@ export class TextCanvas {
      * Adds a previously created [[TextBufferObject]] to the `TextCanvas`. Additional parameters can
      * be provided to override the attributes stored in the buffer.
      *
-     * @param textBufferObject [[TextBufferObject]] to add.
-     * @param params Optional addition parameters.
+     * @param textBufferObject - [[TextBufferObject]] to add.
+     * @param params - Optional addition parameters.
      *
      * @returns Result of the addition. If `false`, some error occurred during execution and the
      * input text couldn't be properly added.
@@ -730,8 +760,8 @@ export class TextCanvas {
      * Executes the `pickCallback` for all previously stored picking data for text covering the
      * specified screen position.
      *
-     * @param screenPosition Screen coordinate of picking position.
-     * @param pickCallback Callback to be called for every picked element.
+     * @param screenPosition - Screen coordinate of picking position.
+     * @param pickCallback - Callback to be called for every picked element.
      */
     pickText(position: THREE.Vector2, callback: (pickData: any | undefined) => void): void {
         for (const layer of this.m_layers) {
@@ -742,7 +772,7 @@ export class TextCanvas {
     /**
      * Update the info with the memory footprint caused by objects owned by the `TextCanvas`.
      *
-     * @param info The info object to increment with the values from this `TextCanvas`.
+     * @param info - The info object to increment with the values from this `TextCanvas`.
      */
     getMemoryUsage(info: MemoryUsage) {
         this.m_fontCatalog.updateMemoryUsage(info);

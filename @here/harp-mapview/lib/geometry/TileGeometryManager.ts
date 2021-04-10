@@ -1,28 +1,33 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { GeometryKind, GeometryKindSet } from "@here/harp-datasource-protocol";
+
 import { MapObjectAdapter } from "../MapObjectAdapter";
 import { MapView } from "../MapView";
 import { Tile } from "../Tile";
-import { TileGeometryLoader } from "./TileGeometryLoader";
 
 type TileUpdateCallback = (tile: Tile) => void;
 
 /**
  * Manages the content (the geometries) of a tile.
+ * @internal
  */
 export class TileGeometryManager {
     /**
      * The set of geometry kinds that is enabled. Their geometry will be created after decoding.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     get enabledGeometryKinds(): GeometryKindSet {
         return this.enabledKinds;
     }
 
+    /**
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
+     */
     set enabledGeometryKinds(kinds: GeometryKindSet) {
         this.enabledKinds = kinds;
     }
@@ -30,11 +35,15 @@ export class TileGeometryManager {
     /**
      * The set of geometry kinds that is disabled. Their geometry will not be created after
      * decoding.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     get disabledGeometryKinds(): GeometryKindSet {
         return this.disabledKinds;
     }
 
+    /**
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
+     */
     set disabledGeometryKinds(kinds: GeometryKindSet) {
         this.disabledKinds = kinds;
     }
@@ -42,11 +51,15 @@ export class TileGeometryManager {
     /**
      * The set of geometry kinds that is hidden. Their geometry may be created, but it is hidden
      * until the method `hideKind` with an argument of `addOrRemoveToHiddenSet:false` is called.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     get hiddenGeometryKinds(): GeometryKindSet {
         return this.hiddenKinds;
     }
 
+    /**
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
+     */
     set hiddenGeometryKinds(kinds: GeometryKindSet) {
         this.hiddenKinds = kinds;
         this.incrementVisibilityCounter();
@@ -55,6 +68,7 @@ export class TileGeometryManager {
     /**
      * If set to `true`, the filters of enabled/disabledGeometryKinds are applied, otherwise they
      * are ignored.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     enableFilterByKind: boolean = true;
 
@@ -75,33 +89,26 @@ export class TileGeometryManager {
     private m_visibilityCounter: number = 1;
 
     /**
-     * Creates an instance of `TileGeometryManager` with a reference to the [[MapView]].
+     * Creates an instance of `TileGeometryManager` with a reference to the {@link MapView}.
      */
     constructor(protected mapView: MapView) {}
 
     /**
-     * Initialize the [[Tile]] with the TileGeometryManager.
-     */
-    initTile(tile: Tile): void {
-        if (tile.dataSource.useGeometryLoader) {
-            tile.tileGeometryLoader = new TileGeometryLoader(tile);
-        }
-    }
-
-    /**
-     * Process the [[Tile]]s for rendering. May alter the content of the tile per frame.
+     * Process the {@link Tile}s for rendering. May alter the content of the tile per frame.
      */
     updateTiles(tiles: Tile[]): void {
+        let prio = 0;
         for (const tile of tiles) {
-            const geometryLoader = tile.tileGeometryLoader;
-            if (geometryLoader !== undefined) {
-                geometryLoader.update(
-                    this.enableFilterByKind ? this.enabledGeometryKinds : undefined,
-                    this.enableFilterByKind ? this.disabledGeometryKinds : undefined
-                );
-                if (this.m_tileUpdateCallback) {
-                    this.m_tileUpdateCallback(tile);
-                }
+            //this assumes the tiles are ordered by priority, this is currently done in
+            // the visible tile set with 0 as the highest priority
+            const tilePriority = prio++;
+            const updateDone = tile.updateGeometry(
+                tilePriority,
+                this.enableFilterByKind ? this.enabledGeometryKinds : undefined,
+                this.enableFilterByKind ? this.disabledGeometryKinds : undefined
+            );
+            if (updateDone && this.m_tileUpdateCallback) {
+                this.m_tileUpdateCallback(tile);
             }
         }
 
@@ -128,6 +135,7 @@ export class TileGeometryManager {
      *      from the enabled set.
      * @param {boolean} addOrRemoveToEnabledSet Pass in `true` to add the kind to the set, pass in
      *      `false` to remove from that set.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     enableKind(
         kind: GeometryKind | GeometryKind[] | GeometryKindSet,
@@ -143,6 +151,7 @@ export class TileGeometryManager {
      *      from the disabled set.
      * @param {boolean} addOrRemoveToHiddenSet Pass in `true` to add the kind to the set, pass in
      *      `false` to remove from that set.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     disableKind(
         kind: GeometryKind | GeometryKind[] | GeometryKindSet,
@@ -158,6 +167,7 @@ export class TileGeometryManager {
      *      from the hidden set.
      * @param {boolean} addOrRemoveToHiddenSet Pass in `true` to hide the kind(s), `false` to show
      *      it again.
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     hideKind(
         kind: GeometryKind | GeometryKind[] | GeometryKindSet,
@@ -189,17 +199,15 @@ export class TileGeometryManager {
      *
      * @param {IterableIterator<Tile>} tiles The
      * @returns {GeometryKindSet}
+     * @deprecated See {@link @here/here-datasource-protocol/BaseTechniqueParams.kind}.
      */
     getAvailableKinds(tiles: IterableIterator<Tile>): GeometryKindSet {
         const visibleKinds: GeometryKindSet = new GeometryKindSet();
         for (const tile of tiles) {
-            const geometryLoader = tile.tileGeometryLoader;
-            if (geometryLoader !== undefined) {
-                const tileKinds = geometryLoader.availableGeometryKinds;
-                if (tileKinds !== undefined) {
-                    for (const kind of tileKinds) {
-                        visibleKinds.add(kind);
-                    }
+            const tileKinds = tile.loadedGeometryKinds;
+            if (tileKinds !== undefined) {
+                for (const kind of tileKinds) {
+                    visibleKinds.add(kind);
                 }
             }
         }

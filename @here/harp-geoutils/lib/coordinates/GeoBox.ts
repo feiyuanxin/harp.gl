@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+import * as THREE from "three";
 
 import { GeoBoxExtentLike } from "./GeoBoxExtentLike";
-import { GeoCoordinates } from "./GeoCoordinates";
-
-import * as THREE from "three";
+import { GeoCoordinates, MAX_LONGITUDE } from "./GeoCoordinates";
+import { GeoCoordinatesLike } from "./GeoCoordinatesLike";
 
 /**
  * `GeoBox` is used to represent a bounding box in geo coordinates.
@@ -16,8 +16,8 @@ export class GeoBox implements GeoBoxExtentLike {
     /**
      * Returns a `GeoBox` with the given geo coordinates.
      *
-     * @param southWest The south west position in geo coordinates.
-     * @param northEast The north east position in geo coordinates.
+     * @param southWest - The south west position in geo coordinates.
+     * @param northEast - The north east position in geo coordinates.
      */
     static fromCoordinates(southWest: GeoCoordinates, northEast: GeoCoordinates): GeoBox {
         return new GeoBox(southWest, northEast);
@@ -26,8 +26,8 @@ export class GeoBox implements GeoBoxExtentLike {
     /**
      * Returns a `GeoBox` with the given center and dimensions.
      *
-     * @param center The center position of geo box.
-     * @param extent Box latitude and logitude span
+     * @param center - The center position of geo box.
+     * @param extent - Box latitude and logitude span
      */
     static fromCenterAndExtents(center: GeoCoordinates, extent: GeoBoxExtentLike): GeoBox {
         return new GeoBox(
@@ -45,10 +45,14 @@ export class GeoBox implements GeoBoxExtentLike {
     /**
      * Constructs a new `GeoBox` with the given geo coordinates.
      *
-     * @param southWest The south west position in geo coordinates.
-     * @param northEast The north east position in geo coordinates.
+     * @param southWest - The south west position in geo coordinates.
+     * @param northEast - The north east position in geo coordinates.
      */
-    constructor(readonly southWest: GeoCoordinates, readonly northEast: GeoCoordinates) {}
+    constructor(readonly southWest: GeoCoordinates, readonly northEast: GeoCoordinates) {
+        if (this.west > this.east) {
+            this.northEast.longitude += 360;
+        }
+    }
 
     /**
      * Returns the minimum altitude or `undefined`.
@@ -112,7 +116,7 @@ export class GeoBox implements GeoBoxExtentLike {
             altitude = minAltitude + altitudeSpan * 0.5;
         }
 
-        if (west < east) {
+        if (west <= east) {
             return new GeoCoordinates(latitude, (west + east) * 0.5, altitude);
         }
 
@@ -185,7 +189,7 @@ export class GeoBox implements GeoBoxExtentLike {
     /**
      * Returns `true` if the given geo coordinates are contained in this `GeoBox`.
      *
-     * @param point The geo coordinates.
+     * @param point - The geo coordinates.
      */
     contains(point: GeoCoordinates): boolean {
         if (
@@ -215,15 +219,15 @@ export class GeoBox implements GeoBoxExtentLike {
      * Clones this `GeoBox` instance.
      */
     clone(): GeoBox {
-        return new GeoBox(this.southWest, this.northEast);
+        return new GeoBox(this.southWest.clone(), this.northEast.clone());
     }
 
     /**
      * Update the bounding box by considering a given point.
      *
-     * @param point The point that may expand the bounding box.
+     * @param point - The point that may expand the bounding box.
      */
-    growToContain(point: GeoCoordinates) {
+    growToContain(point: GeoCoordinatesLike) {
         this.southWest.latitude = Math.min(this.southWest.latitude, point.latitude);
         this.southWest.longitude = Math.min(this.southWest.longitude, point.longitude);
         this.southWest.altitude =
@@ -254,10 +258,19 @@ export class GeoBox implements GeoBoxExtentLike {
 
         const { west, east } = this;
 
-        if (east > west) {
-            return point.longitude >= west && point.longitude < east;
+        let longitude = point.longitude;
+        if (east > MAX_LONGITUDE) {
+            while (longitude < west) {
+                longitude = longitude + 360;
+            }
         }
 
-        return point.longitude > east || point.longitude <= west;
+        if (longitude > east) {
+            while (longitude > west + 360) {
+                longitude = longitude - 360;
+            }
+        }
+
+        return longitude >= west && longitude < east;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -18,7 +18,7 @@ export class MapTileCuller {
     private m_globalFrustumMin = new THREE.Vector3();
     private m_globalFrustumMax = new THREE.Vector3();
 
-    private m_frustumCorners = [
+    private readonly m_frustumCorners = [
         new THREE.Vector3(),
         new THREE.Vector3(),
         new THREE.Vector3(),
@@ -32,9 +32,9 @@ export class MapTileCuller {
     /**
      * Constructs a `MapTileCuller`.
      *
-     * @param m_camera A `THREE.Camera`.
+     * @param m_camera - A `THREE.Camera`.
      */
-    constructor(private m_camera: THREE.Camera) {}
+    constructor(private readonly m_camera: THREE.Camera) {}
 
     /**
      * Sets up culling and computes frustum corners. You mus call this function before the culling
@@ -64,7 +64,7 @@ export class MapTileCuller {
     /**
      * Checks if the tile's bounding box intersects with the current view's frustum.
      *
-     * @param tileBounds The bounding box for the tile.
+     * @param tileBounds - The bounding box for the tile.
      */
     frustumIntersectsTileBox(tileBounds: THREE.Box3): boolean {
         const globalFrustumMin = this.m_globalFrustumMin;

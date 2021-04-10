@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -46,30 +46,30 @@ const cameraUp = [
  *  hemisphere..
  */
 export class SkyGradientTexture {
-    private m_width: number;
-    private m_faceCount: number;
-    private m_faces: DataTexture[];
-    private m_skybox?: CubeTexture;
+    private readonly m_width: number;
+    private readonly m_faceCount: number;
+    private readonly m_faces: DataTexture[];
+    private readonly m_skybox?: CubeTexture;
 
     // Used only in the planar case.
-    private m_farClipPlaneDividedVertically?: THREE.Line3;
-    private m_groundPlane?: THREE.Plane;
-    private m_bottomMidFarPoint?: THREE.Vector3;
-    private m_topMidFarPoint?: THREE.Vector3;
-    private m_horizonPosition?: THREE.Vector3;
-    private m_farClipPlaneCorners?: THREE.Vector3[];
+    private readonly m_farClipPlaneDividedVertically?: THREE.Line3;
+    private readonly m_groundPlane?: THREE.Plane;
+    private readonly m_bottomMidFarPoint?: THREE.Vector3;
+    private readonly m_topMidFarPoint?: THREE.Vector3;
+    private readonly m_horizonPosition?: THREE.Vector3;
+    private readonly m_farClipPlaneCorners?: THREE.Vector3[];
 
     /**
      * Constructs a new `SkyGradientTexture`.
      *
-     * @param sky Initial [[GradientSky]] configuration.
-     * @param m_projectionType [[MapView]]'s projection type.
-     * @param m_height Optional height parameter.
+     * @param sky - Initial [[GradientSky]] configuration.
+     * @param m_projectionType - {@link MapView}'s projection type.
+     * @param m_height - Optional height parameter.
      */
     constructor(
         sky: GradientSky,
-        private m_projectionType: ProjectionType,
-        private m_height: number = DEFAULT_TEXTURE_SIZE
+        private readonly m_projectionType: ProjectionType,
+        private readonly m_height: number = DEFAULT_TEXTURE_SIZE
     ) {
         const topColor = new Color(sky.topColor);
         const bottomColor = new Color(sky.bottomColor);
@@ -120,7 +120,7 @@ export class SkyGradientTexture {
 
     /**
      * `SkyGradientTexture`'s texture resource (simple texture or cubemap depending on
-     * [[MapView]]'s projection).
+     * {@link MapView}'s projection).
      */
     get texture(): Texture {
         return this.m_projectionType === ProjectionType.Planar ? this.m_faces[0] : this.m_skybox!;
@@ -129,7 +129,7 @@ export class SkyGradientTexture {
     /**
      * This method updates the position of the texture depending on the camera frustum.
      *
-     * @param camera The camera used in the map view.
+     * @param camera - The camera used in the map view.
      */
     update(camera: THREE.Camera) {
         if (this.m_projectionType === ProjectionType.Planar) {
@@ -141,7 +141,7 @@ export class SkyGradientTexture {
     /**
      * Updates the `SkyGradientTexture` with new parameters.
      *
-     * @param params New [[GradientSky]] configuration.
+     * @param params - New [[GradientSky]] configuration.
      */
     updateTexture(sky: GradientSky) {
         for (let i = 0; i < this.m_faceCount; ++i) {
@@ -188,10 +188,7 @@ export class SkyGradientTexture {
                     const offsetY = up
                         .copy(cameraUp[faceIdx])
                         .multiplyScalar(((i + 0.5) / this.m_height) * 2.0 - 1.0);
-                    dir.copy(cameraDir[faceIdx])
-                        .add(offsetX)
-                        .add(offsetY)
-                        .normalize();
+                    dir.copy(cameraDir[faceIdx]).add(offsetX).add(offsetY).normalize();
                     const t = Math.max(upDir.dot(dir), 0);
 
                     color

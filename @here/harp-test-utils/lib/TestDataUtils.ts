@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -24,13 +24,13 @@ export const testResourcesRoot =
  *
  * Calculates URL of test resource in same way as [[loadTestResource]].
  *
- * @param moduleName: module name, `@here/<module_name>` (e.g. @here/harp-omv-datasource)
- * @param fileName: file relative to module path (e.g. `test/resources/berlin.bin)`
+ * @param moduleName -: module name, `@here/<module_name>` (e.g. @here/harp-vectortile-datasource)
+ * @param fileName -: file relative to module path (e.g. `test/resources/berlin.bin)`
  */
 export function getTestResourceUrl(module: string, fileName: string) {
     const modulePath = path.dirname(require.resolve(module + "/package.json"));
     const resultPath = path.join(testResourcesRoot, modulePath, fileName);
-    if (resultPath.indexOf("\\") !== -1) {
+    if (resultPath.includes("\\")) {
         // node-fetch on windows, needs proper URL
         return "file://" + resultPath.replace(/\\/g, "/");
     } else {
@@ -67,9 +67,9 @@ export function getTestResourceUrl(module: string, fileName: string) {
  *   * `fs` module when run in a node.js environment
  *   * `fetch` module when run in a browser environment
  *
- * @param module: module name, @here/<module_name> (e.g. @here/harp-omv-datasource)
- * @param fileName: the requested resource,
- *                  (e.g. @here/harp-omv-datasource/test/resources/berlin.bin)
+ * @param module -: module name, @here/<module_name> (e.g. @here/harp-vectortile-datasource)
+ * @param fileName -: the requested resource,
+ *                  (e.g. @here/harp-vectortile-datasource/test/resources/berlin.bin)
  */
 export const loadTestResource = loadTestResourceNode;
 

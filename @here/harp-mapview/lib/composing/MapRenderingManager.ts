@@ -1,9 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-import * as THREE from "three";
 
 import {
     IBloomEffect,
@@ -12,6 +11,8 @@ import {
     IVignetteEffect
 } from "@here/harp-datasource-protocol";
 import { SepiaShader, VignetteShader } from "@here/harp-materials";
+import * as THREE from "three";
+
 import { IPassManager } from "./IPassManager";
 import { LowResRenderPass } from "./LowResRenderPass";
 import { MSAARenderPass, MSAASampling } from "./MSAARenderPass";
@@ -23,8 +24,12 @@ const DEFAULT_DYNAMIC_MSAA_SAMPLING_LEVEL = MSAASampling.Level_1;
 const DEFAULT_STATIC_MSAA_SAMPLING_LEVEL = MSAASampling.Level_4;
 
 /**
- * Interface for the antialias settings passed when instantiating a [[MapView]], and transferred to
- * the [[MapRenderingManager]] instance. These parameters can be changed at runtime as opposed to
+ * Interface for the antialias settings passed when instantiating
+ * a {@link MapView}, and transferred to
+ * the {@link MapRenderingManager} instance.
+ *
+ * @remarks
+ * These parameters can be changed at runtime as opposed to
  * the native WebGL antialiasing.
  */
 export interface IMapAntialiasSettings {
@@ -52,8 +57,10 @@ export interface IMapAntialiasSettings {
 
 /**
  * The `MapRenderingManager` class manages the map rendering (as opposed to text) by dispatching the
- * [[MapRenderingManager.render]] call to a set of internal [[Pass]] instances. It provides an API
- * to modify some of the rendering processes like the antialiasing behaviour at runtime.
+ * {@link MapRenderingManager.render} call to a set of internal {@link Pass} instances.
+ *
+ * @remarks It provides an API to modify some of the rendering
+ * processes like the antialiasing behaviour at runtime.
  */
 export interface IMapRenderingManager extends IPassManager {
     /**
@@ -91,7 +98,7 @@ export interface IMapRenderingManager extends IPassManager {
 
     /**
      * Enable or disable the MSAA. If disabled, `MapRenderingManager` will use the renderer provided
-     * in the [[MapRenderingManager.render]] method to render the scene.
+     * in the {@link MapRenderingManager.render} method to render the scene.
      */
     msaaEnabled: boolean;
 
@@ -110,10 +117,10 @@ export interface IMapRenderingManager extends IPassManager {
      * The method to call to render the map. This method depends on an `isStaticFrame` boolean that
      * notifies the pass manager to switch to a higher level render quality for the last frame.
      *
-     * @param renderer The ThreeJS WebGLRenderer instance to render the map with.
-     * @param isStaticFrame Whether the frame to render is static or dynamic. Selects level of
+     * @param renderer - The ThreeJS WebGLRenderer instance to render the map with.
+     * @param isStaticFrame - Whether the frame to render is static or dynamic. Selects level of
      * antialiasing.
-     * @param time Optional time argument provided by the requestAnimationFrame, to pass to
+     * @param time - Optional time argument provided by the requestAnimationFrame, to pass to
      * sub-passes.
      */
     render(
@@ -127,7 +134,7 @@ export interface IMapRenderingManager extends IPassManager {
     /**
      * Updating the outline rebuilds the outline materials of every outlined mesh.
      *
-     * @param options outline options from the [[Theme]].
+     * @param options - outline options from the {@link @here/harp-datasource-protocol#Theme}.
      */
     updateOutline(options: {
         thickness: number;
@@ -137,7 +144,8 @@ export interface IMapRenderingManager extends IPassManager {
 }
 
 /**
- * The implementation of [[IMapRenderingManager]] to instantiate in [[MapView]] and manage the map
+ * The implementation of {@link IMapRenderingManager} to
+ * instantiate in {@link MapView} and manage the map
  * rendering.
  */
 export class MapRenderingManager implements IMapRenderingManager {
@@ -147,6 +155,7 @@ export class MapRenderingManager implements IMapRenderingManager {
         radius: 0.4,
         threshold: 0.85
     };
+
     outline = {
         enabled: false,
         thickness: 0.005,
@@ -154,11 +163,13 @@ export class MapRenderingManager implements IMapRenderingManager {
         ghostExtrudedPolygons: false,
         needsUpdate: false
     };
+
     vignette = {
         enabled: false,
         offset: 1.0,
         darkness: 1.0
     };
+
     sepia = {
         enabled: false,
         amount: 0.5
@@ -169,13 +180,13 @@ export class MapRenderingManager implements IMapRenderingManager {
 
     private m_outlineEffect?: OutlineEffect;
     private m_msaaPass: MSAARenderPass;
-    private m_renderPass: RenderPass = new RenderPass();
-    private m_target1: THREE.WebGLRenderTarget = new THREE.WebGLRenderTarget(1, 1);
-    private m_target2: THREE.WebGLRenderTarget = new THREE.WebGLRenderTarget(1, 1);
+    private readonly m_renderPass: RenderPass = new RenderPass();
+    private readonly m_target1: THREE.WebGLRenderTarget = new THREE.WebGLRenderTarget(1, 1);
+    private readonly m_target2: THREE.WebGLRenderTarget = new THREE.WebGLRenderTarget(1, 1);
     private m_bloomPass?: BloomPass;
     private m_sepiaPass: ShaderPass = new ShaderPass(SepiaShader);
     private m_vignettePass: ShaderPass = new ShaderPass(VignetteShader);
-    private m_readBuffer: THREE.WebGLRenderTarget;
+    private readonly m_readBuffer: THREE.WebGLRenderTarget;
     private m_dynamicMsaaSamplingLevel: MSAASampling;
     private m_staticMsaaSamplingLevel: MSAASampling;
     private m_lowResPass: LowResRenderPass;
@@ -183,13 +194,13 @@ export class MapRenderingManager implements IMapRenderingManager {
     /**
      * The constructor of `MapRenderingManager`.
      *
-     * @param width Width of the frame buffer.
-     * @param height Height of the frame buffer.
-     * @param lowResPixelRatio The `pixelRatio` determines the resolution of the internal
+     * @param width - Width of the frame buffer.
+     * @param height - Height of the frame buffer.
+     * @param lowResPixelRatio - The `pixelRatio` determines the resolution of the internal
      *  `WebGLRenderTarget`. Values between 0.5 and `window.devicePixelRatio` can be tried to give
      * good results. A value of `undefined` disables the low res render pass. The value should not
      * be larger than`window.devicePixelRatio`.
-     * @param antialiasSetting The object defining the demeanor of MSAA.
+     * @param antialiasSetting - The object defining the demeanor of MSAA.
      */
     constructor(
         width: number,
@@ -225,10 +236,10 @@ export class MapRenderingManager implements IMapRenderingManager {
      * chain of sub-passes that can transfer the write and read buffers, and other sheer rendering
      * conditions as disabling AA when a high DPI device is in use.
      *
-     * @param renderer The ThreeJS WebGLRenderer instance to render the map with.
-     * @param scene The ThreeJS Scene instance containing the map objects to render.
-     * @param camera The ThreeJS Camera instance to render the scene through.
-     * @param isStaticFrame Whether the frame to render is static or dynamic. Selects level of
+     * @param renderer - The ThreeJS WebGLRenderer instance to render the map with.
+     * @param scene - The ThreeJS Scene instance containing the map objects to render.
+     * @param camera - The ThreeJS Camera instance to render the scene through.
+     * @param isStaticFrame - Whether the frame to render is static or dynamic. Selects level of
      * antialiasing.
      */
     render(
@@ -342,8 +353,8 @@ export class MapRenderingManager implements IMapRenderingManager {
      * The resize function to call on resize events to resize the render targets. It shall include
      * the resize methods of all the sub-passes used in `MapRenderingManager`.
      *
-     * @param width New width to use.
-     * @param height New height to use.
+     * @param width - New width to use.
+     * @param height - New height to use.
      */
     setSize(width: number, height: number) {
         this.m_readBuffer.setSize(width, height);
@@ -376,7 +387,7 @@ export class MapRenderingManager implements IMapRenderingManager {
     /**
      * Set the level of sampling while the user interacts.
      *
-     * @param samplingLevel The sampling level.
+     * @param samplingLevel - The sampling level.
      */
     set dynamicMsaaSamplingLevel(samplingLevel: MSAASampling) {
         this.m_dynamicMsaaSamplingLevel = samplingLevel;
@@ -391,9 +402,9 @@ export class MapRenderingManager implements IMapRenderingManager {
 
     /**
      * Enable or disable the MSAA. If disabled, `MapRenderingManager` will use the renderer provided
-     * in the [[MapRenderingManager.render]] method to render the scene.
+     * in the {@link MapRenderingManager.render} method to render the scene.
      *
-     * @param value If `true`, MSAA is enabled, disabled otherwise.
+     * @param value - If `true`, MSAA is enabled, disabled otherwise.
      */
     set msaaEnabled(value: boolean) {
         this.m_msaaPass.enabled = value;
@@ -409,7 +420,7 @@ export class MapRenderingManager implements IMapRenderingManager {
     /**
      * Set the sampling level for rendering static frames.
      *
-     * @param samplingLevel The sampling level.
+     * @param samplingLevel - The sampling level.
      */
     set staticMsaaSamplingLevel(samplingLevel: MSAASampling) {
         this.m_staticMsaaSamplingLevel = samplingLevel;

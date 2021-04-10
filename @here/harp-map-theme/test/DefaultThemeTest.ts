@@ -1,14 +1,14 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
+/* eslint-disable no-console */
+
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
-import { assert } from "chai";
-
+import { Definitions, Theme } from "@here/harp-datasource-protocol";
 import {
     Expr,
     isJsonExpr,
@@ -16,15 +16,8 @@ import {
     StyleSetEvaluator
 } from "@here/harp-datasource-protocol/index-decoder";
 import { loadTestResource } from "@here/harp-test-utils";
-
-import {
-    Definitions,
-    isJsonExprReference,
-    Style,
-    StyleSelector,
-    Theme
-} from "@here/harp-datasource-protocol";
 import * as Ajv from "ajv";
+import { assert } from "chai";
 import * as path from "path";
 
 function assertExprValid(
@@ -50,7 +43,7 @@ function assertExprValid(
     );
 }
 
-describe("Berlin Theme", function() {
+describe("Berlin Theme", function () {
     let ajv: Ajv.Ajv;
     let schemaValidator: Ajv.ValidateFunction;
     before(async () => {
@@ -75,55 +68,40 @@ describe("Berlin Theme", function() {
 
     themes.forEach(themePath => {
         const baseName = path.basename(themePath);
-        describe(`${baseName}`, function() {
+        describe(`${baseName}`, function () {
             let theme: Theme;
             before(async () => {
                 theme = await loadTestResource("@here/harp-map-theme", themePath, "json");
             });
 
-            it(`complies with JSON schema`, async function() {
+            it(`complies with JSON schema`, async function () {
                 const valid = schemaValidator(theme);
                 if (!valid && schemaValidator.errors) {
-                    // tslint:disable-next-line:no-console
                     console.log("validation errors", schemaValidator.errors.length);
-                    // tslint:disable-next-line:no-console
                     console.log(schemaValidator.errors);
                 }
                 assert.isTrue(valid);
             });
 
-            it(`works with StyleSetEvaluator`, async function() {
-                // tslint:disable-next-line:forin
+            it(`works with StyleSetEvaluator`, async function () {
                 for (const styleSetName in theme.styles) {
                     const styleSet = theme.styles[styleSetName];
-                    // tslint:disable-next-line:no-unused-expression
-                    new StyleSetEvaluator(styleSet, theme.definitions);
+                    new StyleSetEvaluator({ styleSet, definitions: theme.definitions });
                 }
             });
 
-            it(`contains proper expressions in StyleSets`, async function() {
+            it(`contains proper expressions in StyleSets`, async function () {
                 for (const styleSetName in theme.styles) {
                     const styleSet = theme.styles[styleSetName];
                     for (let i = 0; i < styleSet.length; ++i) {
-                        let style = styleSet[i];
-                        if (isJsonExpr(style)) {
-                            assert(isJsonExprReference(style));
-                            assert.isDefined(theme.definitions);
-                            const refName = style[1] as string;
-                            style = theme.definitions![refName] as Style & StyleSelector;
-                            assert.isDefined(style, `invalid reference: ${style}`);
-                        }
+                        const style = styleSet[i];
                         const location = `${styleSetName}[${i}]`;
                         if (typeof style.when === "string") {
-                            assert.doesNotThrow(() =>
-                                // tslint:disable-next-line: deprecation
-                                Expr.parse((style as Style & StyleSelector).when as string)
-                            );
-                        } else {
+                            assert.doesNotThrow(() => Expr.parse(style.when as string));
+                        } else if (style.when !== undefined) {
                             assertExprValid(style.when, theme.definitions, `${location}.when`);
                         }
 
-                        // tslint:disable-next-line:forin
                         for (const attrName in style.attr) {
                             const attrValue = (style.attr as any)[attrName];
                             if (!isJsonExpr(attrValue)) {

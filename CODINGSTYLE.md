@@ -47,12 +47,18 @@ If an interface has data member, it's no longer abstract. Derived classes can't 
 1. Although we are using an object oriented approach still use it in a Typescript/Javascript way:
     - i.e. In Type/Javascript not everything needs to be a class,  if defining a singleton use a namespace or module instead of a class, so it cannot be instantiated and you can provide your create method
 1. Avoid adding additional libraries, we want to keep the `sdk` as slim as possible.
-1. Avoid truthy/falsy Statements. To avoid the scary mess of JavaScript truthy and falsy statements [read more here](https://www.sitepoint.com/javascript-truthy-falsy/) or [here](https://basarat.gitbooks.io/typescript/docs/tips/truthy.html)
-    - This improves safety, the impression that we know what kind of type the operator has and the impression on the reader that we are not lazy.
-    - When choosing between: _converting to real Boolean values_ to _using strict equality (===) or inequality (!==)_ on more complex objects use the former.
+1. Avoid [truthy/falsy Statements](https://www.sitepoint.com/javascript-truthy-falsy/).
+    - For primitive types, use strict comparisons _(===, !==)_ to convert to boolean explicitly.
     ```typescript
-    if (someNonBooleanVariable !== undefined)
+    if (stringVariable !== undefined)
     ```
+    - For object types, implicit boolean conversion is preferred over checking explicitely for `undefined` or `null`.
+    ```typescript
+    if (myObject)
+    if (!myArray)
+    if (myFunction)
+    ```
+
 1. *Do not use !! in the code*. The !!_trick_ is just a way to make a truthy operation a boolean one, but the issue with truthiness is *not solved*, but *hidden*. Consider the following example:
 
     ```typescript
@@ -224,7 +230,7 @@ The purpose of a commit message is to summarize the scope and context of a patch
 
 ## Documentation
 
-1. Write your comments in a `typedoc` compliant way.
+1. Write your comments in a [TSDoc] compliant way.
 
 1. Document the single responsibility of a class or function.
 
@@ -236,13 +242,13 @@ The purpose of a commit message is to summarize the scope and context of a patch
 
 1. If you have to leave "TODO" comments in the code, make sure that they include a related ticket number, so that the work is tracked and not forgotten.
 
-## Recommended TypeDoc Style
+## Recommended [TSDoc] Style
 
 1. Write proper English sentences.
 1. Put a period "." at the end of a line or sentence.
 1. Write abbreviations in uppercase: HTML, HTTP, WHATWG.
 1. Add proper external references: `... [WHATWG fetch](https://fetch.spec.whatwg.org/) ...`
-1. Refer to other classes/interfaces with proper markdown links. To refer to class named "Headers", write the link: `[[Headers]]`.
+1. Refer to other classes/interfaces with proper tsdoc links. To refer to class named "Headers", write the link: `{@link Headers}`.
 1. Refer to the current class with backquote/backticks: `` `CancellationToken` ``.
 1. Write constants and other values, as well as function calls with backticks, for example: `` `true` `` instead of just "true", `` `cancel()` `` instead of just "cancel()".
 1. Try to write "speakable" sentences, use "for example" instead of "e.g.".
@@ -263,25 +269,25 @@ Example:
  * ```
  *
  * **Note:** If you cancel an async function, it will not resolve but throw a
- * [[CancellationException]].
+ * {@link CancellationException}.
  *
  * **Note:** Cancellation is not guaranteed to work. Some functions do not support cancellation.
  * Others, due to the asynchronous nature, might have already finished by the time the cancellation
  * is received, in which case the result is returned rather than a [[CancellationException]].
  *
- * See also [[fetch]].
+ * See also {@link fetch}.
  */
 ...
     /**
-     * Constructs a new immutable instance of a `TileKey`.
+     * Constructs a new immutable instance of a {@link TileKey}.
      *
-     * For better readability, [[TileKey.fromRowColumnLevel]] should be preferred.
+     * For better readability, {@link TileKey.fromRowColumnLevel} should be preferred.
      *
      * Note - row and column must not be greater than the maximum rows/columns for the given level.
      *
-     * @param row Represents the row in the quadtree.
-     * @param column Represents the column in the quadtree.
-     * @param level Represents the level in the quadtree.
+     * @param row - Represents the row in the quadtree.
+     * @param column - Represents the column in the quadtree.
+     * @param level - Represents the level in the quadtree.
      */
     constructor(public readonly row: number, public readonly column: number, public readonly level: number) {
     }
@@ -290,10 +296,21 @@ Example:
     /**
      * Equality operator.
      *
-     * @param qnr The tile key to compare to.
+     * @param qnr - The tile key to compare to.
      * @returns `true` if this tile key has identical row, column and level, `false` otherwise.
      */
 ```
+
+## Deprecation
+
+If an API should not be used anymore it needs to be marked as deprecated. Therefore the `@deprecated` [tag](https://api-extractor.com/pages/tsdoc/tag_deprecated/) should be added to the documentation of the entity.
+
+The deprecation description needs to contain an alternative to the old API (if it exists) and a release version when the API will be removed.
+
+[harp.gl](https://harp.gl) has a deprecation period of at least one minor release cycle.
+If for example harp `0.x.0` is the latest release and you add the deprecation to master, you can only remove the API for `harp 0.x+2.0`, i.e. after `harp 0.x+1.0` was released.
+
+Public API must not be removed if it was not marked as deprecated for at least one release cyle.
 
 ## Testing
 
@@ -319,3 +336,5 @@ It can be used as an extension for Visual Studio Code to help format the code.
 Before committing your code make sure you run `tslint` and `prettier` (either via command line or within your IDE (for example in Visual Studio Code you could use the: `Ctrl+Shift+P >Format...`)
 
 In case you need to change styling in already merged code - make sure to prepare a separate commit with applied formatting and merge it before merging your changes. (Please apply formatting to the whole directory/module).
+
+[TSDoc]: https://github.com/Microsoft/tsdoc

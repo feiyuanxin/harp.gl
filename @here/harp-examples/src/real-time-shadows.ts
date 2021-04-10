@@ -1,20 +1,21 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2020-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+import "three/examples/js/controls/TrackballControls";
 
 import { Theme } from "@here/harp-datasource-protocol";
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView, MapViewEventNames } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import { VectorTileDataSource } from "@here/harp-vectortile-datasource";
+import { HereWebTileDataSource } from "@here/harp-webtile-datasource";
 import { GUI } from "dat.gui";
 import * as THREE from "three";
-import "three/examples/js/controls/TrackballControls";
-import { apikey, copyrightInfo } from "../config";
 
-// tslint:disable-next-line:no-var-requires
+import { apikey } from "../config";
+
 const SunCalc = require("suncalc");
 
 const FADE_DURATION = 30 * 60 * 1000; // in ms
@@ -45,7 +46,8 @@ const guiOptions = {
     minutes: date.getMinutes(),
     time: date.getHours() + date.getMinutes() / 60,
     timeIndicator: `${date.getHours()}:${date.getMinutes()}`,
-    debugCamera: false
+    debugCamera: false,
+    enableRasterTiles: false
 };
 // Reference solar noon time is used to calculate time offsets at specific coordinates.
 const refSolarNoon = SunCalc.getTimes(date, 0, 0).solarNoon;
@@ -60,8 +62,13 @@ function swapCamera() {
     shadowCameraHelper.visible = !shadowCameraHelper.visible;
 }
 
+const hereWebTileDataSource = new HereWebTileDataSource({
+    apikey,
+    renderingOptions: { renderOrder: 50 },
+    name: "raster-tiles"
+});
+
 function setupDebugStuff() {
-    // tslint:disable-next-line: no-string-literal
     const mapCameraHelper = new THREE.CameraHelper(map["m_rteCamera"]);
     mapCameraHelper.renderOrder = Number.MAX_SAFE_INTEGER;
     map.scene.add(mapCameraHelper);
@@ -228,7 +235,7 @@ function initializeMapView(id: string, theme: Theme): MapView {
         map.resize(window.innerWidth, window.innerHeight);
     });
 
-    addOmvDataSource().then(() => {
+    addVectorTileDataSource().then(() => {
         const light = map.lights.find(item => item instanceof THREE.DirectionalLight) as
             | THREE.DirectionalLight
             | undefined;
@@ -249,17 +256,10 @@ function initializeMapView(id: string, theme: Theme): MapView {
     return map;
 }
 
-const addOmvDataSource = (): Promise<void> => {
-    const omvDataSource = new OmvDataSource({
+const addVectorTileDataSource = (): Promise<void> => {
+    const omvDataSource = new VectorTileDataSource({
         baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
-        apiFormat: APIFormat.XYZOMV,
-        styleSetName: "tilezen",
-        authenticationCode: apikey,
-        authenticationMethod: {
-            method: AuthenticationMethod.QueryString,
-            name: "apikey"
-        },
-        copyrightInfo
+        authenticationCode: apikey
     });
 
     return map.addDataSource(omvDataSource);
@@ -289,6 +289,14 @@ function addGuiElements() {
         timeSlider.updateDisplay();
     });
     gui.add(guiOptions, "debugCamera").onChange(swapCamera);
+    gui.add(guiOptions, "enableRasterTiles").onChange((enable: boolean) => {
+        const rasterSource = map.getDataSourceByName("raster-tiles");
+        if (rasterSource && !enable) {
+            map.removeDataSource(rasterSource);
+        } else if (!rasterSource && enable) {
+            map.addDataSource(hereWebTileDataSource);
+        }
+    });
 }
 
 export namespace RealTimeShadows {
@@ -317,7 +325,7 @@ export namespace RealTimeShadows {
         ],
         definitions: {
             // Opaque buildings
-            defaultBuildingColor: "#EDE7E1FF"
+            defaultBuildingColor: { value: "#EDE7E1FF" }
         }
     };
     initializeMapView("mapCanvas", theme);

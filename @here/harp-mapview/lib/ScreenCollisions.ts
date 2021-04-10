@@ -1,16 +1,16 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { LoggerManager, Math2D } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { debugContext } from "./DebugContext";
 
 declare const require: any;
 
-// tslint:disable-next-line:no-var-requires
 const RBush = require("rbush");
 
 const logger = LoggerManager.instance.create("ScreenCollissions");
@@ -40,27 +40,35 @@ export class CollisionBox extends Math2D.Box implements IBox {
         }
         return this;
     }
+
     get minX(): number {
         return this.x;
     }
+
     set minX(minX: number) {
         this.x = minX;
     }
+
     get maxX(): number {
         return this.x + this.w;
     }
+
     set maxX(maxX: number) {
         this.w = maxX - this.x;
     }
+
     get minY(): number {
         return this.y;
     }
+
     set minY(minY: number) {
         this.y = minY;
     }
+
     get maxY(): number {
         return this.y + this.h;
     }
+
     set maxY(maxY: number) {
         this.h = maxY - this.y;
     }
@@ -92,7 +100,7 @@ export class ScreenCollisions {
 
     /** Tree of allocated bounds. */
 
-    private rtree = new RBush();
+    private readonly rtree = new RBush();
 
     /**
      * Constructs a new ScreenCollisions object.
@@ -111,8 +119,8 @@ export class ScreenCollisions {
     /**
      * Updates the screen bounds that are used to check if bounding boxes are visible.
      *
-     * @param width The width of the container.
-     * @param height The height of the container.
+     * @param width - The width of the container.
+     * @param height - The height of the container.
      */
     update(width: number, height: number) {
         this.screenBounds.set(width / -2, height / -2, width, height);
@@ -122,7 +130,7 @@ export class ScreenCollisions {
     /**
      * Marks the region of the screen intersecting with the given bounding box as allocated.
      *
-     * @param bounds The bounding box in NDC scaled coordinates (i.e. top left is -width/2,
+     * @param bounds - The bounding box in NDC scaled coordinates (i.e. top left is -width/2,
      * -height/2)
      */
     allocate(bounds: Math2D.Box | CollisionBox | DetailedCollisionBox): void {
@@ -133,7 +141,7 @@ export class ScreenCollisions {
     /**
      * Inserts the given bounds into the rtree.
      *
-     * @param bounds The bounding boxes (the bounding boxes must be in the space returned from the
+     * @param bounds - The bounding boxes (the bounding boxes must be in the space returned from the
      * ScreenProjector.project method).
      */
     allocateIBoxes(bounds: IBox[]) {
@@ -142,7 +150,7 @@ export class ScreenCollisions {
 
     /**
      * Search for all bounds in the tree intersecting with the given box.
-     * @param box The box used for the search.
+     * @param box - The box used for the search.
      * @returns An array of all IBoxes intersecting with the given box.
      */
     search(box: CollisionBox): IBox[] {
@@ -152,7 +160,7 @@ export class ScreenCollisions {
     /**
      * Checks if the given bounding box is already allocated.
      *
-     * @param bounds The bounding box in world coordinates.
+     * @param bounds - The bounding box in world coordinates.
      */
     isAllocated(bounds: Math2D.Box | CollisionBox): boolean {
         const collisionBox = bounds instanceof CollisionBox ? bounds : tmpCollisionBox.copy(bounds);
@@ -163,7 +171,7 @@ export class ScreenCollisions {
     /**
      * Checks if the given screen bounds intersects with the frustum of the active camera.
      *
-     * @param bounds The bounding box in world coordinates.
+     * @param bounds - The bounding box in world coordinates.
      */
     isVisible(bounds: Math2D.Box): boolean {
         return this.screenBounds.intersects(bounds);
@@ -172,7 +180,7 @@ export class ScreenCollisions {
     /**
      * Checks if the given screen bounds is contained within the frustum of the active camera.
      *
-     * @param bounds The bounding box in world coordinates.
+     * @param bounds - The bounding box in world coordinates.
      */
     isFullyVisible(bounds: Math2D.Box): boolean {
         return this.screenBounds.containsBox(bounds);
@@ -182,8 +190,8 @@ export class ScreenCollisions {
      * Test whether a given [[CollisionBox]] intersects with any of the details in the specified
      * [[IBox]]es.
      *
-     * @param testBox The box to test for intersection.
-     * @param boxes The candidate boxes the test box may intersect with. It's assumed that the
+     * @param testBox - The box to test for intersection.
+     * @param boxes - The candidate boxes the test box may intersect with. It's assumed that the
      * global bounds of these boxes intersect with the given test box.
      * @returns `true` if any intersection found.
      */
@@ -291,14 +299,13 @@ export class ScreenCollisionsDebug extends ScreenCollisions {
     /**
      * Updates the screen bounds used to check if bounding boxes are visible.
      *
-     * @param width The width of the container.
-     * @param height The height of the container.
+     * @param width - The width of the container.
+     * @param height - The height of the container.
      * @override
      */
     update(width: number, height: number) {
         if (this.m_renderingEnabled) {
             logger.log(
-                // tslint:disable-next-line: max-line-length
                 `Allocations: ${this.m_numAllocations} Successful Tests: ${this.m_numSuccessfulTests} Failed Tests: ${this.m_numFailedTests}  Successful Visibility Tests: ${this.m_numSuccessfulVisibilityTests}  Failed Visibility Tests: ${this.m_numFailedVisibilityTests} `
             );
         }
@@ -318,7 +325,7 @@ export class ScreenCollisionsDebug extends ScreenCollisions {
     /**
      * Marks the region of the screen intersecting with the given bounding box as allocated.
      *
-     * @param bounds the bounding box in world coordinates.
+     * @param bounds - the bounding box in world coordinates.
      * @override
      */
     allocate(bounds: Math2D.Box | CollisionBox): void {
@@ -381,7 +388,7 @@ export class ScreenCollisionsDebug extends ScreenCollisions {
     /**
      * Checks if the given screen bounds intersects with the frustum of the active camera.
      *
-     * @param bounds The bounding box in world coordinates.
+     * @param bounds - The bounding box in world coordinates.
      * @override
      */
     isVisible(bounds: Math2D.Box): boolean {

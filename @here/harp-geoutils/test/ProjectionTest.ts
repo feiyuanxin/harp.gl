@@ -1,10 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { assert } from "chai";
+import * as THREE from "three";
+
 import { GeoBox } from "../lib/coordinates/GeoBox";
 import { GeoCoordinates } from "../lib/coordinates/GeoCoordinates";
 import { Box3Like } from "../lib/math/Box3Like";
@@ -23,9 +25,6 @@ import { polarTilingScheme } from "../lib/tiling/PolarTilingScheme";
 import { TileKey } from "../lib/tiling/TileKey";
 import { webMercatorTilingScheme } from "../lib/tiling/WebMercatorTilingScheme";
 
-import * as THREE from "three";
-
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 const EPSILON = 1e-6;
@@ -46,8 +45,8 @@ function containsPoint(box: Box3Like, point: Vector3Like): boolean {
     return true;
 }
 
-describe("WebMercator", function() {
-    it("project", function() {
+describe("WebMercator", function () {
+    it("project", function () {
         const coords = new GeoCoordinates(52.504951, 13.371806, 100);
         const projected = webMercatorProjection.projectPoint(coords);
         const unprojected = webMercatorProjection.unprojectPoint(projected);
@@ -57,7 +56,7 @@ describe("WebMercator", function() {
         assert.equal(coords.altitude, unprojected.altitude);
     });
 
-    it("project outside normal range", function() {
+    it("project outside normal range", function () {
         const coords = new GeoCoordinates(52.504951, 373.371806);
         const projected = webMercatorProjection.projectPoint(coords);
         const unprojected = webMercatorProjection.unprojectPoint(projected);
@@ -66,7 +65,7 @@ describe("WebMercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("projectBox", function() {
+    it("projectBox", function () {
         const tileKey = TileKey.fromRowColumnLevel(0, 0, 0);
         const box = webMercatorTilingScheme.getGeoBox(tileKey);
         const projectedBox = webMercatorProjection.projectBox(box);
@@ -94,7 +93,7 @@ describe("WebMercator", function() {
         );
     });
 
-    it("(un)projectBoxFlipsY AABB", function() {
+    it("(un)projectBoxFlipsY AABB", function () {
         // This test ensures that the project & unproject box function of the web mercator
         // projection correctly inverts the y axis.
         const geoCoord = new GeoCoordinates(53, 13);
@@ -135,7 +134,7 @@ describe("WebMercator", function() {
         );
     });
 
-    it("projectBoxFlipsY OBB", function() {
+    it("projectBoxFlipsY OBB", function () {
         // This test ensures that the project box function of the web mercator
         // projection correctly inverts the y axis.
         const obb = new OrientedBox3();
@@ -165,8 +164,8 @@ describe("WebMercator", function() {
     });
 });
 
-describe("Equirectangular", function() {
-    it("project", function() {
+describe("Equirectangular", function () {
+    it("project", function () {
         const coords = new GeoCoordinates(52.504951, 13.371806);
         const projected = equirectangularProjection.projectPoint(coords);
         const unprojected = equirectangularProjection.unprojectPoint(projected);
@@ -175,7 +174,7 @@ describe("Equirectangular", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("project outside normal range", function() {
+    it("project outside normal range", function () {
         const coords = new GeoCoordinates(52.504951, 373.371806);
         const projected = equirectangularProjection.projectPoint(coords);
         const unprojected = equirectangularProjection.unprojectPoint(projected);
@@ -184,7 +183,7 @@ describe("Equirectangular", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("projectBox", function() {
+    it("projectBox", function () {
         const tileKey = TileKey.fromRowColumnLevel(0, 0, 0);
         const box = hereTilingScheme.getGeoBox(tileKey);
         const projectedBox = equirectangularProjection.projectBox(box);
@@ -213,8 +212,8 @@ describe("Equirectangular", function() {
     });
 });
 
-describe("Mercator", function() {
-    it("project", function() {
+describe("Mercator", function () {
+    it("project", function () {
         const coords = new GeoCoordinates(52.504951, 13.371806, 100);
         const projected = mercatorProjection.projectPoint(coords);
         const unprojected = mercatorProjection.unprojectPoint(projected);
@@ -223,7 +222,7 @@ describe("Mercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
         assert.equal(coords.altitude, unprojected.altitude);
     });
-    it("project outside normal range", function() {
+    it("project outside normal range", function () {
         const coords = new GeoCoordinates(52.504951, 373.371806);
         const projected = mercatorProjection.projectPoint(coords);
         const unprojected = mercatorProjection.unprojectPoint(projected);
@@ -232,7 +231,7 @@ describe("Mercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("project not normalized", function() {
+    it("project not normalized", function () {
         const coords = new GeoCoordinates(52.504951, 373.371806);
         const projected = mercatorProjection.projectPoint(coords, undefined);
         const unprojected = mercatorProjection.unprojectPoint(projected);
@@ -241,7 +240,7 @@ describe("Mercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("projectBox", function() {
+    it("projectBox", function () {
         const tileKey = TileKey.fromRowColumnLevel(0, 0, 0);
         const box = mercatorTilingScheme.getGeoBox(tileKey);
         const projectedBox = mercatorProjection.projectBox(box);
@@ -270,8 +269,8 @@ describe("Mercator", function() {
     });
 });
 
-describe("TransverseMercator", function() {
-    it("project", function() {
+describe("TransverseMercator", function () {
+    it("project", function () {
         const coords = new GeoCoordinates(52.504951, 13.371806, 100);
         const projected = transverseMercatorProjection.projectPoint(coords);
         const unprojected = transverseMercatorProjection.unprojectPoint(projected);
@@ -280,7 +279,7 @@ describe("TransverseMercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
         assert.equal(coords.altitude, unprojected.altitude);
     });
-    it("project outside normal range", function() {
+    it("project outside normal range", function () {
         const coords = new GeoCoordinates(52.504951, 373.371806);
         const projected = transverseMercatorProjection.projectPoint(coords);
         const unprojected = transverseMercatorProjection.unprojectPoint(projected);
@@ -289,7 +288,7 @@ describe("TransverseMercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("project not normalized", function() {
+    it("project not normalized", function () {
         const coords = new GeoCoordinates(52.504951, 373.371806);
         const projected = transverseMercatorProjection.projectPoint(coords, undefined);
         const unprojected = transverseMercatorProjection.unprojectPoint(projected);
@@ -298,7 +297,7 @@ describe("TransverseMercator", function() {
         assert.approximately(coords.longitudeInRadians, unprojected.longitudeInRadians, EPSILON);
     });
 
-    it("projectBox", function() {
+    it("projectBox", function () {
         const tileKey = TileKey.fromRowColumnLevel(0, 0, 0);
         const box = polarTilingScheme.getGeoBox(tileKey);
         const projectedBox = transverseMercatorProjection.projectBox(box);
@@ -327,7 +326,7 @@ describe("TransverseMercator", function() {
     });
 });
 
-describe("Reprojection", function() {
+describe("Reprojection", function () {
     const ml = THREE.MathUtils.radToDeg(Math.atan(Math.sinh(Math.PI)));
 
     const geoPoints: GeoCoordinates[] = [
@@ -386,15 +385,13 @@ describe("Reprojection", function() {
     projections.forEach(([targetProjectionName, targetProjection]) => {
         projections.forEach(([sourceProjectionName, sourceProjection]) => {
             geoPoints.forEach(geoPos => {
-                // tslint:disable-next-line: max-line-length
                 const altitudeDescr = geoPos.altitude !== undefined ? `, ${geoPos.altitude}` : "";
 
                 const pointDescr = `(${geoPos.latitude}, ${geoPos.longitude}${altitudeDescr})`;
 
-                // tslint:disable-next-line: max-line-length
                 const descr = `reproject ${pointDescr} from ${sourceProjectionName} to ${targetProjectionName}`;
 
-                it(descr, function() {
+                it(descr, function () {
                     // geo coordinates projected to sphere.
                     const projectedPoint = targetProjection.projectPoint(geoPos);
 
@@ -416,8 +413,8 @@ describe("Reprojection", function() {
     });
 });
 
-describe("IdentityProjection", function() {
-    it("projectBox3", function() {
+describe("IdentityProjection", function () {
+    it("projectBox3", function () {
         const southEastLow = new GeoCoordinates(-10, -10, -1);
         const northWestHigh = new GeoCoordinates(10, 10, 1);
         const geoBox = new GeoBox(southEastLow, northWestHigh);

@@ -1,11 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { TextLayoutParameters, TextRenderParameters } from "@here/harp-text-canvas";
 import * as THREE from "three";
+
 import { TextElement } from "../lib/text/TextElement";
 import { PoiInfoBuilder } from "./PoiInfoBuilder";
 
@@ -13,7 +14,7 @@ export const DEF_TEXT: string = "Text";
 export const DEF_RENDER_PARAMS: TextRenderParameters = {};
 export const DEF_LAYOUT_PARAMS: TextLayoutParameters = {};
 export const DEF_PRIORITY: number = 0;
-export const DEF_POSITION = new THREE.Vector3(0, 0, 0);
+export const DEF_POSITION = new THREE.Vector3(0, 0, 1);
 export const DEF_PATH = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.1, 0.1, 0)];
 export const DEF_IGNORE_DISTANCE: boolean = true;
 export const DEF_MAY_OVERLAP: boolean = false;
@@ -30,16 +31,18 @@ export function poiBuilder(text: string = DEF_TEXT): TextElementBuilder {
         .withPoiInfo(new PoiInfoBuilder().withPoiTechnique());
 }
 
+export function createPath(coordScale: number, points: THREE.Vector3[]) {
+    return points.map((point: THREE.Vector3) => point.clone().multiplyScalar(coordScale));
+}
+
 export function pathTextBuilder(coordScale: number, text: string = DEF_TEXT): TextElementBuilder {
-    return new TextElementBuilder()
-        .withText(text)
-        .withPath(DEF_PATH.map((point: THREE.Vector3) => point.clone().multiplyScalar(coordScale)));
+    return new TextElementBuilder().withText(text).withPath(createPath(coordScale, DEF_PATH));
 }
 
 export function lineMarkerBuilder(coordScale: number, text: string = DEF_TEXT): TextElementBuilder {
     return new TextElementBuilder()
         .withText(text)
-        .withPath(DEF_PATH.map((point: THREE.Vector3) => point.clone().multiplyScalar(coordScale)))
+        .withPath(createPath(coordScale, DEF_PATH))
         .withPoiInfo(new PoiInfoBuilder().withLineMarkerTechnique());
 }
 
@@ -119,6 +122,7 @@ export class TextElementBuilder {
         this.m_mayOverlap = mayOverlap;
         return this;
     }
+
     build(): TextElement {
         const textElement = new TextElement(
             this.m_text,

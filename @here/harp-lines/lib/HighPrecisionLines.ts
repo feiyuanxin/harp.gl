@@ -1,12 +1,12 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { HighPrecisionLineMaterial } from "@here/harp-materials";
-
 import * as THREE from "three";
+
 import { HighPrecisionUtils } from "./HighPrecisionUtils";
 
 /**
@@ -51,29 +51,16 @@ export class HighPrecisionWireFrameLine extends THREE.Line implements HighPrecis
     /**
      * Creates a `HighPrecisionWireFrameLine` object.
      *
-     * @param geometry [[BufferGeometry]] used to render this object.
-     * @param material [[HighPrecisionLineMaterial]] used to render this object.
-     *     instances.
-     * @param positions Array of 2D/3D positions.
-     * @param color Color of the rendered line.
-     * @param opacity Opacity of the rendered line.
+     * @param geometry - [[BufferGeometry]] used to render this object.
+     * @param material - [[HighPrecisionLineMaterial]] used to render this object.
+     * @param positions - Array of 2D/3D positions.
      */
     constructor(
-        geometry?: THREE.BufferGeometry,
-        material?: HighPrecisionLineMaterial,
-        positions?: number[] | THREE.Vector3[],
-        color?: THREE.Color,
-        opacity?: number
+        geometry: THREE.BufferGeometry,
+        material: HighPrecisionLineMaterial,
+        positions?: number[] | THREE.Vector3[]
     ) {
-        super(geometry === undefined ? new THREE.BufferGeometry() : geometry, material);
-
-        if (material === undefined) {
-            material = new HighPrecisionLineMaterial({
-                color: color ? color : HighPrecisionLineMaterial.DEFAULT_COLOR,
-                opacity: opacity !== undefined ? opacity : HighPrecisionLineMaterial.DEFAULT_OPACITY
-            });
-        }
-
+        super(geometry, material);
         this.matrixWorldInverse = new THREE.Matrix4();
 
         if (positions) {
@@ -98,7 +85,7 @@ export class HighPrecisionWireFrameLine extends THREE.Line implements HighPrecis
             _renderer: THREE.WebGLRenderer,
             _scene: THREE.Scene,
             camera: THREE.Camera,
-            _geometry: THREE.Geometry | THREE.BufferGeometry,
+            _geometry: THREE.BufferGeometry,
             _material: THREE.Material,
             _group: THREE.Group
         ) => {
@@ -112,7 +99,7 @@ export class HighPrecisionWireFrameLine extends THREE.Line implements HighPrecis
         super.updateMatrixWorld(force);
 
         if (doUpdateMatrixWorldInverse) {
-            this.matrixWorldInverse.getInverse(this.matrixWorld);
+            this.matrixWorldInverse.copy(this.matrixWorld).invert();
         }
     }
 }
@@ -126,28 +113,16 @@ export class HighPrecisionLine extends THREE.Mesh implements HighPrecisionObject
     /**
      * Creates a `HighPrecisionLine` object.
      *
-     * @param geometry [[BufferGeometry]] used to render this object.
-     * @param material [[HighPrecisionLineMaterial]] used to render this object.
-     *     instances.
-     * @param positions Array of 2D/3D positions.
-     * @param color Color of the rendered line.
-     * @param opacity Opacity of the rendered line.
+     * @param geometry - [[BufferGeometry]] used to render this object.
+     * @param material - [[HighPrecisionLineMaterial]] used to render this object.
+     * @param positions - Array of 2D/3D positions.
      */
     constructor(
-        geometry?: THREE.BufferGeometry,
-        material?: HighPrecisionLineMaterial,
-        positions?: number[] | THREE.Vector3[],
-        color?: THREE.Color,
-        opacity?: number
+        geometry: THREE.BufferGeometry,
+        material: HighPrecisionLineMaterial,
+        positions?: number[] | THREE.Vector3[]
     ) {
-        super(geometry === undefined ? new THREE.BufferGeometry() : geometry, material);
-
-        if (material === undefined) {
-            material = new HighPrecisionLineMaterial({
-                color: color ? color : HighPrecisionLineMaterial.DEFAULT_COLOR,
-                opacity: opacity !== undefined ? opacity : HighPrecisionLineMaterial.DEFAULT_OPACITY
-            });
-        }
+        super(geometry, material);
 
         this.matrixWorldInverse = new THREE.Matrix4();
 
@@ -173,7 +148,7 @@ export class HighPrecisionLine extends THREE.Mesh implements HighPrecisionObject
             _renderer: THREE.WebGLRenderer,
             _scene: THREE.Scene,
             camera: THREE.Camera,
-            _geometry: THREE.Geometry | THREE.BufferGeometry,
+            _geometry: THREE.BufferGeometry,
             _material: THREE.Material,
             _group: THREE.Group
         ) => {
@@ -187,7 +162,7 @@ export class HighPrecisionLine extends THREE.Mesh implements HighPrecisionObject
         super.updateMatrixWorld(force);
 
         if (doUpdateMatrixWorldInverse) {
-            this.matrixWorldInverse.getInverse(this.matrixWorld);
+            this.matrixWorldInverse.copy(this.matrixWorld).invert();
         }
     }
 }

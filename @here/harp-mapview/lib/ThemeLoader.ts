@@ -1,26 +1,22 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
+
+import "@here/harp-fetch";
 
 import { isJsonExpr } from "@here/harp-datasource-protocol";
 import {
     Definitions,
     FlatTheme,
-    isActualSelectorDefinition,
-    isBoxedDefinition,
     isJsonExprReference,
-    isLiteralDefinition,
-    ResolvedStyleDeclaration,
-    ResolvedStyleSet,
-    StyleDeclaration,
+    Style,
     Styles,
     StyleSet,
     Theme
 } from "@here/harp-datasource-protocol/lib/Theme";
 import {
-    cloneDeep,
     composeUriResolvers,
     ContextLogger,
     getAppBaseUrl,
@@ -31,16 +27,18 @@ import {
     resolveReferenceUri,
     UriResolver
 } from "@here/harp-utils";
-import { SkyCubemapFaceId, SKY_CUBEMAP_FACE_COUNT } from "./SkyCubemapTexture";
 
-import "@here/harp-fetch";
+import { SKY_CUBEMAP_FACE_COUNT, SkyCubemapFaceId } from "./SkyCubemapTexture";
 
+/**
+ * @internal
+ */
 export const DEFAULT_MAX_THEME_INTHERITANCE_DEPTH = 4;
 
 /**
- * Options to customize [[Theme]] loading process.
+ * Options to customize {@link @here/harp-datasource-protocol#Theme} loading process.
  *
- * @see [[ThemeLoader.load]]
+ * @see {@link ThemeLoader.load}
  */
 export interface ThemeLoadOptions {
     /**
@@ -76,7 +74,8 @@ export interface ThemeLoadOptions {
     signal?: AbortSignal;
 
     /**
-     * Maximum recursion depth when resolving base themes through [[[Theme]]s `extends` property.
+     * Maximum recursion depth when resolving base themes
+     * through [{@link @here/harp-datasource-protocol#Theme}s `extends` property.
      *
      * @default [[DEFAULT_MAX_THEME_INTHERITANCE_DEPTH]]
      */
@@ -85,7 +84,7 @@ export interface ThemeLoadOptions {
     /**
      * Custom logging channel on which diagnostics and warnings will be reported.
      *
-     * If not specified, [[ThemeLoader.load]] will log to `console`.
+     * If not specified, {@link ThemeLoader.load} will log to `console`.
      */
     logger?: ISimpleChannel;
 
@@ -100,7 +99,8 @@ export interface ThemeLoadOptions {
  */
 export class ThemeLoader {
     /**
-     * Loads a [[Theme]] from a remote resource, provided as a URL that points to a
+     * Loads a {@link @here/harp-datasource-protocol#Theme} from a
+     * remote resource, provided as a URL that points to a
      * JSON-encoded theme.
      *
      * By default, resolves following features of theme:
@@ -113,17 +113,20 @@ export class ThemeLoader {
      * (see [[resolveUrls]]).
      *
      * Custom URIs (of theme itself and of resources referenced by theme) may be resolved with by
-     * providing [[UriResolver]] using [[ThemeLoadOptions.uriResolver]] option.
+     * providing {@link @here/harp-utils#UriResolver} using {@link ThemeLoadOptions.uriResolver}
+     * option.
      *
-     * @param theme [[Theme]] instance or theme URL to the theme.
-     * @param options Optional, a [[ThemeLoadOptions]] objects containing any custom settings for
-     *    this load request.
+     * @param theme - {@link @here/harp-datasource-protocol#Theme} instance or theme URL
+     *                to the theme.
+     * @param options - Optional, a {@link ThemeLoadOptions} objects
+     *                  containing any custom settings for
+     *                  this load request.
      */
     static async load(
         theme: string | Theme | FlatTheme,
         options?: ThemeLoadOptions
     ): Promise<Theme> {
-        options = options || {};
+        options = options ?? {};
         if (typeof theme === "string") {
             const uriResolver = options.uriResolver;
             const themeUrl = uriResolver !== undefined ? uriResolver.resolveUri(theme) : theme;
@@ -152,7 +155,7 @@ export class ThemeLoader {
         theme = await ThemeLoader.resolveBaseThemes(theme, options);
         if (resolveDefinitions) {
             const contextLoader = new ContextLogger(
-                options.logger || console,
+                options.logger ?? console,
                 `when processing Theme ${theme.url}:`
             );
             ThemeLoader.resolveThemeReferences(theme, contextLoader);
@@ -163,32 +166,35 @@ export class ThemeLoader {
     /**
      * Checks if `theme` instance is completely loaded, meaning that `extends` property is resolved.
      *
-     * @param theme
+     * @param theme -
      */
     static isThemeLoaded(theme: Theme | FlatTheme): boolean {
-        return theme.extends === undefined;
+        // TODO: Remove array check, when FlatTheme is fully supported
+        return theme.extends === undefined && !Array.isArray(theme.styles);
     }
 
     /**
      * @deprecated Please use `ThemeLoader.load`
      *
-     * Loads a [[Theme]] from a remote resource, provided as a URL that points to a JSON-encoded
+     * Loads a {@link @here/harp-datasource-protocol#Theme} from a remote resource,
+     * provided as a URL that points to a JSON-encoded
      * theme.
      *
-     * @param themeUrl The URL to the theme.
+     * @param themeUrl - The URL to the theme.
      *
      */
     static async loadAsync(themeUrl: string): Promise<Theme> {
-        return ThemeLoader.load(themeUrl);
+        return await ThemeLoader.load(themeUrl);
     }
 
     /**
-     * Resolves all [[Theme]]'s relatives URLs to full URL using the [[Theme]]'s URL
+     * Resolves all {@link @here/harp-datasource-protocol#Theme}'s relatives URLs
+     * to full URL using the {@link @here/harp-datasource-protocol#Theme}'s URL
      * (see: https://www.w3.org/TR/WD-html40-970917/htmlweb.html#h-5.1.2).
      *
      * This method mutates original `theme` instance.
      *
-     * @param theme The [[Theme]] to resolve.
+     * @param theme - The {@link @here/harp-datasource-protocol#Theme} to resolve.
      */
     private static resolveUrls(theme: Theme | FlatTheme, options?: ThemeLoadOptions): Theme {
         // Ensure that all resources referenced in theme by relative URIs are in fact relative to
@@ -256,43 +262,13 @@ export class ThemeLoader {
     }
 
     /**
-     * Expand all `ref` expressions in [[Theme]] basing on `definitions`.
+     * Expand all `ref` expressions in {@link @here/harp-datasource-protocol#Theme}
+     * basing on `definitions`.
      *
+     * @remarks
      * This method mutates original `theme` instance.
      */
     private static resolveThemeReferences(theme: Theme, contextLogger: IContextLogger): Theme {
-        if (theme.definitions !== undefined) {
-            contextLogger.pushAttr("definitions");
-            /**
-             * First, try to resolve all internal references in definitions, so if we may save few
-             * CPU cycles if some definition is used many times in actual style sets.
-             */
-            for (const definitionName in theme.definitions) {
-                if (!theme.definitions.hasOwnProperty(definitionName)) {
-                    continue;
-                }
-
-                const def = theme.definitions[definitionName];
-                if (isActualSelectorDefinition(def)) {
-                    contextLogger.pushAttr(definitionName);
-                    const resolvedDef = ThemeLoader.resolveStyle(
-                        def,
-                        theme.definitions,
-                        contextLogger
-                    );
-                    contextLogger.pop();
-                    if (resolvedDef === undefined) {
-                        contextLogger.pushAttr(definitionName);
-                        contextLogger.warn("skipping invalid style in definition");
-                        contextLogger.pop();
-                        delete theme.definitions[definitionName];
-                    } else {
-                        theme.definitions[definitionName] = resolvedDef;
-                    }
-                }
-            }
-            contextLogger.pop();
-        }
         if (theme.styles !== undefined) {
             for (const styleSetName in theme.styles) {
                 if (!theme.styles.hasOwnProperty(styleSetName)) {
@@ -320,8 +296,8 @@ export class ThemeLoader {
         styleSet: StyleSet,
         definitions: Definitions | undefined,
         contextLogger: IContextLogger
-    ): ResolvedStyleSet {
-        const result: ResolvedStyleSet = [];
+    ): StyleSet {
+        const result: StyleSet = [];
 
         for (let index = 0; index < styleSet.length; ++index) {
             const currentStyle = styleSet[index];
@@ -345,29 +321,10 @@ export class ThemeLoader {
      * Expand all `ref` in [[Style]] instance basing on `definitions`.
      */
     private static resolveStyle(
-        style: StyleDeclaration,
+        style: Style,
         definitions: Definitions | undefined,
         contextLogger: IContextLogger
-    ): ResolvedStyleDeclaration | undefined {
-        if (isJsonExprReference(style)) {
-            // expand and instantiate references to style definitions.
-
-            const def = definitions && definitions[style[1]];
-
-            if (!def) {
-                contextLogger.warn(`invalid reference '${style[1]}' - not found`);
-                return undefined;
-            }
-            if (!isActualSelectorDefinition(def)) {
-                contextLogger.warn(`invalid reference '${style[1]}' - expected style definition`);
-                return undefined;
-            }
-
-            // instantiate the style
-            style = cloneDeep(def);
-        }
-        style = style as ResolvedStyleDeclaration;
-
+    ): Style | undefined {
         if (Array.isArray(style.when)) {
             contextLogger.pushAttr("when");
             const resolvedWhen = this.resolveExpressionReferences(
@@ -436,15 +393,10 @@ export class ThemeLoader {
                     failed = true;
                     return undefined;
                 }
-                if (isLiteralDefinition(def) || isJsonExpr(def)) {
+                if (isJsonExpr(def)) {
                     return def;
                 }
-                if (isBoxedDefinition(def)) {
-                    return def.value;
-                }
-                contextLogger.warn(`invalid reference '${defName}' - expected value definition`);
-                failed = true;
-                return undefined;
+                return def.value;
             } else if (Array.isArray(node)) {
                 const result = [...node];
                 for (let i = 1; i < result.length; ++i) {
@@ -463,17 +415,19 @@ export class ThemeLoader {
     }
 
     /**
-     * Realize `extends` clause by merging `theme` with its base [[Theme]].
+     * Realize `extends` clause by merging `theme` with
+     * its base {@link @here/harp-datasource-protocol#Theme}.
      *
-     * @param theme [Theme] object
-     * @param options Optional, a [[ThemeLoadOptions]] objects containing any custom settings for
-     *    this load request.
+     * @param theme - {@link @here/harp-datasource-protocol#Theme} object
+     * @param options - Optional, a {@link ThemeLoadOptions} objects
+     *                  containing any custom settings for
+     *                  this load request.
      */
     private static async resolveBaseThemes(
         theme: Theme,
         options?: ThemeLoadOptions
     ): Promise<Theme> {
-        options = options || {};
+        options = options ?? {};
         if (theme.extends === undefined) {
             return theme;
         }
@@ -518,10 +472,41 @@ export class ThemeLoader {
                 if (index !== -1) {
                     // merge the current and incoming styleset
                     // and add the result to `styles`.
-                    styles[styleSetName] = [
-                        ...baseTheme.styles![styleSetName],
-                        ...theme.styles![styleSetName]
-                    ];
+
+                    const baseStyleSet = baseTheme.styles![styleSetName];
+
+                    const newStyleSet: StyleSet = [];
+                    const styleIdMap = new Map<string, number>();
+                    baseStyleSet.forEach(style => {
+                        if (typeof style.id === "string") {
+                            styleIdMap.set(style.id, newStyleSet.length);
+                        }
+                        newStyleSet.push(style);
+                    });
+
+                    const incomingStyleSet = theme.styles![styleSetName];
+                    incomingStyleSet.forEach(style => {
+                        if (typeof style.extends === "string" && styleIdMap.has(style.extends)) {
+                            // extends the existing style referenced by `style.extends`.
+                            const baseStyleIndex = styleIdMap.get(style.extends)!;
+                            const baseStyle = newStyleSet[baseStyleIndex];
+                            newStyleSet[baseStyleIndex] = { ...baseStyle, ...style } as any;
+                            newStyleSet[baseStyleIndex].extends = undefined;
+                            return;
+                        }
+
+                        if (typeof style.id === "string" && styleIdMap.has(style.id)) {
+                            // overrides the existing style with `id` equals to `style.id`.
+                            const styleIndex = styleIdMap.get(style.id)!;
+                            newStyleSet[styleIndex] = style;
+                            return;
+                        }
+
+                        newStyleSet.push(style);
+                    });
+
+                    styles[styleSetName] = newStyleSet;
+
                     // remove the styleset from the incoming list
                     incomingStyleSets.splice(index, 1);
                 } else {
@@ -598,7 +583,7 @@ export class ThemeLoader {
                 if (!theme.styles.hasOwnProperty(styleSetName)) {
                     continue;
                 }
-                const styleSet = theme.styles[styleSetName] as ResolvedStyleDeclaration[];
+                const styleSet = theme.styles[styleSetName] as Style[];
                 for (const style of styleSet) {
                     if (!style.attr) {
                         continue;

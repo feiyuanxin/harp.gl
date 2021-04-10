@@ -1,15 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-declare function require(module: any): any;
-
-import { GUI } from "dat.gui";
-// tslint:disable-next-line:no-var-requires
-const Stats = require("stats.js");
-import * as THREE from "three";
 
 import {
     ContextualArabicConverter,
@@ -20,7 +13,9 @@ import {
     TextCanvas,
     TextRenderStyle
 } from "@here/harp-text-canvas";
-
+import { GUI } from "dat.gui";
+import * as Stats from "stats.js";
+import * as THREE from "three";
 /**
  * This example showcases how [[TextCanvas]] can handle dynamic loading of multiple [[FontCatalog]]
  * assets, as well as dynamic real-time text styling.
@@ -334,8 +329,8 @@ export namespace TextCanvasDynamicExample {
     }
 
     function main() {
-        // Init Three.JS
-        webglRenderer = new THREE.WebGLRenderer({
+        // Init Three.JS, enable backward compatibility with three.js <= 0.117
+        webglRenderer = new ((THREE as any).WebGL1Renderer ?? THREE.WebGLRenderer)({
             canvas: document.getElementById("mapCanvas") as HTMLCanvasElement
         });
         webglRenderer.domElement.addEventListener("contextmenu", e => e.preventDefault());

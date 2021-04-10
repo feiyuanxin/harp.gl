@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -9,7 +9,12 @@ import { isJsonExpr } from "@here/harp-datasource-protocol/lib/Expr";
 import { GeoCoordinates } from "@here/harp-geoutils";
 import { MapControls, MapControlsUI } from "@here/harp-map-controls";
 import { CopyrightElementHandler, MapView, ThemeLoader } from "@here/harp-mapview";
-import { APIFormat, AuthenticationMethod, OmvDataSource } from "@here/harp-omv-datasource";
+import {
+    APIFormat,
+    AuthenticationMethod,
+    VectorTileDataSource
+} from "@here/harp-vectortile-datasource";
+
 import { apikey, copyrightInfo } from "../config";
 
 export namespace HelloWorldTexturedExample {
@@ -18,7 +23,7 @@ export namespace HelloWorldTexturedExample {
 
         const mapView = initializeMapView("mapCanvas");
 
-        const omvDataSource = new OmvDataSource({
+        const omvDataSource = new VectorTileDataSource({
             baseUrl: "https://vector.hereapi.com/v2/vectortiles/base/mc",
             apiFormat: APIFormat.XYZOMV,
             styleSetName: "tilezen",
@@ -46,7 +51,7 @@ export namespace HelloWorldTexturedExample {
     }
 </style>
 <p id="texture-license">Textures by
-<a href="https://opengameart.org/content/wall-grass-rock-stone-wood-and-dirt-480">
+<a href="https://opengameart.org/content/wall-grass-rock-stone-wood-and-dirt-480" target="_blank">
 West</a>.</p>`;
     }
 
@@ -55,7 +60,7 @@ West</a>.</p>`;
      * to use [[StandardTexturedTechnique]] instead.
      * This enables lighting for these areas and allows to specify textures.
      * This could solely be done in the theme json file but for explanatory reasons it's done here.
-     * @param theme The theme that should be modified.
+     * @param theme - The theme that should be modified.
      * @returns The modified theme.
      */
     function modifyTheme(theme: Theme): Theme {

@@ -1,15 +1,15 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { LoggerManager } from "@here/harp-utils";
 import * as THREE from "three";
+
 import { TestOptions } from "./RenderingTestHelper";
 
 declare const require: any;
-// tslint:disable-next-line:no-var-requires
 const pixelmatch = require("pixelmatch");
 
 const logger = LoggerManager.instance.create("DomImageUtils");
@@ -51,7 +51,7 @@ export async function canvasToImageData(canvas: HTMLCanvasElement): Promise<Imag
     if (context === null) {
         // if webgl context was already obtained, 2d returns null
         // hackaround with canvas.toBlob()
-        return new Promise<ImageData>((resolve, reject) => {
+        return await new Promise<ImageData>((resolve, reject) => {
             canvas.toBlob(blob => {
                 if (blob === null) {
                     reject(new Error("#canvasToImageData: unable to capture image from canvas"));
@@ -87,7 +87,6 @@ export function loadImageData(url: string): Promise<ImageData> {
         new THREE.ImageLoader().load(
             url,
             image => {
-                logger.info(`#loadImageData loaded: ${url}, size=${image.width},${image.height}`);
                 const canvas = document.createElement("canvas");
                 canvas.width = image.width;
                 canvas.height = image.height;
@@ -159,7 +158,7 @@ export async function waitImageLoaded(img: HTMLImageElement): Promise<void> {
         return;
     }
 
-    return new Promise((resolve, reject) => {
+    return await new Promise((resolve, reject) => {
         const cleanup = () => {
             img.removeEventListener("load", onLoaded);
             img.removeEventListener("error", onError);

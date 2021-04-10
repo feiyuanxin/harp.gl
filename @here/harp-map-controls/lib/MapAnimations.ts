@@ -1,17 +1,16 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
 import { GeoCoordinates, GeoCoordinatesLike } from "@here/harp-geoutils";
-import { EventNames, MapControls } from "./MapControls";
-
 import { MapView } from "@here/harp-mapview";
 import { PerformanceTimer } from "@here/harp-utils";
-
 import * as TWEEN from "@tweenjs/tween.js";
 import * as THREE from "three";
+
+import { EventNames, MapControls } from "./MapControls";
 
 /**
  * Functions used for specifying animations' speed.
@@ -66,7 +65,7 @@ export abstract class CameraAnimation {
     /**
      * Tweening controller.
      */
-    protected tween?: TWEEN.Tween;
+    protected tween?: TWEEN.Tween<GeoCoordinates | Record<string, number>>;
 
     /**
      * `True` if animation is being played.
@@ -101,8 +100,8 @@ export abstract class CameraAnimation {
     /**
      * Creates a new `CameraAnimation` object.
      *
-     * @param mapView [[MapView]] which will be affected by the animation.
-     * @param name Animation's name.
+     * @param mapView - [[MapView]] which will be affected by the animation.
+     * @param name - Animation's name.
      */
     constructor(protected mapView: MapView, public name?: string) {
         checkSetupTween();
@@ -111,8 +110,8 @@ export abstract class CameraAnimation {
     /**
      * Start the animation.
      *
-     * @param time Duration of the animation in milliseconds.
-     * @param onFinished Callback that gets triggered once the animation ends.
+     * @param time - Duration of the animation in milliseconds.
+     * @param onFinished - Callback that gets triggered once the animation ends.
      */
     abstract start(time?: number, onFinished?: () => void): void;
 
@@ -121,7 +120,7 @@ export abstract class CameraAnimation {
      */
     update(time?: number): boolean {
         if (this.tween) {
-            return this.tween.update(time || PerformanceTimer.now());
+            return this.tween.update(time ?? PerformanceTimer.now());
         }
         return false;
     }
@@ -168,7 +167,6 @@ export class CameraRotationAnimation extends CameraAnimation {
      */
     readonly endAngle: number = 360;
 
-    // tslint:disable-next-line:no-unused-variable
     private readonly m_axis = new THREE.Vector3(0, 0, 1);
     private m_userCamerRotation?: THREE.Quaternion;
     private m_lastRotationValue: number;
@@ -176,10 +174,10 @@ export class CameraRotationAnimation extends CameraAnimation {
     /**
      * Creates a new `CameraRotationAnimation` object.
      *
-     * @param mapView [[MapView]] which will be affected by the animation.
-     * @param m_mapControls [[MapControls]] this animation will be taking control of.
-     * @param options Animation's options.
-     * @param name Animation's name.
+     * @param mapView - [[MapView]] which will be affected by the animation.
+     * @param m_mapControls - [[MapControls]] this animation will be taking control of.
+     * @param options - Animation's options.
+     * @param name - Animation's name.
      */
     constructor(
         mapView: MapView,
@@ -209,7 +207,7 @@ export class CameraRotationAnimation extends CameraAnimation {
             this.easing =
                 typeof options.easing === "function"
                     ? options.easing
-                    : easingMap.get(options.easing) || TWEEN.Easing.Linear.None;
+                    : easingMap.get(options.easing) ?? TWEEN.Easing.Linear.None;
         }
 
         this.m_lastRotationValue = this.startAngle;
@@ -218,8 +216,8 @@ export class CameraRotationAnimation extends CameraAnimation {
     /**
      * Start the animation.
      *
-     * @param time Duration of the animation in milliseconds.
-     * @param onFinished Callback that gets triggered once the animation ends.
+     * @param time - Duration of the animation in milliseconds.
+     * @param onFinished - Callback that gets triggered once the animation ends.
      * @override
      */
     start(time?: number, onFinished?: () => void): void {
@@ -280,13 +278,13 @@ export class CameraRotationAnimation extends CameraAnimation {
         }
     }
 
-    private beginInteractionListener = (): void => {
+    private readonly beginInteractionListener = (): void => {
         if (!this.stopped) {
             this.stopTween();
         }
     };
 
-    private endInteractionListener = (): void => {
+    private readonly endInteractionListener = (): void => {
         if (!this.stopped) {
             this.startTween();
         }
@@ -368,14 +366,14 @@ export class CameraPanAnimation extends CameraAnimation {
      */
     readonly interpolation = TWEEN.Interpolation.CatmullRom;
 
-    private m_geoCoordinates: GeoCoordinatesLike[];
+    private readonly m_geoCoordinates: GeoCoordinatesLike[];
 
     /**
      * Creates a new `CameraPanAnimation` object.
      *
-     * @param mapView [[MapView]] which will be affected by the animation.
-     * @param options Animation's options.
-     * @param name Animation's name.
+     * @param mapView - [[MapView]] which will be affected by the animation.
+     * @param options - Animation's options.
+     * @param name - Animation's name.
      */
     constructor(mapView: MapView, options: CameraPanAnimationOptions, public name?: string) {
         super(mapView, name);
@@ -390,13 +388,13 @@ export class CameraPanAnimation extends CameraAnimation {
             this.easing =
                 typeof options.easing === "function"
                     ? options.easing
-                    : easingMap.get(options.easing) || TWEEN.Easing.Linear.None;
+                    : easingMap.get(options.easing) ?? TWEEN.Easing.Linear.None;
         }
         if (options.interpolation !== undefined) {
             this.interpolation =
                 typeof options.interpolation === "function"
                     ? options.interpolation
-                    : interpolationMap.get(options.interpolation) || TWEEN.Interpolation.Linear;
+                    : interpolationMap.get(options.interpolation) ?? TWEEN.Interpolation.Linear;
         }
         this.m_geoCoordinates = options.geoCoordinates !== undefined ? options.geoCoordinates : [];
     }
@@ -404,7 +402,7 @@ export class CameraPanAnimation extends CameraAnimation {
     /**
      * Add a geo coordinate that should be visited.
      *
-     * @param geoPos Geographical coordinate to animate to.
+     * @param geoPos - Geographical coordinate to animate to.
      */
     addPosition(geoPos: GeoCoordinatesLike): void {
         this.m_geoCoordinates.push(geoPos);
@@ -413,8 +411,8 @@ export class CameraPanAnimation extends CameraAnimation {
     /**
      * Start the animation.
      *
-     * @param time Duration of the animation in milliseconds.
-     * @param onFinished Callback that gets triggered once the animation ends.
+     * @param time - Duration of the animation in milliseconds.
+     * @param onFinished - Callback that gets triggered once the animation ends.
      * @override
      */
     start(time?: number, onFinished?: () => void): void {
@@ -441,7 +439,7 @@ export class CameraPanAnimation extends CameraAnimation {
         for (const pos of this.m_geoCoordinates) {
             to.latitude.push(pos.latitude);
             to.longitude.push(pos.longitude);
-            to.altitude.push(pos.altitude || this.mapView.camera.position.z);
+            to.altitude.push(pos.altitude ?? this.mapView.camera.position.z);
         }
 
         this.tween = new TWEEN.Tween(from)
@@ -454,7 +452,7 @@ export class CameraPanAnimation extends CameraAnimation {
             })
             .onUpdate(({ latitude, longitude, altitude }) => {
                 this.mapView.geoCenter = new GeoCoordinates(latitude, longitude, altitude);
-                this.mapView.camera.position.z = altitude;
+                this.mapView.camera.position.z = altitude ?? 0;
             });
 
         this.tween.repeat(this.repeat);

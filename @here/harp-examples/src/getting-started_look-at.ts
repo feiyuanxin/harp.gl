@@ -6,6 +6,7 @@
 
 import { GeoBox, GeoCoordinates, mercatorProjection, sphereProjection } from "@here/harp-geoutils";
 import { GUI } from "dat.gui";
+
 import { HelloWorldExample } from "./getting-started_hello-world_npm";
 
 /**
@@ -20,7 +21,7 @@ import { HelloWorldExample } from "./getting-started_hello-world_npm";
 export namespace LookAtExample {
     const mapView = HelloWorldExample.mapView;
     mapView.projection = sphereProjection;
-    mapView.theme = { extends: "resources/berlin_tilezen_base_globe.json" };
+    mapView.setTheme({ extends: "resources/berlin_tilezen_base_globe.json" });
     mapView.tilt = 0;
     mapView.heading = 0;
 

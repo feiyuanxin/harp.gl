@@ -1,10 +1,8 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
-
-import * as THREE from "three";
 
 import {
     Light,
@@ -14,6 +12,7 @@ import {
     TextureDataType,
     WrappingMode
 } from "@here/harp-datasource-protocol";
+import * as THREE from "three";
 
 /**
  * Returns `three.js` pixel format object basing on a [[PixelFormat]] specified.

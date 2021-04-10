@@ -1,19 +1,19 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
-// tslint:disable: no-bitwise
 //    Allow bitwise operations for colors decoding tests
 
 import { assert } from "chai";
+
+import { ColorUtils } from "../lib/ColorUtils";
 import { parseStringEncodedNumeral } from "../lib/StringEncodedNumeral";
 
-describe("StringEncodedNumeral", function() {
+describe("StringEncodedNumeral", function () {
     it("Meters", () => {
         testMetric("m");
     });
@@ -123,10 +123,9 @@ function testHexColor() {
     assert.strictEqual(parseStringEncodedNumeral(`#FF000000`), (255 << 16) | (255 << 24));
     assert.strictEqual(parseStringEncodedNumeral(`#FF0000FF`), 255 << 16);
 
-    // Do not allow for any characters behind and after
-    assert.isUndefined(parseStringEncodedNumeral(` #FFF`));
-    assert.isUndefined(parseStringEncodedNumeral(`#FFF `));
-    assert.isUndefined(parseStringEncodedNumeral(` #FFF `));
+    assert.strictEqual(parseStringEncodedNumeral(` #FFF`), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(`#FFF `), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(` #FFF `), 0xffffff);
 
     // Do not allow embedding into sentence
     assert.isUndefined(parseStringEncodedNumeral(`can not be color #FFF`));
@@ -139,9 +138,11 @@ function testHexColor() {
     assert.isUndefined(parseStringEncodedNumeral(`#555m`));
     assert.isUndefined(parseStringEncodedNumeral(`#555px`));
     assert.isUndefined(parseStringEncodedNumeral(`#10.0m`));
-    assert.isUndefined(parseStringEncodedNumeral(`#10.5px`));
     assert.isUndefined(parseStringEncodedNumeral(`#m`));
     assert.isUndefined(parseStringEncodedNumeral(`#px`));
+
+    // weird color format!
+    assert.strictEqual(parseStringEncodedNumeral(`#10.5px`), 0x000010);
 }
 
 function testRGBColor() {
@@ -168,11 +169,11 @@ function testRGBColor() {
         (55 << 16) | (255 << 8) | 55
     );
 
-    // Do not accept spaces before the colon.
-    assert.isUndefined(parseStringEncodedNumeral(`rgb(0 ,0,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgb(0,0 ,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgb(0 , 0 ,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgb( 0 , 0 ,0 )`));
+    // accept spaces before the colon.
+    assert.strictEqual(parseStringEncodedNumeral(`rgb(0 ,0,0)`), 0);
+    assert.strictEqual(parseStringEncodedNumeral(`rgb(0,0 ,0)`), 0);
+    assert.strictEqual(parseStringEncodedNumeral(`rgb(0 , 0 ,0)`), 0);
+    assert.strictEqual(parseStringEncodedNumeral(`rgb( 0 , 0 ,0 )`), 0);
 
     // RGB expression may not be preceded or followed by any characters,
     // even white chars (spaces) are disallowed.
@@ -182,15 +183,15 @@ function testRGBColor() {
     assert.isUndefined(parseStringEncodedNumeral(`rgb(0,0,0)a`));
     assert.isUndefined(parseStringEncodedNumeral(`argb(0,0,0)`));
 
-    assert.isUndefined(parseStringEncodedNumeral(` rgb(255,255,255)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgb(255,255,255) `));
-    assert.isUndefined(parseStringEncodedNumeral(` rgb(255,255,255) `));
+    assert.strictEqual(parseStringEncodedNumeral(` rgb(255,255,255)`), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(`rgb(255,255,255) `), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(` rgb(255,255,255) `), 0xffffff);
 
-    // Do not mix with other literals
+    // strange literals
     assert.isUndefined(parseStringEncodedNumeral(`#rgb(0,0,0)`));
     assert.isUndefined(parseStringEncodedNumeral(`rgb(#FF,0,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgb(0,0,1.0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgb(1.0,0,0)`));
+    assert.strictEqual(parseStringEncodedNumeral(`rgb(0,0,1.0)`), 0x000001);
+    assert.strictEqual(parseStringEncodedNumeral(`rgb(1.0,0,0)`), 0x010000);
     assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0,1.0)`));
     assert.isUndefined(parseStringEncodedNumeral(`rgba(255,255,255)`));
 }
@@ -229,11 +230,12 @@ function testRGBAColor() {
         (230 << 24) | (55 << 16) | (255 << 8) | 55
     );
 
-    // Do not accept spaces before the colon.
-    assert.isUndefined(parseStringEncodedNumeral(`rgba(0 ,0,0,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0 ,0,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0,0 ,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgba( 0 , 0 , 0 , 0 )`));
+    // accept spaces before the colon.
+    const black = ColorUtils.getHexFromRgba(0, 0, 0, 0);
+    assert.strictEqual(parseStringEncodedNumeral(`rgba(0 ,0,0,0)`), black);
+    assert.strictEqual(parseStringEncodedNumeral(`rgba(0,0 ,0,0)`), black);
+    assert.strictEqual(parseStringEncodedNumeral(`rgba(0,0,0 ,0)`), black);
+    assert.strictEqual(parseStringEncodedNumeral(`rgba( 0 , 0 , 0 , 0 )`), black);
 
     // Expression may not be preceded or followed by any characters,
     // even white chars (spaces) are disallowed.
@@ -243,15 +245,15 @@ function testRGBAColor() {
     assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0,0,0)a`));
     assert.isUndefined(parseStringEncodedNumeral(`xrgba(0,0,0)`));
 
-    assert.isUndefined(parseStringEncodedNumeral(` rgba(255,255,255,1)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgba(255,255,255,1) `));
-    assert.isUndefined(parseStringEncodedNumeral(` rgba(255,255,255,1) `));
+    assert.strictEqual(parseStringEncodedNumeral(` rgba(255,255,255,1)`), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(`rgba(255,255,255,1) `), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(` rgba(255,255,255,1) `), 0xffffff);
 
     // Do not mix with other literals
     assert.isUndefined(parseStringEncodedNumeral(`#rgba(0,0,0)`));
     assert.isUndefined(parseStringEncodedNumeral(`rgba(#FF,0,0,1)`));
     assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0,0,#FF)`));
-    assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0,0,255)`));
+    assert.strictEqual(parseStringEncodedNumeral(`rgba(0,0,0,255)`), 0x000000);
     assert.isUndefined(parseStringEncodedNumeral(`rgba(0,0,1.0)`));
     assert.isUndefined(parseStringEncodedNumeral(`rgba(1.0,0,0)`));
     assert.isUndefined(parseStringEncodedNumeral(`rgb(0,0,0,1.0)`));
@@ -290,29 +292,23 @@ function testHSLColor() {
     );
 
     // Single spaces after colons are also accepted.
-    assert.strictEqual(
-        parseStringEncodedNumeral(`hsl(90, 100%, 50%)`),
-        (0x7f << 16) | (0xff << 8) | 0
-    );
-    assert.strictEqual(
-        parseStringEncodedNumeral(`hsl( 90, 50%, 50% )`),
-        (127 << 16) | (191 << 8) | 63
-    );
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(90, 100%, 50%)`), 0x80ff00);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl( 90, 50%, 50% )`), 0x80bf40);
 
-    // Do not accept spaces between value and percent.
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,0 %,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,0%,0 %)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,0 %,0 %)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0, 0 %, 0 %)`));
+    // accept spaces between value and percent.
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,0 %,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,0%,0 %)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,0 %,0 %)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0, 0 %, 0 %)`), 0x000000);
 
-    // Do not accept spaces before the colon.
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0 ,0%,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,0% ,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0 ,0% ,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl( 0 , 0% ,0 )`));
+    // accept spaces before the colon.
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0 ,0%,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,0% ,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0 ,0% ,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl( 0 , 0% ,0 )`), 0x000000);
 
-    // No spaces between hsl and opening bracket.
-    assert.isUndefined(parseStringEncodedNumeral(`hsl (0,0%,0%)`));
+    // spaces between hsl and opening bracket.
+    assert.strictEqual(parseStringEncodedNumeral(`hsl (0,0%,0%)`), 0x000000);
 
     // Expression may not be preceded or followed by any characters,
     assert.isUndefined(parseStringEncodedNumeral(`not a hsl color hsl(0,0%,0%)`));
@@ -322,17 +318,17 @@ function testHSLColor() {
     assert.isUndefined(parseStringEncodedNumeral(`hsla(0,0%,0%)`));
     assert.isUndefined(parseStringEncodedNumeral(`ahsl(0,0%,0%)`));
 
-    assert.isUndefined(parseStringEncodedNumeral(` hsl(0,100%,100%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,100%,100%) `));
-    assert.isUndefined(parseStringEncodedNumeral(` hsl(0,100%,100%) `));
+    assert.strictEqual(parseStringEncodedNumeral(` hsl(0,100%,100%)`), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,100%,100%) `), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(` hsl(0,100%,100%) `), 0xffffff);
 
-    // Do not mix with other literals
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,0,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(#00,0%,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(#FF,0%,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(1.0,0%,0%)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(0,255,0)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(255,255,255)`));
-    assert.isUndefined(parseStringEncodedNumeral(`hsl(255,255%,255%)`));
+    // strange literals
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,0,0)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(#00,0%,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(#FF,0%,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(1.0,0%,0%)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(0,255,0)`), 0x000000);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(255,255,255)`), 0xffffff);
+    assert.strictEqual(parseStringEncodedNumeral(`hsl(255,255%,255%)`), 0xffffff);
     assert.isUndefined(parseStringEncodedNumeral(`hsl(0,0%,0%,1.0)`));
 }

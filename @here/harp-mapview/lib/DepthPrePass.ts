@@ -1,19 +1,20 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as THREE from "three";
-
 import { Env, ExtrudedPolygonTechnique } from "@here/harp-datasource-protocol";
 import { ColorUtils } from "@here/harp-datasource-protocol/lib/ColorUtils";
 import { enforceBlending, MapMeshStandardMaterial } from "@here/harp-materials";
+import * as THREE from "three";
+
 import { evaluateBaseColorProperty } from "./DecodedTileHelpers";
 
 /**
  * Bitmask used for the depth pre-pass to prevent multiple fragments in the same screen position
  * from rendering color.
+ * @internal
  */
 export const DEPTH_PRE_PASS_STENCIL_MASK = 0x01;
 
@@ -25,11 +26,16 @@ const DEPTH_PRE_PASS_RENDER_ORDER_OFFSET = 1e-6;
 /**
  * Check if technique requires (and not disables) use of depth prepass.
  *
+ * @remarks
  * Depth prepass is enabled if correct opacity is specified (in range `(0,1)`) _and_ not explicitly
  * disabled by `enableDepthPrePass` option.
  *
- * @param technique [[BaseStandardTechnique]] instance to be checked
- * @param env [[Env]] instance used to evaluate [[Expr]] based properties of [[Technique]]
+ * @param technique - `BaseStandardTechnique` instance to be checked
+ * @param env - {@link @here/harp-datasource-protocol#Env} instance used
+ *              to evaluate {@link @here/harp-datasource-protocol#Expr}
+ *              based properties of `Technique`
+ *
+ * @internal
  */
 export function isRenderDepthPrePassEnabled(technique: ExtrudedPolygonTechnique, env: Env) {
     // Depth pass explicitly disabled
@@ -54,14 +60,27 @@ export function isRenderDepthPrePassEnabled(technique: ExtrudedPolygonTechnique,
 }
 
 /**
+ * Property identifying a material that is being used as a DepthPrePass material.
+ */
+export interface DepthPrePassProperties {
+    /**
+     * This material is a special depth prepass material.
+     */
+    isDepthPrepassMaterial?: true;
+}
+
+/**
  * Creates material for depth prepass.
  *
+ * @remarks
  * Creates material that writes only to the z-buffer. Updates the original material instance, to
  * support depth prepass.
  *
- * @param baseMaterial The base material of mesh that is updated to work with depth prepass
+ * @param baseMaterial - The base material of mesh that is updated to work with depth prepass
  *     and then used. This parameter is a template for depth prepass material that is returned.
  * @returns depth prepass material, which is a clone of `baseMaterial` with the adapted settings.
+ *
+ * @internal
  */
 export function createDepthPrePassMaterial(baseMaterial: THREE.Material): THREE.Material {
     baseMaterial.depthWrite = false;
@@ -69,7 +88,8 @@ export function createDepthPrePassMaterial(baseMaterial: THREE.Material): THREE.
     baseMaterial.colorWrite = true;
     enforceBlending(baseMaterial);
 
-    const depthPassMaterial = baseMaterial.clone();
+    const depthPassMaterial: THREE.Material & DepthPrePassProperties = baseMaterial.clone();
+    depthPassMaterial.isDepthPrepassMaterial = true;
     depthPassMaterial.depthWrite = true;
     depthPassMaterial.depthTest = true;
     depthPassMaterial.depthFunc = THREE.LessDepth;
@@ -79,9 +99,29 @@ export function createDepthPrePassMaterial(baseMaterial: THREE.Material): THREE.
     return depthPassMaterial;
 }
 
-// tslint:disable:max-line-length
 /**
- * Clones a given mesh to render it in the depth prepass with another material. Both the original
+ * Checks if a given object is a depth prepass mesh.
+ *
+ * @param object - The object to check whether it's a depth prepass mesh.
+ * @returns `true` if the object is a depth prepass mesh, `false` otherwise.
+ *
+ * @internal
+ */
+export function isDepthPrePassMesh(object: THREE.Object3D): boolean {
+    if ((object as any).isMesh !== true) {
+        return false;
+    }
+    const mesh = object as THREE.Mesh;
+    return mesh.material instanceof Array
+        ? mesh.material.every(material => (material as any).isDepthPrepassMaterial === true)
+        : (mesh.material as any).isDepthPrepassMaterial === true;
+}
+
+/**
+ * Clones a given mesh to render it in the depth prepass with another material.
+ *
+ * @remarks
+ * Both the original
  * and depth prepass meshes, when rendered in the correct order, create the proper depth prepass
  * effect. The original mesh material is slightly modified by [[createDepthPrePassMaterial]] to
  * support the depth prepass. This method is usable only if the material of this mesh has an
@@ -90,10 +130,11 @@ export function createDepthPrePassMaterial(baseMaterial: THREE.Material): THREE.
  * The DepthPrePass object is created wis a slightly smaller `renderOrder` as the original mesh
  * to ensure that it's rendered first.
  *
- * @param mesh original mesh
+ * @param mesh - original mesh
  * @returns `Mesh` depth pre pass
+ *
+ * @internal
  */
-// tslint:enable:max-line-length
 export function createDepthPrePassMesh(mesh: THREE.Mesh): THREE.Mesh {
     const originalGeometry = mesh.geometry;
 
@@ -143,36 +184,54 @@ export function createDepthPrePassMesh(mesh: THREE.Mesh): THREE.Mesh {
 /**
  * Sets up all the needed stencil logic needed for the depth pre-pass.
  *
+ * @remarks
  * This logic is in place to avoid z-fighting artifacts that can appear in geometries that have
  * coplanar triangles inside the same mesh.
  *
- * @param depthMesh Mesh created by `createDepthPrePassMesh`.
- * @param colorMesh Original mesh.
+ * @param depthMesh - Mesh created by `createDepthPrePassMesh`.
+ * @param colorMesh - Original mesh.
+ * @internal
  */
 export function setDepthPrePassStencil(depthMesh: THREE.Mesh, colorMesh: THREE.Mesh) {
-    // Set up depth mesh stencil logic.
-    // Set the depth pre-pass stencil bit for all processed fragments. We use
-    // `THREE.AlwaysStencilFunc` and not `THREE.NotEqualStencilFunc` to force all fragments to pass
-    // the stencil test and write the correct depth value.
-    const depthMaterial = depthMesh.material as MapMeshStandardMaterial;
-    depthMaterial.stencilWrite = true;
-    depthMaterial.stencilFail = THREE.KeepStencilOp;
-    depthMaterial.stencilZFail = THREE.KeepStencilOp;
-    depthMaterial.stencilZPass = THREE.ReplaceStencilOp;
-    depthMaterial.stencilFunc = THREE.AlwaysStencilFunc;
-    depthMaterial.stencilRef = 0xff;
-    (depthMaterial as any).stencilFuncMask = DEPTH_PRE_PASS_STENCIL_MASK;
+    function setupDepthMaterialStencil(depthMeshMaterial: THREE.Material) {
+        // Set up depth mesh stencil logic.
+        // Set the depth pre-pass stencil bit for all processed fragments. We use
+        // `THREE.AlwaysStencilFunc` and not `THREE.NotEqualStencilFunc` to force all fragments to pass
+        // the stencil test and write the correct depth value.
+        const depthMaterial = depthMeshMaterial as MapMeshStandardMaterial;
+        depthMaterial.stencilWrite = true;
+        depthMaterial.stencilFail = THREE.KeepStencilOp;
+        depthMaterial.stencilZFail = THREE.KeepStencilOp;
+        depthMaterial.stencilZPass = THREE.ReplaceStencilOp;
+        depthMaterial.stencilFunc = THREE.AlwaysStencilFunc;
+        depthMaterial.stencilRef = 0xff;
+        (depthMaterial as any).stencilFuncMask = DEPTH_PRE_PASS_STENCIL_MASK;
+    }
 
-    // Set up color mesh stencil logic.
-    // Only write color for pixels with the depth pre-pass stencil bit set. Also, once a pixel is
-    // rendered, set the stencil bit to 0 to prevent subsequent pixels in the same clip position
-    // from rendering color again.
-    const colorMaterial = colorMesh.material as MapMeshStandardMaterial;
-    colorMaterial.stencilWrite = true;
-    colorMaterial.stencilFail = THREE.KeepStencilOp;
-    colorMaterial.stencilZFail = THREE.KeepStencilOp;
-    colorMaterial.stencilZPass = THREE.ZeroStencilOp;
-    colorMaterial.stencilFunc = THREE.EqualStencilFunc;
-    colorMaterial.stencilRef = 0xff;
-    (colorMaterial as any).stencilFuncMask = DEPTH_PRE_PASS_STENCIL_MASK;
+    function setupColorMaterialStencil(colorMeshMaterial: THREE.Material) {
+        // Set up color mesh stencil logic.
+        // Only write color for pixels with the depth pre-pass stencil bit set. Also, once a pixel is
+        // rendered, set the stencil bit to 0 to prevent subsequent pixels in the same clip position
+        // from rendering color again.
+        const colorMaterial = colorMeshMaterial as MapMeshStandardMaterial;
+        colorMaterial.stencilWrite = true;
+        colorMaterial.stencilFail = THREE.KeepStencilOp;
+        colorMaterial.stencilZFail = THREE.KeepStencilOp;
+        colorMaterial.stencilZPass = THREE.ZeroStencilOp;
+        colorMaterial.stencilFunc = THREE.EqualStencilFunc;
+        colorMaterial.stencilRef = 0xff;
+        (colorMaterial as any).stencilFuncMask = DEPTH_PRE_PASS_STENCIL_MASK;
+    }
+
+    if (depthMesh.material instanceof Array) {
+        depthMesh.material.map(setupDepthMaterialStencil);
+    } else {
+        setupDepthMaterialStencil(depthMesh.material);
+    }
+
+    if (colorMesh.material instanceof Array) {
+        colorMesh.material.map(setupColorMaterialStencil);
+    } else {
+        setupColorMaterialStencil(colorMesh.material);
+    }
 }

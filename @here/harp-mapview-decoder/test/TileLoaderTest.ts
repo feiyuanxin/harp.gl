@@ -1,10 +1,9 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// tslint:disable:only-arrow-functions
 //    Mocha discourages using arrow functions, see https://mochajs.org/#arrow-functions
 
 import { DecodedTile, Geometry, ITileDecoder, TileInfo } from "@here/harp-datasource-protocol";
@@ -16,16 +15,17 @@ import {
     webMercatorTilingScheme
 } from "@here/harp-geoutils";
 import { DataSource, MapView, Statistics, Tile, TileLoaderState } from "@here/harp-mapview";
+import { LoggerManager } from "@here/harp-utils";
 import * as chai from "chai";
 import * as chaiAsPromised from "chai-as-promised";
 import * as sinon from "sinon";
-chai.use(chaiAsPromised);
-const { expect } = chai;
-import { LoggerManager } from "@here/harp-utils";
-import { DataProvider, TileLoader } from "../index";
 
+import { DataProvider } from "../lib/DataProvider";
+import { TileLoader } from "../lib/TileLoader";
+
+chai.use(chaiAsPromised);
 // Needed for using expect(...).true for example
-// tslint:disable: no-unused-expression
+const { expect } = chai;
 
 class MockDataSource extends DataSource {
     /** @override */
@@ -39,11 +39,7 @@ class MockDataSource extends DataSource {
     }
 }
 
-class MockDataProvider implements DataProvider {
-    constructor() {
-        // empty implementation
-    }
-
+class MockDataProvider extends DataProvider {
     async connect() {
         // empty implementation
     }
@@ -53,7 +49,11 @@ class MockDataProvider implements DataProvider {
     }
 
     async getTile(): Promise<ArrayBufferLike | {}> {
-        return Promise.resolve(new ArrayBuffer(5));
+        return await Promise.resolve(new ArrayBuffer(5));
+    }
+
+    /** @override */ dispose() {
+        // Nothing to be done here.
     }
 }
 
@@ -74,7 +74,7 @@ class MockTileDecoder implements ITileDecoder {
     }
 
     async decodeTile(): Promise<DecodedTile> {
-        return Promise.resolve(fakeEmptyGeometry);
+        return await Promise.resolve(fakeEmptyGeometry);
     }
 
     async getTileInfo(
@@ -82,7 +82,7 @@ class MockTileDecoder implements ITileDecoder {
         _tileKey: TileKey,
         _projection: Projection
     ): Promise<TileInfo | undefined> {
-        return Promise.resolve(undefined);
+        return await Promise.resolve(undefined);
     }
 
     configure() {
@@ -93,37 +93,45 @@ class MockTileDecoder implements ITileDecoder {
 function createMockMapView() {
     return ({
         projection: webMercatorProjection,
-        // tslint:disable-next-line:no-empty
         getDataSourceByName() {},
         statistics: new Statistics()
     } as any) as MapView;
 }
 
-describe("TileLoader", function() {
+describe("TileLoader", function () {
     let tileKey: TileKey;
     let mapView: MapView;
     let dataSource: DataSource;
     let dataProvider: MockDataProvider;
+    let loggerWasEnabled = true;
 
-    before(function() {
+    before(function () {
         tileKey = TileKey.fromRowColumnLevel(0, 0, 0);
         mapView = createMockMapView();
         dataSource = new MockDataSource();
         dataSource.attach(mapView);
+        const logger = LoggerManager.instance.getLogger("BaseTileLoader");
+        if (logger) {
+            loggerWasEnabled = logger.enabled;
+            logger.enabled = false;
+        }
     });
 
-    beforeEach(function() {
+    beforeEach(function () {
         dataProvider = new MockDataProvider();
     });
 
-    describe("loadAndDecode()", function() {
-        it("should load tiles", function() {
+    after(function () {
+        LoggerManager.instance.enable("BaseTileLoader", loggerWasEnabled);
+    });
+
+    describe("loadAndDecode()", function () {
+        it("should load tiles", function () {
             const tileLoader = new TileLoader(
                 dataSource,
                 tileKey,
                 dataProvider,
-                new MockTileDecoder(),
-                0
+                new MockTileDecoder()
             );
 
             const loadPromise = tileLoader.loadAndDecode();
@@ -132,13 +140,12 @@ describe("TileLoader", function() {
             return expect(loadPromise).to.eventually.be.fulfilled;
         });
 
-        it("should not reload already requested tile", function() {
+        it("should not reload already requested tile", function () {
             const tileLoader = new TileLoader(
                 dataSource,
                 tileKey,
                 dataProvider,
-                new MockTileDecoder(),
-                0
+                new MockTileDecoder()
             );
 
             const loadPromise = tileLoader.loadAndDecode();
@@ -151,10 +158,10 @@ describe("TileLoader", function() {
             return expect(loadPromise).to.eventually.be.fulfilled;
         });
 
-        it("should handle empty payloads", function() {
+        it("should handle empty payloads", function () {
             const tileDecoder = new MockTileDecoder();
             const decodeTileSpy = sinon.spy(tileDecoder, "decodeTile");
-            const tileLoader = new TileLoader(dataSource, tileKey, dataProvider, tileDecoder, 0);
+            const tileLoader = new TileLoader(dataSource, tileKey, dataProvider, tileDecoder);
 
             const getTileStub = sinon.stub(dataProvider, "getTile").resolves(new ArrayBuffer(0));
             let loadPromise = tileLoader.loadAndDecode();
@@ -166,6 +173,8 @@ describe("TileLoader", function() {
                 getTileStub.resolves({});
                 loadPromise = tileLoader.loadAndDecode();
                 expect(loadPromise).to.not.be.undefined;
+                expect(tileLoader.decodedTile!.geometries.length).eq(0);
+                expect(tileLoader.decodedTile?.techniques.length).eq(0);
 
                 return expect(loadPromise).to.eventually.be.fulfilled.then(() => {
                     expect(decodeTileSpy.notCalled).to.be.true;
@@ -173,15 +182,14 @@ describe("TileLoader", function() {
             });
         });
 
-        describe("loadAndDecode()", function() {
+        describe("loadAndDecode()", function () {
             let tileLoader: TileLoader;
             this.beforeEach(() => {
                 tileLoader = new TileLoader(
                     dataSource,
                     tileKey,
                     dataProvider,
-                    new MockTileDecoder(),
-                    0
+                    new MockTileDecoder()
                 );
                 LoggerManager.instance.update("TileLoader", { enabled: false });
             });
@@ -189,7 +197,7 @@ describe("TileLoader", function() {
                 LoggerManager.instance.update("TileLoader", { enabled: false });
             });
 
-            it("should recover from losing internet connection", function() {
+            it("should recover from losing internet connection", function () {
                 // This test writes an error to the console, so we disable it.
                 LoggerManager.instance.update("TileLoader", { enabled: false });
 
@@ -204,7 +212,6 @@ describe("TileLoader", function() {
                     expect(tileLoader.state).to.equal(TileLoaderState.Failed);
 
                     getTileStub.restore();
-                    // tslint:disable-next-line: no-shadowed-variable
                     const loadPromise = tileLoader.loadAndDecode();
                     expect(loadPromise).to.not.be.undefined;
 
@@ -214,18 +221,16 @@ describe("TileLoader", function() {
         });
     });
 
-    describe("cancel()", function() {
-        it("should cancel running requests", function() {
+    describe("cancel()", function () {
+        it("should cancel running requests", function () {
             const tileLoader = new TileLoader(
                 dataSource,
                 tileKey,
                 dataProvider,
-                new MockTileDecoder(),
-                0
+                new MockTileDecoder()
             );
 
             const loadPromise = tileLoader.loadAndDecode();
-            // tslint:disable-next-line: no-unused-expression
             expect(loadPromise).to.not.be.undefined;
 
             tileLoader.cancel();
@@ -234,20 +239,18 @@ describe("TileLoader", function() {
             return expect(loadPromise).to.eventually.be.rejected;
         });
 
-        it("should cancel during decoding", function() {
+        it("should cancel during decoding", function () {
             const tileLoader = new TileLoader(
                 dataSource,
                 tileKey,
                 dataProvider,
-                new MockTileDecoder(),
-                0
+                new MockTileDecoder()
             );
             const loadPromise = tileLoader.loadAndDecode();
-            // tslint:disable-next-line: no-unused-expression
             expect(loadPromise).to.not.be.undefined;
 
             // mock loaded data state
-            tileLoader.payload = new ArrayBuffer(5);
+            (tileLoader as any).payload = new ArrayBuffer(5);
             tileLoader.state = TileLoaderState.Loaded;
             (tileLoader as any).startDecodeTile();
 
@@ -255,6 +258,29 @@ describe("TileLoader", function() {
             expect(tileLoader.state).to.equal(TileLoaderState.Canceled);
 
             return expect(loadPromise).to.eventually.be.rejected;
+        });
+    });
+
+    describe("tile load", function () {
+        // Note, this test can't be in TileTest.ts because the TileLoader is not part of the
+        // @here/harp-mapview package, and trying to add package which contains the TileLoader
+        // as a dependency causes a loop which isn't allowed.
+        it("tile load sets dependencies from decoded tile", async function () {
+            const dependencies: number[] = [0, 1];
+            const decodedTile: DecodedTile = {
+                techniques: [],
+                geometries: [],
+                dependencies
+            };
+            const tileLoader = sinon.createStubInstance(TileLoader);
+            tileLoader.decodedTile = decodedTile;
+            tileLoader.loadAndDecode.returns(Promise.resolve(TileLoaderState.Ready));
+            const tile = new Tile(dataSource, tileKey);
+            tile.tileLoader = tileLoader;
+            await tile.load();
+            expect(tile.dependencies).to.be.deep.eq(
+                dependencies.map(morton => TileKey.fromMortonCode(morton))
+            );
         });
     });
 });

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2020 HERE Europe B.V.
+ * Copyright (C) 2019-2021 HERE Europe B.V.
  * Licensed under Apache 2.0, see full license in LICENSE
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -20,14 +20,14 @@ export class ColorCache {
         return this.m_instance;
     }
 
-    private static m_instance: ColorCache = new ColorCache();
-    private m_map: Map<string, THREE.Color> = new Map();
+    private static readonly m_instance: ColorCache = new ColorCache();
+    private readonly m_map: Map<string, THREE.Color> = new Map();
 
     /**
      * Returns the color for the given `colorCode`. This function may reuse a previously generated
      * color, so you cannot modify the contents of the color.
      *
-     * @param colorCode ThreeJS color code or name. You must provide a valid color code or name,
+     * @param colorCode - ThreeJS color code or name. You must provide a valid color code or name,
      * as this function does not do any validation.
      */
     getColor(colorCode: string | number): THREE.Color {
